@@ -1,0 +1,9 @@
+# wails
+build/bin
+node_modules
+frontend/dist
+
+tmp/
+kanban/
+
+.vscode/

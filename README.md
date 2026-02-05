@@ -28,7 +28,7 @@ TODO
 ### Dependencies
 
 ```sh
-sudo pacman -Syu --needed base-devel gtk3 webkit2gtk npm go
+sudo pacman -Syu --needed base-devel gtk3 webkit2gtk svt-av1 libavif npm go
 go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
 # verify all wails dependencies installed

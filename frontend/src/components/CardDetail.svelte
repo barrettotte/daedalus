@@ -20,6 +20,7 @@
     }
   });
 
+  // Hashes a label string into a deterministic HSL color for consistent badge coloring.
   function labelColor(label) {
     let hash = 0;
     for (let i = 0; i < label.length; i++) {
@@ -29,6 +30,7 @@
     return `hsl(${hue}, 55%, 45%)`;
   }
 
+  // Formats a date value as a short localized date string (e.g. "Feb 5, 2026").
   function formatDate(d) {
     if (!d) {
       return "";
@@ -38,6 +40,7 @@
     });
   }
 
+  // Formats a date value as a localized date+time string.
   function formatDateTime(d) {
     if (!d) {
       return "";
@@ -48,16 +51,19 @@
     });
   }
 
+  // Closes the detail modal by clearing the selected card.
   function close() {
     selectedCard.set(null);
   }
 
+  // Closes the modal when Escape is pressed.
   function handleKeydown(e) {
     if (e.key === "Escape") {
       close();
     }
   }
 
+  // Closes the modal when clicking the backdrop area outside the modal content.
   function handleBackdropClick(e) {
     if (e.target === e.currentTarget) {
       close();
@@ -67,6 +73,7 @@
   $: if ($selectedCard) {
     loading = true;
     bodyHtml = "";
+
     GetCardContent($selectedCard.filePath).then(content => {
       // Strip leading h1 since title is already in the modal header
       const body = (content || "").replace(/^#\s+.*\n*/, "");

@@ -4,9 +4,22 @@ import (
 	"context"
 	"daedalus/pkg/daedalus"
 	"fmt"
+	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
+
+// AppMetrics holds runtime performance metrics for the frontend overlay
+type AppMetrics struct {
+	HeapAlloc  float64 `json:"heapAlloc"`
+	Sys        float64 `json:"sys"`
+	NumGC      uint32  `json:"numGC"`
+	Goroutines int     `json:"goroutines"`
+	NumCards   int     `json:"numCards"`
+	NumLists   int     `json:"numLists"`
+	FileSizeMB float64 `json:"fileSizeMB"`
+}
 
 // App struct
 type App struct {
@@ -62,4 +75,35 @@ func (a *App) GetCardContent(filePath string) (string, error) {
 	}
 
 	return daedalus.ReadCardContent(absPath)
+}
+
+// GetMetrics returns runtime performance metrics
+func (a *App) GetMetrics() AppMetrics {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	numCards := 0
+	numLists := 0
+	var totalBytes int64
+	if a.board != nil {
+		numLists = len(a.board.Lists)
+		for _, cards := range a.board.Lists {
+			numCards += len(cards)
+			for _, card := range cards {
+				if info, err := os.Stat(card.FilePath); err == nil {
+					totalBytes += info.Size()
+				}
+			}
+		}
+	}
+
+	return AppMetrics{
+		HeapAlloc:  float64(m.HeapAlloc) / 1024 / 1024,
+		Sys:        float64(m.Sys) / 1024 / 1024,
+		NumGC:      m.NumGC,
+		Goroutines: runtime.NumGoroutine(),
+		NumCards:    numCards,
+		NumLists:   numLists,
+		FileSizeMB: float64(totalBytes) / 1024 / 1024,
+	}
 }

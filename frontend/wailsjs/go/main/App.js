@@ -6,6 +6,10 @@ export function GetCardContent(arg1) {
   return window['go']['main']['App']['GetCardContent'](arg1);
 }
 
+export function GetMetrics() {
+  return window['go']['main']['App']['GetMetrics']();
+}
+
 export function LoadBoard(arg1) {
   return window['go']['main']['App']['LoadBoard'](arg1);
 }

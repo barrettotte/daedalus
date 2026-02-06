@@ -7,6 +7,7 @@
   $: hasChecklist = meta.checklist && meta.checklist.length > 0;
   $: checkedCount = hasChecklist ? meta.checklist.filter(i => i.done).length : 0;
 
+  // Hashes a label string into a deterministic HSL color for consistent badge coloring.
   function labelColor(label) {
     let hash = 0;
     for (let i = 0; i < label.length; i++) {
@@ -16,6 +17,7 @@
     return `hsl(${hue}, 55%, 45%)`;
   }
 
+  // Sets this card as the selected card to open the detail modal.
   function openDetail() {
     selectedCard.set(card);
   }

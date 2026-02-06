@@ -1,90 +1,129 @@
 <script>
+  import { selectedCard } from "../stores/board.js";
+
   export let card;
   $: meta = card.metadata;
   $: isOverdue = meta.due ? new Date(meta.due) < new Date() : false;
+  $: hasChecklist = meta.checklist && meta.checklist.length > 0;
+  $: checkedCount = hasChecklist ? meta.checklist.filter(i => i.done).length : 0;
+
+  function labelColor(label) {
+    let hash = 0;
+    for (let i = 0; i < label.length; i++) {
+      hash = label.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const hue = ((hash % 360) + 360) % 360;
+    return `hsl(${hue}, 55%, 45%)`;
+  }
+
+  function openDetail() {
+    selectedCard.set(card);
+  }
 </script>
 
-<div class="card">
-  <div class="card-header">
-    <span class="id">#{meta.id}</span>
-    {#if meta.due}
-      <span class="due-badge" class:overdue={isOverdue}>
-        {new Date(meta.due).toLocaleDateString()}
-      </span>
-    {/if}
-  </div>
-  <div class="title">{meta.title}</div>
-
-  {#if meta.tags && meta.tags.length > 0}
-    <div class="tags">
-      {#each meta.tags as tag}
-        <span class="tag">{tag}</span>
+<div class="card" on:click={openDetail} on:keydown={e => e.key === 'Enter' && openDetail()}>
+  {#if meta.labels && meta.labels.length > 0}
+    <div class="labels">
+      {#each meta.labels as label}
+        <span class="label" style="background: {labelColor(label)}">{label}</span>
       {/each}
     </div>
   {/if}
 
-  <div class="preview">
-    {card.previewText.slice(0, 80)}...
+  <div class="title">{meta.title}</div>
+
+  <div class="badges">
+    {#if meta.due}
+      <span class="badge" class:overdue={isOverdue} class:on-time={!isOverdue}>
+        <svg class="badge-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><polyline points="12 6 12 12 16 14" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        {new Date(meta.due).toLocaleDateString()}
+      </span>
+    {/if}
+    {#if hasChecklist}
+      <span class="badge checklist-badge">
+        <svg class="badge-icon" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        {checkedCount}/{meta.checklist.length}
+      </span>
+    {/if}
+    {#if card.previewText && card.previewText.trim()}
+      <span class="badge desc-badge">
+        <svg class="badge-icon" viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6" stroke="currentColor" stroke-width="2"/><line x1="4" y1="12" x2="16" y2="12" stroke="currentColor" stroke-width="2"/><line x1="4" y1="18" x2="12" y2="18" stroke="currentColor" stroke-width="2"/></svg>
+      </span>
+    {/if}
   </div>
 </div>
 
 <style>
   .card {
     background: #2b303b;
-    border-radius: 6px;
-    padding: 10px;
-    margin: 0 4px 8px 0;
-    border-left: 4px solid #4a90e2;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    height: 90%;
-    color: #dcdcdc;
-    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-    overflow: hidden;
+    border-radius: 4px;
+    padding: 8px 10px;
+    margin: 0 6px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    color: #c7d1db;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+    cursor: pointer;
+    transition: background 0.1s;
+    text-align: left;
   }
 
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.75rem;
-    color: #888;
-    margin-bottom: 4px;
+  .card:hover {
+    background: #333846;
   }
 
   .title {
-    font-weight: 600;
-    font-size: 0.95rem;
-    margin-bottom: 6px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-size: 0.85rem;
+    font-weight: 400;
+    line-height: 1.3;
+    margin: 4px 0 6px 0;
+    word-break: break-word;
   }
 
-  .tags {
+  .labels {
     display: flex;
     gap: 4px;
-    margin-bottom: 6px;
+    flex-wrap: wrap;
+    margin: 2px 0 6px 0;
   }
 
-  .tag {
-    background: #3e4451;
-    font-size: 0.7rem;
-    padding: 2px 6px;
-    border-radius: 4px;
-  }
-
-  .preview {
-    font-size: 0.8rem;
-    color: #aaa;
-    line-height: 1.2;
-  }
-
-  .due-badge {
-    background: #2ecc71;
-    color: #fff;
-    padding: 0 4px;
+  .label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 2px 8px;
     border-radius: 3px;
+    color: #fff;
   }
-  .due-badge.overdue {
-    background: #e74c3c;
+
+  .badges {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 2px;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.7rem;
+    color: #8c9bab;
+    border-radius: 3px;
+    padding: 1px 4px;
+  }
+
+  .badge.on-time {
+    background: rgba(75, 206, 151, 0.15);
+    color: #4bce97;
+  }
+  .badge.overdue {
+    background: rgba(247, 68, 68, 0.15);
+    color: #f87168;
+  }
+
+  .badge-icon {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
   }
 </style>

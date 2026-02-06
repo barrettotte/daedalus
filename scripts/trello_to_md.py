@@ -3,6 +3,7 @@
 # list --> directory
 # card --> markdown file
 
+import argparse
 from collections import defaultdict
 import json
 import os
@@ -13,9 +14,8 @@ from pathlib import Path
 
 REPO_DIR = Path(__file__).resolve().parent.parent
 
-# TODO: get these from stdin
-INPUT_FILE = REPO_DIR / 'tmp/trello_export.json'
-OUTPUT_DIR = REPO_DIR / 'tmp/kanban'
+DEFAULT_INPUT = REPO_DIR / 'tmp/trello_export.json'
+DEFAULT_OUTPUT = REPO_DIR / 'tmp/kanban'
 
 def sanitize_filename(name: str) -> str:
     """Sanitize string for filenames"""
@@ -89,12 +89,24 @@ def build_frontmatter(card, labels_map, list_pos, checklists_data) -> str:
     return "\n".join(lines)
 
 def main() -> None:
-    print(f"Reading Trello export JSON {INPUT_FILE}...")
+    parser = argparse.ArgumentParser(description="Convert Trello export JSON to directory/markdown file structure")
+
+    parser.add_argument('-i', '--input', type=Path, default=DEFAULT_INPUT,
+                        help=f"Path to Trello export JSON (default: {DEFAULT_INPUT})")
+    parser.add_argument('-o', '--output', type=Path, default=DEFAULT_OUTPUT,
+                        help=f"Output directory for kanban board (default: {DEFAULT_OUTPUT})")
+
+    args = parser.parse_args()
+
+    input_file = args.input
+    output_dir = args.output
+
+    print(f"Reading Trello export JSON {input_file}...")
     try:
-        with open(INPUT_FILE, 'r', encoding='utf-8') as f:
+        with open(input_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
     except FileNotFoundError:
-        print(f"Error: Could not find {INPUT_FILE}.")
+        print(f"Error: Could not find {input_file}.")
         exit(1)
 
     active_list_ids = set()
@@ -117,7 +129,7 @@ def main() -> None:
         list_name = lst['name']
 
         folder_name = f"{str(folder_idx).zfill(2)}___{sanitize_filename(list_name)}"
-        list_dir = os.path.join(OUTPUT_DIR, folder_name)
+        list_dir = os.path.join(output_dir, folder_name)
         os.makedirs(list_dir, exist_ok=True)
 
         print(f"  Processing List: {list_name}")
@@ -137,7 +149,7 @@ def main() -> None:
 
         folder_idx += 1
 
-    print(f"Converted Trello to Markdown at {os.path.abspath(OUTPUT_DIR)}")
+    print(f"Converted Trello to Markdown at {os.path.abspath(output_dir)}")
 
 if __name__ == "__main__":
     main()

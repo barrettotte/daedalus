@@ -164,3 +164,42 @@ func parseFileHeader(path string) (CardMetadata, string, error) {
 	}
 	return meta, bodyPreviewBuf.String(), nil
 }
+
+// ReadCardContent reads a card file and returns the full markdown body (after frontmatter)
+func ReadCardContent(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	var bodyBuf bytes.Buffer
+
+	inFrontmatter := false
+	dashCount := 0
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if strings.TrimSpace(line) == "---" {
+			dashCount++
+			if dashCount == 1 {
+				inFrontmatter = true
+				continue
+			}
+			if dashCount == 2 {
+				inFrontmatter = false
+				continue
+			}
+		}
+		if !inFrontmatter && dashCount >= 2 {
+			bodyBuf.WriteString(line + "\n")
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+	return bodyBuf.String(), nil
+}

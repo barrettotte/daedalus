@@ -1,9 +1,10 @@
 <script>
   import { onMount } from "svelte";
   import { LoadBoard } from "../wailsjs/go/main/App";
-  import { boardData, sortedListKeys, isLoaded } from "./stores/board.js";
+  import { boardData, sortedListKeys, isLoaded, selectedCard } from "./stores/board.js";
   import VirtualList from "./components/VirtualList.svelte";
   import Card from "./components/Card.svelte";
+  import CardDetail from "./components/CardDetail.svelte";
 
   let error = "";
 
@@ -38,7 +39,7 @@
   {#if error}
     <div class="error">{error}</div>
   {:else if $isLoaded}
-    <div class="board-container">
+    <div class="board-container" class:modal-open={$selectedCard}>
       {#each sortedListKeys($boardData) as listKey}
         <div class="list-column">
           <div class="list-header">
@@ -46,7 +47,7 @@
             <span class="count">{$boardData[listKey].length}</span>
           </div>
           <div class="list-body">
-            <VirtualList items={$boardData[listKey]} component={Card} itemHeight={120} />
+            <VirtualList items={$boardData[listKey]} component={Card} estimatedHeight={90} />
           </div>
         </div>
       {/each}
@@ -54,6 +55,7 @@
   {:else}
     <div class="loading">Loading cards...</div>
   {/if}
+  <CardDetail />
 </main>
 
 <style>
@@ -89,21 +91,30 @@
   }
 
   .list-column {
-    flex: 0 0 300px;
+    flex: 0 0 280px;
     display: flex;
     flex-direction: column;
     background: #22252b;
     border-radius: 8px;
-    height: 100%;
+    max-height: 100%;
     border: 1px solid #333;
   }
 
   .list-header {
-    padding: 10px;
-    font-weight: bold;
+    padding: 8px 10px;
     border-bottom: 1px solid #333;
     display: flex;
     justify-content: space-between;
+    align-items: center;
+  }
+
+  .list-header h2 {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .list-body {
@@ -116,5 +127,9 @@
     padding: 2px 8px;
     border-radius: 10px;
     font-size: 0.8rem;
+  }
+
+  .board-container.modal-open :global(.virtual-scroll-container) {
+    overflow-y: hidden;
   }
 </style>

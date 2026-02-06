@@ -4,6 +4,8 @@ import (
 	"context"
 	"daedalus/pkg/daedalus"
 	"fmt"
+	"path/filepath"
+	"strings"
 )
 
 // App struct
@@ -38,4 +40,26 @@ func (a *App) LoadBoard(path string) map[string][]daedalus.KanbanCard {
 	fmt.Printf("Scan Complete. MaxID: %d\n", state.MaxID)
 
 	return state.Lists
+}
+
+// GetCardContent returns the full markdown body of a card file
+func (a *App) GetCardContent(filePath string) (string, error) {
+	if a.board == nil {
+		return "", fmt.Errorf("board not loaded")
+	}
+
+	// Resolve to absolute and verify it's within the board root
+	absPath, err := filepath.Abs(filePath)
+	if err != nil {
+		return "", fmt.Errorf("invalid path")
+	}
+	absRoot, err := filepath.Abs(a.board.RootPath)
+	if err != nil {
+		return "", fmt.Errorf("invalid root path")
+	}
+	if !strings.HasPrefix(absPath, absRoot+string(filepath.Separator)) {
+		return "", fmt.Errorf("path outside board directory")
+	}
+
+	return daedalus.ReadCardContent(absPath)
 }

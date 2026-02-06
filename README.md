@@ -15,13 +15,41 @@ I really don't care for the obsessive customization and installing a bunch of co
 I've used dataviews, bases, and the Kanban plugin, but none of them accomplished exactly what I want.
 So this was built specifically as a complementary application to Obsidian.
 
-## Usage
+## Stack
 
-TODO
+- **Backend**: Go with [Wails](https://wails.io/)
+- **Frontend**: Svelte
+- **Data**: YAML frontmatter markdown files (directories = lists, `.md` files = cards)
 
-## Trello Migration
+## Card Format
 
-TODO
+Cards are markdown files with YAML frontmatter:
+
+```yaml
+---
+title: "Card Title"
+id: 123
+created: 2026-02-05T06:48:07.044341+00:00
+list_order: 48
+labels: ["label_1", "label_2"]
+due: "2026-03-01"
+checklist:
+  - { desc: "subtask", done: false }
+counter:
+  current: 3
+  max: 10
+  label: "Progress"
+range:
+  start: 2026-01-01
+  end: 2026-06-01
+---
+# Card Title
+
+Card body...
+```
+
+Lists are directories named `##___list_name` (ex: `00___open`, `10___in_progress`).
+The prefix controls sort order.
 
 ## Development
 
@@ -35,15 +63,13 @@ go install github.com/wailsapp/wails/v2/cmd/wails@latest
 wails doctor
 ```
 
-### Useful Commands
+## Trello Migration
 
 ```sh
-# live
-wails dev
+# Export Trello board as JSON, then
+python scripts/trello_to_md.py --input tmp/trello_export.json --output tmp/kanban
 
-# build
-wails build
+# exports:
+#  - lists as directories
+#  - cards as markdown files with frontmatter yml metadata
 ```
-
-## References
-

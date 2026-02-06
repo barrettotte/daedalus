@@ -16,9 +16,9 @@ func setupTestBoard(t *testing.T) (*App, string) {
 	os.WriteFile(filepath.Join(list, "1.md"), []byte("---\ntitle: \"Test\"\nid: 1\n---\n# Hello\n\nBody content.\n"), 0644)
 
 	app := NewApp()
-	result := app.LoadBoard(root)
+	resp := app.LoadBoard(root)
 
-	if result == nil {
+	if resp == nil {
 		t.Fatal("LoadBoard returned nil")
 	}
 	return app, root
@@ -98,8 +98,8 @@ func TestLoadBoard_DefaultPath(t *testing.T) {
 // LoadBoard should return nil when given a nonexistent directory.
 func TestLoadBoard_InvalidPath(t *testing.T) {
 	app := NewApp()
-	result := app.LoadBoard("/nonexistent/path/that/does/not/exist")
-	if result != nil {
+	resp := app.LoadBoard("/nonexistent/path/that/does/not/exist")
+	if resp != nil {
 		t.Error("expected nil for invalid path")
 	}
 }
@@ -113,8 +113,8 @@ func TestLoadBoard_SetsBoard(t *testing.T) {
 	os.WriteFile(filepath.Join(list, "1.md"), []byte("---\ntitle: \"T\"\nid: 1\n---\n"), 0644)
 
 	app := NewApp()
-	result := app.LoadBoard(root)
-	if result == nil {
+	resp := app.LoadBoard(root)
+	if resp == nil {
 		t.Fatal("LoadBoard returned nil")
 	}
 	if app.board == nil {
@@ -125,7 +125,7 @@ func TestLoadBoard_SetsBoard(t *testing.T) {
 	}
 }
 
-// The map returned by LoadBoard should contain the correct list keys and card metadata.
+// The response from LoadBoard should contain the correct list keys and card metadata.
 func TestLoadBoard_ReturnedData(t *testing.T) {
 	root := t.TempDir()
 	list := filepath.Join(root, "00___open")
@@ -133,12 +133,12 @@ func TestLoadBoard_ReturnedData(t *testing.T) {
 	os.WriteFile(filepath.Join(list, "5.md"), []byte("---\ntitle: \"Card Five\"\nid: 5\nlist_order: 1\n---\nBody\n"), 0644)
 
 	app := NewApp()
-	result := app.LoadBoard(root)
-	if result == nil {
+	resp := app.LoadBoard(root)
+	if resp == nil {
 		t.Fatal("LoadBoard returned nil")
 	}
 
-	cards, ok := result["00___open"]
+	cards, ok := resp.Lists["00___open"]
 	if !ok {
 		t.Fatal("expected 00___open key in result")
 	}
@@ -174,5 +174,88 @@ func TestGetCardContent_RelativePath(t *testing.T) {
 	_, err := app.GetCardContent("./1.md")
 	if err == nil {
 		t.Fatal("expected error for relative path outside board")
+	}
+}
+
+// SaveListConfig should update the in-memory config and persist to board.yaml.
+func TestSaveListConfig_Success(t *testing.T) {
+	app, root := setupTestBoard(t)
+
+	err := app.SaveListConfig("00___test", "My Test List", 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	lc, ok := app.board.Config.Lists["00___test"]
+	if !ok {
+		t.Fatal("expected config entry for 00___test")
+	}
+	if lc.Title != "My Test List" || lc.Limit != 10 {
+		t.Errorf("got title=%q limit=%d, want title=\"My Test List\" limit=10", lc.Title, lc.Limit)
+	}
+
+	// Verify file was written
+	config, err := daedalus.LoadBoardConfig(root)
+	if err != nil {
+		t.Fatalf("error loading saved config: %v", err)
+	}
+	saved := config.Lists["00___test"]
+	if saved.Title != "My Test List" || saved.Limit != 10 {
+		t.Errorf("saved config: got %+v", saved)
+	}
+}
+
+// SaveListConfig should return an error when no board has been loaded.
+func TestSaveListConfig_BoardNotLoaded(t *testing.T) {
+	app := NewApp()
+	err := app.SaveListConfig("00___test", "Title", 5)
+	if err == nil {
+		t.Fatal("expected error when board not loaded")
+	}
+	if err.Error() != "board not loaded" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// LoadBoard response should include a non-nil config even without a board.yaml file.
+func TestLoadBoard_IncludesConfig(t *testing.T) {
+	root := t.TempDir()
+	list := filepath.Join(root, "00___test")
+	os.Mkdir(list, 0755)
+	os.WriteFile(filepath.Join(list, "1.md"), []byte("---\ntitle: \"T\"\nid: 1\n---\n"), 0644)
+
+	app := NewApp()
+	resp := app.LoadBoard(root)
+	if resp == nil {
+		t.Fatal("LoadBoard returned nil")
+	}
+	if resp.Config == nil {
+		t.Fatal("expected non-nil Config in response")
+	}
+	if resp.Config.Lists == nil {
+		t.Fatal("expected non-nil Lists map in Config")
+	}
+}
+
+// LoadBoard should include config values from an existing board.yaml.
+func TestLoadBoard_WithConfigFile(t *testing.T) {
+	root := t.TempDir()
+	list := filepath.Join(root, "00___test")
+	os.Mkdir(list, 0755)
+	os.WriteFile(filepath.Join(list, "1.md"), []byte("---\ntitle: \"T\"\nid: 1\n---\n"), 0644)
+	os.WriteFile(filepath.Join(root, "board.yaml"), []byte("lists:\n  00___test:\n    title: \"Custom\"\n    limit: 3\n"), 0644)
+
+	app := NewApp()
+	resp := app.LoadBoard(root)
+	if resp == nil {
+		t.Fatal("LoadBoard returned nil")
+	}
+
+	lc, ok := resp.Config.Lists["00___test"]
+	if !ok {
+		t.Fatal("expected config entry for 00___test")
+	}
+	if lc.Title != "Custom" || lc.Limit != 3 {
+		t.Errorf("got title=%q limit=%d, want title=\"Custom\" limit=3", lc.Title, lc.Limit)
 	}
 }

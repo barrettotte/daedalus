@@ -13,3 +13,7 @@ export function GetMetrics() {
 export function LoadBoard(arg1) {
   return window['go']['main']['App']['LoadBoard'](arg1);
 }
+
+export function SaveListConfig(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SaveListConfig'](arg1, arg2, arg3);
+}

@@ -10,6 +10,12 @@ import (
 	"strings"
 )
 
+// BoardResponse is the structure returned to the frontend from LoadBoard.
+type BoardResponse struct {
+	Lists  map[string][]daedalus.KanbanCard `json:"lists"`
+	Config *daedalus.BoardConfig            `json:"config"`
+}
+
 // AppMetrics holds runtime performance metrics for the frontend overlay
 type AppMetrics struct {
 	HeapAlloc  float64 `json:"heapAlloc"`
@@ -38,7 +44,7 @@ func (a *App) startup(ctx context.Context) {
 }
 
 // LoadBoard is what is exposed to the frontend
-func (a *App) LoadBoard(path string) map[string][]daedalus.KanbanCard {
+func (a *App) LoadBoard(path string) *BoardResponse {
 	if path == "" {
 		path = "./tmp/kanban"
 	}
@@ -52,7 +58,24 @@ func (a *App) LoadBoard(path string) map[string][]daedalus.KanbanCard {
 	a.board = state
 	fmt.Printf("Scan Complete. MaxID: %d\n", state.MaxID)
 
-	return state.Lists
+	return &BoardResponse{
+		Lists:  state.Lists,
+		Config: state.Config,
+	}
+}
+
+// SaveListConfig updates the config for a single list and persists to board.yaml.
+func (a *App) SaveListConfig(dirName string, title string, limit int) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+
+	a.board.Config.UpdateListConfig(dirName, daedalus.ListConfig{
+		Title: title,
+		Limit: limit,
+	})
+
+	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
 }
 
 // GetCardContent returns the full markdown body of a card file

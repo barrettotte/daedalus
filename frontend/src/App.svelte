@@ -1,19 +1,24 @@
 <script>
   import { onMount } from "svelte";
-  import { LoadBoard } from "../wailsjs/go/main/App";
-  import { boardData, sortedListKeys, isLoaded, selectedCard, showMetrics } from "./stores/board.js";
+  import { LoadBoard, SaveListConfig } from "../wailsjs/go/main/App";
+  import { boardData, boardConfig, sortedListKeys, isLoaded, selectedCard, showMetrics } from "./stores/board.js";
   import VirtualList from "./components/VirtualList.svelte";
   import Card from "./components/Card.svelte";
   import CardDetail from "./components/CardDetail.svelte";
   import Metrics from "./components/Metrics.svelte";
 
   let error = "";
+  let editingTitle = null;
+  let editingLimit = null;
+  let editTitleValue = "";
+  let editLimitValue = 0;
 
-  // Loads the board from the backend and updates stores.
+  // Loads the board from the backend and unpacks lists + config into separate stores.
   async function initBoard() {
     try {
-      const data = await LoadBoard("");
-      boardData.set(data);
+      const response = await LoadBoard("");
+      boardData.set(response.lists);
+      boardConfig.set(response.config?.lists || {});
       isLoaded.set(true);
     } catch (e) {
       error = e.toString();
@@ -27,6 +32,117 @@
     return name
       .replace(/_/g, ' ')
       .replace(/\b\w/g, l => l.toUpperCase());
+  }
+
+  // Returns the config title override if set, otherwise the formatted directory name.
+  function getDisplayTitle(listKey, config) {
+    const cfg = config[listKey];
+    if (cfg && cfg.title) {
+      return cfg.title;
+    }
+    return formatListName(listKey);
+  }
+
+  // Returns "count/limit" when a limit is set, otherwise just the count.
+  function getCountDisplay(listKey, lists, config) {
+    const count = lists[listKey]?.length || 0;
+    const cfg = config[listKey];
+    if (cfg && cfg.limit > 0) {
+      return `${count}/${cfg.limit}`;
+    }
+    return `${count}`;
+  }
+
+  // Returns true when the card count exceeds the configured limit.
+  function isOverLimit(listKey, lists, config) {
+    const cfg = config[listKey];
+    if (!cfg || cfg.limit <= 0) {
+      return false;
+    }
+    return (lists[listKey]?.length || 0) > cfg.limit;
+  }
+
+  // Starts inline editing of a list title.
+  function startEditTitle(listKey) {
+    editingTitle = listKey;
+    editTitleValue = getDisplayTitle(listKey, $boardConfig);
+  }
+
+  // Saves the edited title via backend and updates the config store.
+  async function saveTitle(listKey) {
+    editingTitle = null;
+    const cfg = $boardConfig[listKey] || { title: "", limit: 0 };
+    const newTitle = editTitleValue.trim();
+    const formatted = formatListName(listKey);
+
+    // If the user typed the same as the formatted default, treat as empty (no override)
+    const titleToSave = newTitle === formatted ? "" : newTitle;
+
+    try {
+      await SaveListConfig(listKey, titleToSave, cfg.limit || 0);
+      boardConfig.update(c => {
+        if (titleToSave === "" && (cfg.limit || 0) === 0) {
+          delete c[listKey];
+        } else {
+          c[listKey] = { ...cfg, title: titleToSave };
+        }
+        return c;
+      });
+    } catch (e) {
+      console.error("Failed to save title:", e);
+    }
+  }
+
+  // Starts inline editing of a list's card limit.
+  function startEditLimit(listKey) {
+    editingLimit = listKey;
+    const cfg = $boardConfig[listKey];
+    editLimitValue = cfg?.limit || 0;
+  }
+
+  // Saves the edited limit via backend and updates the config store.
+  async function saveLimit(listKey) {
+    editingLimit = null;
+    const cfg = $boardConfig[listKey] || { title: "", limit: 0 };
+    const newLimit = Math.max(0, Math.floor(editLimitValue));
+
+    try {
+      await SaveListConfig(listKey, cfg.title || "", newLimit);
+      boardConfig.update(c => {
+        if ((cfg.title || "") === "" && newLimit === 0) {
+          delete c[listKey];
+        } else {
+          c[listKey] = { ...cfg, limit: newLimit };
+        }
+        return c;
+      });
+    } catch (e) {
+      console.error("Failed to save limit:", e);
+    }
+  }
+
+  // Handles keydown events on the title input — saves on Enter, cancels on Escape.
+  function handleTitleKeydown(e, listKey) {
+    if (e.key === "Enter") {
+      saveTitle(listKey);
+    } else if (e.key === "Escape") {
+      editingTitle = null;
+    }
+  }
+
+  // Handles keydown events on the limit input — saves on Enter, cancels on Escape.
+  function handleLimitKeydown(e, listKey) {
+    if (e.key === "Enter") {
+      saveLimit(listKey);
+    } else if (e.key === "Escape") {
+      editingLimit = null;
+    }
+  }
+
+  // Svelte action that focuses and selects the content of an input on mount.
+  function autoFocus(node) {
+    node.focus();
+    node.select();
   }
 
   onMount(initBoard);
@@ -60,8 +176,35 @@
       {#each sortedListKeys($boardData) as listKey}
         <div class="list-column">
           <div class="list-header">
-            <h2>{formatListName(listKey)}</h2>
-            <span class="count">{$boardData[listKey].length}</span>
+            {#if editingTitle === listKey}
+              <input
+                class="edit-title-input"
+                type="text"
+                bind:value={editTitleValue}
+                on:blur={() => saveTitle(listKey)}
+                on:keydown={(e) => handleTitleKeydown(e, listKey)}
+                use:autoFocus
+              />
+            {:else}
+              <button class="list-title-btn" on:click={() => startEditTitle(listKey)}>{getDisplayTitle(listKey, $boardConfig)}</button>
+            {/if}
+            {#if editingLimit === listKey}
+              <input
+                class="edit-limit-input"
+                type="number"
+                min="0"
+                bind:value={editLimitValue}
+                on:blur={() => saveLimit(listKey)}
+                on:keydown={(e) => handleLimitKeydown(e, listKey)}
+                use:autoFocus
+              />
+            {:else}
+              <button
+                class="count-btn"
+                class:over-limit={isOverLimit(listKey, $boardData, $boardConfig)}
+                on:click={() => startEditLimit(listKey)}
+              >{getCountDisplay(listKey, $boardData, $boardConfig)}</button>
+            {/if}
           </div>
           <div class="list-body">
             <VirtualList items={$boardData[listKey]} component={Card} estimatedHeight={90} />
@@ -162,13 +305,15 @@
     align-items: center;
   }
 
-  .list-header h2 {
-    margin: 0;
+  .list-title-btn {
+    all: unset;
     font-size: 0.85rem;
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    cursor: pointer;
+    color: inherit;
   }
 
   .list-body {
@@ -176,11 +321,54 @@
     overflow: hidden;
   }
 
-  .count {
+  .count-btn {
+    all: unset;
     background: #333;
     padding: 2px 8px;
     border-radius: 10px;
     font-size: 0.8rem;
+    cursor: pointer;
+    flex-shrink: 0;
+    color: inherit;
+  }
+
+  .count-btn.over-limit {
+    background: rgba(220, 50, 50, 0.3);
+    color: #ff6b6b;
+  }
+
+  .edit-title-input {
+    background: #181a1f;
+    border: 1px solid #579dff;
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    outline: none;
+    width: 100%;
+    min-width: 0;
+    margin-right: 8px;
+  }
+
+  .edit-limit-input {
+    background: #181a1f;
+    border: 1px solid #579dff;
+    color: white;
+    font-size: 0.8rem;
+    padding: 2px 6px;
+    border-radius: 10px;
+    outline: none;
+    width: 60px;
+    text-align: center;
+    -moz-appearance: textfield;
+    flex-shrink: 0;
+  }
+
+  .edit-limit-input::-webkit-inner-spin-button,
+  .edit-limit-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
   }
 
   .board-container.modal-open :global(.virtual-scroll-container) {

@@ -1,5 +1,5 @@
 <script>
-  import { selectedCard } from "../stores/board.js";
+  import { selectedCard, labelsExpanded } from "../stores/board.js";
 
   export let card;
   $: meta = card.metadata;
@@ -21,13 +21,18 @@
   function openDetail() {
     selectedCard.set(card);
   }
+
+  // Toggles all labels board-wide between expanded text and collapsed color pills.
+  function toggleLabels() {
+    labelsExpanded.update(v => !v);
+  }
 </script>
 
 <div class="card" on:click={openDetail} on:keydown={e => e.key === 'Enter' && openDetail()}>
   {#if meta.labels && meta.labels.length > 0}
     <div class="labels">
       {#each meta.labels as label}
-        <span class="label" style="background: {labelColor(label)}">{label}</span>
+        <span class="label" class:collapsed={!$labelsExpanded} style="background: {labelColor(label)}" title={$labelsExpanded ? '' : label} on:click|stopPropagation={toggleLabels} on:keydown|stopPropagation={e => e.key === 'Enter' && toggleLabels()}>{#if $labelsExpanded}{label}{/if}</span>
       {/each}
     </div>
   {/if}
@@ -94,6 +99,14 @@
     padding: 2px 8px;
     border-radius: 3px;
     color: #fff;
+    transition: all 0.1s;
+  }
+
+  .label.collapsed {
+    padding: 0;
+    min-width: 28px;
+    height: 8px;
+    font-size: 0;
   }
 
   .badges {

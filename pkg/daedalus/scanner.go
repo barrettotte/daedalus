@@ -27,6 +27,12 @@ func ScanBoard(rootPath string) (*BoardState, error) {
 		return nil, err
 	}
 
+	config, err := LoadBoardConfig(rootPath)
+	if err != nil {
+		return nil, fmt.Errorf("loading board config: %w", err)
+	}
+	state.Config = config
+
 	var wg sync.WaitGroup
 	var mutex sync.Mutex // protect state writes
 

@@ -7,6 +7,7 @@ type BoardState struct {
 	Lists    map[string][]KanbanCard
 	MaxID    int
 	RootPath string
+	Config   *BoardConfig
 }
 
 // KanbanCard is the object sent to the frontend

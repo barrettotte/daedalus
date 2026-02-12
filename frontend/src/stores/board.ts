@@ -1,18 +1,45 @@
 import { writable } from 'svelte/store';
+import type { Writable } from 'svelte/store';
+import type { daedalus } from '../../wailsjs/go/models';
 
-export const boardData = writable({});
-export const boardConfig = writable({});
-export const isLoaded = writable(false);
-export const selectedCard = writable(null);
-export const draftListKey = writable(null);
-export const draftPosition = writable("top");
-export const showMetrics = writable(false);
-export const labelsExpanded = writable(true);
-export const dragState = writable(null);
-export const dropTarget = writable(null);
+// Map of list directory names to their sorted card arrays.
+export type BoardLists = Record<string, daedalus.KanbanCard[]>;
+
+// Map of list directory names to their config (title, limit).
+export type BoardConfigMap = Record<string, daedalus.ListConfig>;
+
+// Active drag operation state.
+export interface DragInfo {
+  card: daedalus.KanbanCard;
+  sourceListKey: string;
+}
+
+// Target location for an in-progress drop.
+export interface DropInfo {
+  listKey: string;
+  cardId: number | null;
+  position: "above" | "below";
+}
+
+// Toast notification entry.
+export interface Toast {
+  id: number;
+  message: string;
+}
+
+export const boardData: Writable<BoardLists> = writable({});
+export const boardConfig: Writable<BoardConfigMap> = writable({});
+export const isLoaded: Writable<boolean> = writable(false);
+export const selectedCard: Writable<daedalus.KanbanCard | null> = writable(null);
+export const draftListKey: Writable<string | null> = writable(null);
+export const draftPosition: Writable<string> = writable("top");
+export const showMetrics: Writable<boolean> = writable(false);
+export const labelsExpanded: Writable<boolean> = writable(true);
+export const dragState: Writable<DragInfo | null> = writable(null);
+export const dropTarget: Writable<DropInfo | null> = writable(null);
 
 // Updates a single card in the boardData store by matching filePath.
-export function updateCardInBoard(updatedCard) {
+export function updateCardInBoard(updatedCard: daedalus.KanbanCard): void {
     boardData.update(lists => {
         for (const listKey of Object.keys(lists)) {
             const idx = lists[listKey].findIndex(c => c.filePath === updatedCard.filePath);
@@ -26,7 +53,7 @@ export function updateCardInBoard(updatedCard) {
 }
 
 // Removes a card from the boardData store by matching filePath across all lists.
-export function removeCardFromBoard(filePath) {
+export function removeCardFromBoard(filePath: string): void {
     boardData.update(lists => {
         for (const listKey of Object.keys(lists)) {
             const idx = lists[listKey].findIndex(c => c.filePath === filePath);
@@ -39,8 +66,8 @@ export function removeCardFromBoard(filePath) {
     });
 }
 
-// Adds a new card to the given list — prepends for "top", appends for "bottom".
-export function addCardToBoard(listKey, card, position = "top") {
+// Adds a new card to the given list. Prepends for "top", appends for "bottom".
+export function addCardToBoard(listKey: string, card: daedalus.KanbanCard, position: string = "top"): void {
     boardData.update(lists => {
         if (lists[listKey]) {
             if (position === "bottom") {
@@ -54,15 +81,15 @@ export function addCardToBoard(listKey, card, position = "top") {
 }
 
 // Moves a card from one list position to another, updating list_order in the store.
-export function moveCardInBoard(filePath, sourceListKey, targetListKey, targetIndex, newListOrder) {
+export function moveCardInBoard(filePath: string, sourceListKey: string, targetListKey: string, targetIndex: number, newListOrder: number): void {
     boardData.update(lists => {
         const srcIdx = lists[sourceListKey].findIndex(c => c.filePath === filePath);
         if (srcIdx === -1) {
             return lists;
         }
 
-        const card = { ...lists[sourceListKey][srcIdx] };
-        card.metadata = { ...card.metadata, list_order: newListOrder };
+        const card = { ...lists[sourceListKey][srcIdx] } as daedalus.KanbanCard;
+        card.metadata = { ...card.metadata, list_order: newListOrder } as daedalus.CardMetadata;
 
         // Remove from source
         lists[sourceListKey] = [...lists[sourceListKey]];
@@ -77,7 +104,7 @@ export function moveCardInBoard(filePath, sourceListKey, targetListKey, targetIn
 }
 
 // Computes a list_order float64 for inserting a card at targetIndex in the given cards array.
-export function computeListOrder(cards, targetIndex) {
+export function computeListOrder(cards: daedalus.KanbanCard[], targetIndex: number): number {
     if (cards.length === 0) {
         return 0;
     }
@@ -93,16 +120,16 @@ export function computeListOrder(cards, targetIndex) {
     return (before + after) / 2;
 }
 
-// sort lists based on folder naming convention (01_, 02_, ...)
-export const sortedListKeys = (lists) => {
+// Sort lists based on folder naming convention (01_, 02_, ...)
+export const sortedListKeys = (lists: BoardLists): string[] => {
     return Object.keys(lists).sort();
 };
 
-export const toasts = writable([]);
+export const toasts: Writable<Toast[]> = writable([]);
 let toastId = 0;
 
 // Adds a toast notification that auto-dismisses after a timeout.
-export function addToast(message, duration = 4000) {
+export function addToast(message: string, duration: number = 4000): void {
     const id = ++toastId;
     toasts.update(t => [...t, { id, message }]);
     setTimeout(() => {

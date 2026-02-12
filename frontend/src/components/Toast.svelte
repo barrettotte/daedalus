@@ -1,5 +1,5 @@
-<script>
-  import { toasts } from "../stores/board.js";
+<script lang="ts">
+  import { toasts } from "../stores/board";
 </script>
 
 {#if $toasts.length > 0}
@@ -10,7 +10,7 @@
   </div>
 {/if}
 
-<style>
+<style lang="scss">
   .toast-container {
     position: fixed;
     bottom: 16px;

@@ -1,31 +1,35 @@
-<script>
-  import { afterUpdate } from "svelte";
-  import { selectedCard, draftListKey, draftPosition, updateCardInBoard, addCardToBoard, removeCardFromBoard, boardConfig, boardData, addToast } from "../stores/board.js";
+<script lang="ts">
+  import { selectedCard, draftListKey, draftPosition, updateCardInBoard, addCardToBoard, removeCardFromBoard, boardConfig, boardData, addToast } from "../stores/board";
   import { GetCardContent, SaveCard, OpenFileExternal, CreateCard, DeleteCard } from "../../wailsjs/go/main/App";
   import { marked } from "marked";
-  import { labelColor, formatDate, formatDateTime, formatListName, autoFocus } from "../lib/utils.js";
+  import { labelColor, formatDate, formatDateTime, formatListName, autoFocus } from "../lib/utils";
+  import type { daedalus } from "../../wailsjs/go/models";
 
-  let bodyHtml = "";
-  let rawBody = "";
-  let loading = false;
-  let backdropEl;
-  let prevCardId = null;
+  let bodyHtml = $state("");
+  let rawBody = $state("");
+  let loading = $state(false);
+  let backdropEl: HTMLDivElement | undefined = $state(undefined);
+  let prevCardId: number | null = $state(null);
 
-  // Edit state — title and body are independently inline-editable
-  let editingTitle = false;
-  let editingBody = false;
-  let editTitle = "";
-  let editBody = "";
+  // Edit state
+  let editingTitle = $state(false);
+  let editingBody = $state(false);
+  let editTitle = $state("");
+  let editBody = $state("");
 
   // Delete confirmation state
-  let confirmingDelete = false;
+  let confirmingDelete = $state(false);
 
-  // Draft mode state — for creating new cards before they exist on disk
-  let draftTitle = "";
-  let draftBody = "";
-  let saving = false;
+  // Guards against stale async responses when rapidly switching cards.
+  let loadGeneration = 0;
 
-  afterUpdate(() => {
+  // Draft mode state for creating new cards before they exist on disk
+  let draftTitle = $state("");
+  let draftBody = $state("");
+  let saving = $state(false);
+
+  // Scroll reset when selected card changes
+  $effect(() => {
     const curId = $selectedCard ? $selectedCard.metadata.id : null;
     if (curId && curId !== prevCardId && backdropEl) {
       backdropEl.scrollTop = 0;
@@ -36,8 +40,8 @@
     }
   });
 
-  // Closes whichever modal is active — draft or existing card detail.
-  function close() {
+  // Closes whichever modal is active
+  function close(): void {
     if ($draftListKey) {
       draftTitle = "";
       draftBody = "";
@@ -51,7 +55,7 @@
   }
 
   // Validates and saves the draft card to disk, then adds it to the board store.
-  async function saveDraft() {
+  async function saveDraft(): Promise<void> {
     if (!draftTitle.trim()) {
       return;
     }
@@ -59,8 +63,8 @@
 
     try {
       const pos = $draftPosition;
-      const card = await CreateCard($draftListKey, draftTitle.trim(), draftBody, pos);
-      addCardToBoard($draftListKey, card, pos);
+      const card = await CreateCard($draftListKey!, draftTitle.trim(), draftBody, pos);
+      addCardToBoard($draftListKey!, card, pos);
 
       draftTitle = "";
       draftBody = "";
@@ -72,33 +76,33 @@
   }
 
   // Opens both title and body for inline editing.
-  function startEditAll() {
-    editTitle = meta.title;
+  function startEditAll(): void {
+    editTitle = meta!.title;
     editBody = rawBody;
     editingTitle = true;
     editingBody = true;
   }
 
   // Opens the title for inline editing.
-  function startEditTitle() {
-    editTitle = meta.title;
+  function startEditTitle(): void {
+    editTitle = meta!.title;
     editingTitle = true;
   }
 
   // Saves the title on blur, or discards if unchanged. Defaults blank titles to the card number.
-  async function blurTitle() {
+  async function blurTitle(): Promise<void> {
     editingTitle = false;
     if (!editTitle || !editTitle.trim()) {
-      editTitle = String(meta.id);
+      editTitle = String(meta!.id);
     }
-    if (editTitle === meta.title) {
+    if (editTitle === meta!.title) {
       return;
     }
 
     const fullBody = `# ${editTitle}\n\n${rawBody}`;
-    const updatedMeta = { ...meta, title: editTitle };
+    const updatedMeta = { ...meta!, title: editTitle } as daedalus.CardMetadata;
     try {
-      const result = await SaveCard($selectedCard.filePath, updatedMeta, fullBody);
+      const result = await SaveCard($selectedCard!.filePath, updatedMeta, fullBody);
       updateCardInBoard(result);
       selectedCard.set(result);
     } catch (e) {
@@ -107,44 +111,44 @@
   }
 
   // Opens the description for inline editing.
-  function startEditBody() {
+  function startEditBody(): void {
     editBody = rawBody;
     editingBody = true;
   }
 
   // Saves the body on blur, or discards if unchanged.
-  async function blurBody() {
+  async function blurBody(): Promise<void> {
     editingBody = false;
     if (editBody === rawBody) {
       return;
     }
-    const fullBody = `# ${meta.title}\n\n${editBody}`;
-  
+    const fullBody = `# ${meta!.title}\n\n${editBody}`;
+
     try {
-      const result = await SaveCard($selectedCard.filePath, { ...meta }, fullBody);
+      const result = await SaveCard($selectedCard!.filePath, { ...meta! } as daedalus.CardMetadata, fullBody);
       updateCardInBoard(result);
       selectedCard.set(result);
       rawBody = editBody;
-      bodyHtml = /** @type {string} */ (marked.parse(editBody));
+      bodyHtml = marked.parse(editBody, { async: false });
     } catch (e) {
       addToast(`Failed to save body: ${e}`);
     }
   }
 
   // Toggles a checklist item's done state and saves immediately.
-  async function toggleCheckItem(idx) {
-    const updatedChecklist = meta.checklist.map((item, i) => {
+  async function toggleCheckItem(idx: number): Promise<void> {
+    const updatedChecklist = meta!.checklist!.map((item, i) => {
       if (i === idx) {
         return { ...item, done: !item.done };
       }
       return { ...item };
     });
 
-    const updatedMeta = { ...meta, checklist: updatedChecklist };
-    const fullBody = `# ${meta.title}\n\n${rawBody}`;
+    const updatedMeta = { ...meta!, checklist: updatedChecklist } as daedalus.CardMetadata;
+    const fullBody = `# ${meta!.title}\n\n${rawBody}`;
 
     try {
-      const result = await SaveCard($selectedCard.filePath, updatedMeta, fullBody);
+      const result = await SaveCard($selectedCard!.filePath, updatedMeta, fullBody);
       updateCardInBoard(result);
       selectedCard.set(result);
     } catch (e) {
@@ -153,7 +157,7 @@
   }
 
   // Handles keyboard shortcuts: Ctrl/Cmd+Enter saves draft, Escape closes/cancels.
-  function handleKeydown(e) {
+  function handleKeydown(e: KeyboardEvent): void {
     if ($draftListKey) {
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault();
@@ -177,48 +181,59 @@
   }
 
   // Closes the modal when clicking the backdrop area outside the modal content.
-  function handleBackdropClick(e) {
+  function handleBackdropClick(e: MouseEvent): void {
     if (e.target === e.currentTarget) {
       close();
     }
   }
 
-  // Resets draft fields whenever a new draft is started.
-  $: if ($draftListKey) {
-    draftTitle = "";
-    draftBody = "";
-    saving = false;
-  }
+  // Resets draft fields only on transition from null → non-null (new draft started).
+  let prevDraftListKey: string | null = null;
+  $effect(() => {
+    const current = $draftListKey;
+    if (current && current !== prevDraftListKey) {
+      draftTitle = "";
+      draftBody = "";
+      saving = false;
+    }
+    prevDraftListKey = current;
+  });
 
-  $: if ($selectedCard) {
-    loading = true;
-    bodyHtml = "";
-    rawBody = "";
-    editingTitle = false;
-    editingBody = false;
-    confirmingDelete = false;
-
-    GetCardContent($selectedCard.filePath).then(content => {
-      // Strip leading h1 since title is already in the modal header
-      const body = (content || "").replace(/^#\s+.*\n*/, "");
-      rawBody = body;
-      bodyHtml = /** @type {string} */ (marked.parse(body));
-      loading = false;
-    }).catch(() => {
-      bodyHtml = "<p><em>Could not load card content.</em></p>";
+  // Loads card content when a card is selected.
+  $effect(() => {
+    if ($selectedCard) {
+      const gen = ++loadGeneration;
+      loading = true;
+      bodyHtml = "";
       rawBody = "";
-      loading = false;
-    });
-  }
+      editingTitle = false;
+      editingBody = false;
+      confirmingDelete = false;
+
+      GetCardContent($selectedCard.filePath).then(content => {
+        if (gen !== loadGeneration) { return; }
+        // Strip leading h1 since title is already in the modal header
+        const body = (content || "").replace(/^#\s+.*\n*/, "");
+        rawBody = body;
+        bodyHtml = marked.parse(body, { async: false });
+        loading = false;
+      }).catch(() => {
+        if (gen !== loadGeneration) { return; }
+        bodyHtml = "<p><em>Could not load card content.</em></p>";
+        rawBody = "";
+        loading = false;
+      });
+    }
+  });
 
   // Opens the card's markdown file in the system default editor.
-  function openExternal() {
-    OpenFileExternal($selectedCard.filePath).catch(e => addToast(`Failed to open file: ${e}`));
+  function openExternal(): void {
+    OpenFileExternal($selectedCard!.filePath).catch(e => addToast(`Failed to open file: ${e}`));
   }
 
   // Deletes the card from disk and removes it from the board store.
-  async function deleteCard() {
-    const filePath = $selectedCard.filePath;
+  async function deleteCard(): Promise<void> {
+    const filePath = $selectedCard!.filePath;
     try {
       await DeleteCard(filePath);
       removeCardFromBoard(filePath);
@@ -228,25 +243,25 @@
     }
   }
 
-  $: meta = $selectedCard ? $selectedCard.metadata : null;
-  $: isOverdue = meta && meta.due ? new Date(meta.due) < new Date() : false;
+  let meta = $derived($selectedCard ? $selectedCard.metadata : null);
+  let isOverdue = $derived(meta && meta.due ? new Date(meta.due) < new Date() : false);
 
-  $: checkedCount = meta && meta.checklist
-    ? meta.checklist.filter(i => i.done).length : 0;
+  let checkedCount = $derived(meta && meta.checklist
+    ? meta.checklist.filter(i => i.done).length : 0);
 
-  $: counterPct = meta && meta.counter && meta.counter.max > 0
-    ? (meta.counter.current / meta.counter.max) * 100 : 0;
+  let counterPct = $derived(meta && meta.counter && meta.counter.max > 0
+    ? (meta.counter.current / meta.counter.max) * 100 : 0);
 
-  $: checkPct = meta && meta.checklist && meta.checklist.length > 0
-    ? (checkedCount / meta.checklist.length) * 100 : 0;
+  let checkPct = $derived(meta && meta.checklist && meta.checklist.length > 0
+    ? (checkedCount / meta.checklist.length) * 100 : 0);
 
   // Returns true if the string is a URL.
-  function isUrl(str) {
+  function isUrl(str: string): boolean {
     return /^https?:\/\/\S+$/.test(str);
   }
 
   // Derives the list display name from the config title or formatted directory name.
-  $: listDisplayName = (() => {
+  let listDisplayName = $derived.by(() => {
     if (!$selectedCard) {
       return "";
     }
@@ -259,10 +274,10 @@
       return cfg.title;
     }
     return formatListName(dirName);
-  })();
+  });
 
   // Derives the card's 1-based position and list size from boardData.
-  $: cardPosition = (() => {
+  let cardPosition = $derived.by(() => {
     if (!$selectedCard) {
       return "";
     }
@@ -274,30 +289,30 @@
       return "";
     }
 
-    const idx = cards.findIndex(c => c.filePath === $selectedCard.filePath);
+    const idx = cards.findIndex(c => c.filePath === $selectedCard!.filePath);
     if (idx === -1) {
       return "";
     }
     return `${idx + 1} / ${cards.length}`;
-  })();
+  });
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
 
 {#if $draftListKey}
-  <div class="backdrop" on:click={handleBackdropClick} on:keydown={handleKeydown}>
-    <div class="modal">
+  <div class="backdrop" role="presentation" onclick={handleBackdropClick} onkeydown={handleKeydown}>
+    <div class="modal" role="dialog">
       <div class="modal-header">
         <input
           class="edit-title-input"
           type="text"
           bind:value={draftTitle}
           placeholder="Card title"
-          on:keydown={e => e.key === 'Enter' && saveDraft()}
+          onkeydown={e => e.key === 'Enter' && saveDraft()}
           use:autoFocus
         />
         <div class="header-btns">
-          <button class="header-btn" on:click={close} title="Close">
+          <button class="header-btn" onclick={close} title="Close">
             <svg viewBox="0 0 24 24" width="16" height="16">
               <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -316,57 +331,57 @@
           </div>
           <div class="draft-actions">
             <div class="position-toggle">
-              <button class="pos-btn" class:active={$draftPosition === 'top'} on:click={() => draftPosition.set('top')}>Top</button>
-              <button class="pos-btn" class:active={$draftPosition === 'bottom'} on:click={() => draftPosition.set('bottom')}>Bottom</button>
+              <button class="pos-btn" class:active={$draftPosition === 'top'} onclick={() => draftPosition.set('top')}>Top</button>
+              <button class="pos-btn" class:active={$draftPosition === 'bottom'} onclick={() => draftPosition.set('bottom')}>Bottom</button>
             </div>
-            <button class="save-btn" on:click={saveDraft} disabled={saving || !draftTitle.trim()}>
+            <button class="save-btn" onclick={saveDraft} disabled={saving || !draftTitle.trim()}>
               {saving ? "Saving..." : "Save"}
             </button>
-            <button class="cancel-btn" on:click={close}>Cancel</button>
+            <button class="cancel-btn" onclick={close}>Cancel</button>
           </div>
         </div>
       </div>
     </div>
   </div>
 {:else if $selectedCard && meta}
-  <div class="backdrop" bind:this={backdropEl} on:click={handleBackdropClick} on:keydown={handleKeydown}>
-    <div class="modal">
+  <div class="backdrop" bind:this={backdropEl} role="presentation" onclick={handleBackdropClick} onkeydown={handleKeydown}>
+    <div class="modal" role="dialog">
       <div class="modal-header">
         {#if editingTitle}
           <input
             class="edit-title-input"
             type="text"
             bind:value={editTitle}
-            on:blur={blurTitle}
-            on:keydown={e => e.key === 'Enter' && e.target.blur()}
+            onblur={blurTitle}
+            onkeydown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
             use:autoFocus
           />
         {:else}
-          <h2 class="card-title clickable" on:click={startEditTitle} on:keydown={e => e.key === 'Enter' && startEditTitle()}>{meta.title}</h2>
+          <button class="card-title clickable" onclick={startEditTitle}>{meta.title}</button>
         {/if}
         <div class="header-btns">
           {#if !loading}
-            <button class="header-btn" on:click={startEditAll} title="Edit">
+            <button class="header-btn" onclick={startEditAll} title="Edit">
               <svg viewBox="0 0 24 24" width="16" height="16">
                 <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="m15 5 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </button>
           {/if}
-          <button class="header-btn" on:click={openExternal} title="Open in editor">
+          <button class="header-btn" onclick={openExternal} title="Open in editor">
             <svg viewBox="0 0 24 24" width="16" height="16">
               <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               <polyline points="15 3 21 3 21 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               <line x1="10" y1="14" x2="21" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </button>
-          <button class="header-btn delete-icon" on:click={() => confirmingDelete = true} title="Delete card">
+          <button class="header-btn delete-icon" onclick={() => confirmingDelete = true} title="Delete card">
             <svg viewBox="0 0 24 24" width="16" height="16">
               <polyline points="3 6 5 6 21 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </button>
-          <button class="header-btn" on:click={close} title="Close">
+          <button class="header-btn" onclick={close} title="Close">
             <svg viewBox="0 0 24 24" width="16" height="16">
               <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -379,8 +394,8 @@
         <div class="confirm-delete">
           <span class="confirm-delete-text">Delete this card?</span>
           <div class="confirm-delete-btns">
-            <button class="delete-btn" on:click={deleteCard}>Delete</button>
-            <button class="cancel-btn" on:click={() => confirmingDelete = false}>Cancel</button>
+            <button class="delete-btn" onclick={deleteCard}>Delete</button>
+            <button class="cancel-btn" onclick={() => confirmingDelete = false}>Cancel</button>
           </div>
         </div>
       {:else}
@@ -390,15 +405,15 @@
           <!-- Description -->
           <div class="section">
             {#if editingBody}
-              <textarea class="edit-body-textarea" bind:value={editBody} on:blur={blurBody}
+              <textarea class="edit-body-textarea" bind:value={editBody} onblur={blurBody}
                 placeholder="Card description (markdown)" use:autoFocus
               ></textarea>
             {:else if loading}
               <p class="loading-text">Loading...</p>
             {:else if bodyHtml.trim()}
-              <div class="markdown-body clickable" on:click={startEditBody} on:keydown={e => e.key === 'Enter' && startEditBody()}>{@html bodyHtml}</div>
+              <div class="markdown-body clickable" role="button" tabindex="0" onclick={startEditBody} onkeydown={e => e.key === 'Enter' && startEditBody()}>{@html bodyHtml}</div>
             {:else}
-              <p class="empty-desc clickable" on:click={startEditBody} on:keydown={e => e.key === 'Enter' && startEditBody()}>Enter description...</p>
+              <button class="empty-desc clickable" onclick={startEditBody}>Enter description...</button>
             {/if}
           </div>
 
@@ -419,7 +434,7 @@
               <ul class="checklist">
                 {#each meta.checklist as item, idx}
                   <li class:done={item.done}>
-                    <button class="checkbox-btn" on:click={() => toggleCheckItem(idx)}>
+                    <button class="checkbox-btn" onclick={() => toggleCheckItem(idx)}>
                       <span class="checkbox" class:checked={item.done}>
                         {#if item.done}
                           <svg viewBox="0 0 16 16">
@@ -433,7 +448,7 @@
                         {/if}
                       </span>
                     </button>
-                    <span class="check-text">{#if isUrl(item.desc)}<a href={item.desc} target="_blank" rel="noopener noreferrer" on:click|stopPropagation>{item.desc}</a>{:else}{item.desc}{/if}</span>
+                    <span class="check-text">{#if isUrl(item.desc)}<a href={item.desc} target="_blank" rel="noopener noreferrer" onclick={(e: MouseEvent) => e.stopPropagation()}>{item.desc}</a>{:else}{item.desc}{/if}</span>
                   </li>
                 {/each}
               </ul>
@@ -521,7 +536,7 @@
   </div>
 {/if}
 
-<style>
+<style lang="scss">
   .backdrop {
     position: fixed;
     top: 0;
@@ -556,8 +571,9 @@
     gap: 12px;
     padding: 16px 16px 12px 20px;
   }
+
   .card-title {
-    margin: 0;
+    all: unset;
     font-size: 1.25rem;
     font-weight: 600;
     color: #c7d1db;
@@ -566,12 +582,15 @@
     flex: 1;
     min-width: 0;
     padding-top: 4px;
+    text-align: left;
   }
+
   .header-btns {
     display: flex;
     gap: 4px;
     flex-shrink: 0;
   }
+
   .header-btn {
     background: rgba(255, 255, 255, 0.08);
     border: none;
@@ -583,19 +602,23 @@
     display: flex;
     align-items: center;
     justify-content: center;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+    }
   }
-  .header-btn:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: #fff;
-  }
+
   .clickable {
     cursor: pointer;
+
+    &:hover {
+      outline: 1px solid rgba(255, 255, 255, 0.1);
+      outline-offset: 4px;
+      border-radius: 4px;
+    }
   }
-  .clickable:hover {
-    outline: 1px solid rgba(255, 255, 255, 0.1);
-    outline-offset: 4px;
-    border-radius: 4px;
-  }
+
   .edit-title-input {
     flex: 1;
     min-width: 0;
@@ -617,10 +640,12 @@
     gap: 16px;
     padding: 0 20px 20px 20px;
   }
+
   .main-col {
     flex: 1;
     min-width: 0;
   }
+
   .sidebar {
     flex: 0 0 168px;
   }
@@ -629,24 +654,28 @@
   .section {
     margin-bottom: 20px;
   }
+
   .section-header {
     display: flex;
     align-items: center;
     gap: 8px;
     margin-bottom: 8px;
   }
+
   .section-icon {
     width: 20px;
     height: 20px;
     color: #9fadbc;
     flex-shrink: 0;
   }
+
   .section-title {
     font-size: 0.9rem;
     font-weight: 600;
     color: #c7d1db;
     margin: 0;
   }
+
   .checklist-bar {
     flex: 1;
     height: 6px;
@@ -655,6 +684,7 @@
     overflow: hidden;
     margin: 0 8px;
   }
+
   .checklist-count {
     font-size: 0.75rem;
     color: #8c9bab;
@@ -676,9 +706,10 @@
     resize: vertical;
     box-sizing: border-box;
     line-height: 1.5;
-  }
-  .edit-body-textarea:focus {
-    border-color: #579dff;
+
+    &:focus {
+      border-color: #579dff;
+    }
   }
 
   /* Labels */
@@ -687,6 +718,7 @@
     gap: 4px;
     flex-wrap: wrap;
   }
+
   .label {
     font-size: 0.7rem;
     font-weight: 600;
@@ -707,14 +739,16 @@
     max-width: 100%;
     box-sizing: border-box;
   }
+
   .progress-fill {
     height: 100%;
     background: #579dff;
     border-radius: 4px;
     transition: width 0.3s;
-  }
-  .progress-fill.complete {
-    background: #4bce97;
+
+    &.complete {
+      background: #4bce97;
+    }
   }
 
   /* Checklist */
@@ -724,22 +758,26 @@
     margin: 0;
     max-height: 400px;
     overflow-y: auto;
+
+    li {
+      padding: 6px 8px;
+      font-size: 0.85rem;
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      border-radius: 4px;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      &.done .check-text {
+        text-decoration: line-through;
+        color: #6b7a8d;
+      }
+    }
   }
-  .checklist li {
-    padding: 6px 8px;
-    font-size: 0.85rem;
-    display: flex;
-    gap: 8px;
-    align-items: flex-start;
-    border-radius: 4px;
-  }
-  .checklist li:hover {
-    background: rgba(255, 255, 255, 0.04);
-  }
-  .checklist li.done .check-text {
-    text-decoration: line-through;
-    color: #6b7a8d;
-  }
+
   .checkbox-btn {
     all: unset;
     cursor: pointer;
@@ -747,34 +785,40 @@
     align-items: center;
     flex-shrink: 0;
   }
+
   .checkbox {
     flex-shrink: 0;
     width: 16px;
     height: 16px;
     margin-top: 1px;
     color: #9fadbc;
+
+    &.checked {
+      color: #579dff;
+    }
+
+    svg {
+      width: 16px;
+      height: 16px;
+    }
   }
-  .checkbox.checked {
-    color: #579dff;
-  }
-  .checkbox svg {
-    width: 16px;
-    height: 16px;
-  }
+
   .check-text {
     line-height: 1.3;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-  .check-text a {
-    color: #579dff;
-    text-decoration: none;
-    line-height: inherit;
-    display: inline;
-  }
-  .check-text a:hover {
-    text-decoration: underline;
+
+    a {
+      color: #579dff;
+      text-decoration: none;
+      line-height: inherit;
+      display: inline;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
   }
 
   /* Sidebar */
@@ -784,6 +828,7 @@
     padding: 10px 12px;
     margin-bottom: 8px;
   }
+
   .sidebar-title {
     font-size: 0.7rem;
     font-weight: 600;
@@ -792,10 +837,12 @@
     color: #8c9bab;
     margin: 0 0 6px 0;
   }
+
   .sidebar-value {
     font-size: 0.8rem;
     color: #b6c2d1;
   }
+
   .sidebar-badge {
     font-size: 0.8rem;
     font-weight: 600;
@@ -804,25 +851,30 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
+
+    &.on-time {
+      background: rgba(75, 206, 151, 0.2);
+      color: #4bce97;
+    }
+
+    &.overdue {
+      background: rgba(247, 68, 68, 0.2);
+      color: #f87168;
+    }
   }
-  .sidebar-badge.on-time {
-    background: rgba(75, 206, 151, 0.2);
-    color: #4bce97;
-  }
-  .sidebar-badge.overdue {
-    background: rgba(247, 68, 68, 0.2);
-    color: #f87168;
-  }
+
   .badge-icon {
     width: 14px;
     height: 14px;
   }
+
   .counter-value {
     font-size: 0.85rem;
     font-weight: 600;
     color: #c7d1db;
     margin-bottom: 6px;
   }
+
   .sidebar-progress {
     margin-bottom: 0;
   }
@@ -832,12 +884,15 @@
     color: #6b7a8d;
     font-size: 0.85rem;
   }
+
   .empty-desc {
+    all: unset;
     color: #6b7a8d;
     font-size: 0.85rem;
     font-style: italic;
-    margin: 0;
+    text-align: left;
   }
+
   .markdown-body {
     line-height: 1.6;
     font-size: 0.9rem;
@@ -846,74 +901,89 @@
     border-radius: 6px;
     padding: 12px 16px;
     overflow-x: auto;
-  }
-  .markdown-body :global(h1),
-  .markdown-body :global(h2),
-  .markdown-body :global(h3) {
-    color: #c7d1db;
-    margin-top: 16px;
-    margin-bottom: 8px;
-  }
-  .markdown-body :global(h1) { font-size: 1.2rem; }
-  .markdown-body :global(h2) { font-size: 1.05rem; }
-  .markdown-body :global(h3) { font-size: 0.95rem; }
-  .markdown-body :global(a) {
-    color: #579dff;
-  }
-  .markdown-body :global(a:hover) {
-    text-decoration: underline;
-  }
-  .markdown-body :global(code) {
-    background: #1e2128;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-size: 0.85em;
-  }
-  .markdown-body :global(pre) {
-    background: #1e2128;
-    padding: 12px;
-    border-radius: 6px;
-    overflow-x: auto;
-  }
-  .markdown-body :global(pre code) {
-    padding: 0;
-    background: none;
-  }
-  .markdown-body :global(blockquote) {
-    border-left: 3px solid #579dff;
-    margin: 8px 0;
-    padding: 4px 12px;
-    color: #8c9bab;
-  }
-  .markdown-body :global(ul),
-  .markdown-body :global(ol) {
-    padding-left: 20px;
-  }
-  .markdown-body :global(li) {
-    margin-bottom: 2px;
-  }
-  .markdown-body :global(img) {
-    max-width: 100%;
-    border-radius: 4px;
-  }
-  .markdown-body :global(table) {
-    border-collapse: collapse;
-    width: 100%;
-    margin: 8px 0;
-  }
-  .markdown-body :global(th),
-  .markdown-body :global(td) {
-    border: 1px solid #3b4048;
-    padding: 6px 10px;
-    text-align: left;
-  }
-  .markdown-body :global(th) {
-    background: #1e2128;
-  }
-  .markdown-body :global(hr) {
-    border: none;
-    border-top: 1px solid #3b4048;
-    margin: 16px 0;
+
+    :global(h1),
+    :global(h2),
+    :global(h3) {
+      color: #c7d1db;
+      margin-top: 16px;
+      margin-bottom: 8px;
+    }
+
+    :global(h1) { font-size: 1.2rem; }
+    :global(h2) { font-size: 1.05rem; }
+    :global(h3) { font-size: 0.95rem; }
+
+    :global(a) {
+      color: #579dff;
+    }
+
+    :global(a:hover) {
+      text-decoration: underline;
+    }
+
+    :global(code) {
+      background: #1e2128;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.85em;
+    }
+
+    :global(pre) {
+      background: #1e2128;
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+
+      :global(code) {
+        padding: 0;
+        background: none;
+      }
+    }
+
+    :global(blockquote) {
+      border-left: 3px solid #579dff;
+      margin: 8px 0;
+      padding: 4px 12px;
+      color: #8c9bab;
+    }
+
+    :global(ul),
+    :global(ol) {
+      padding-left: 20px;
+    }
+
+    :global(li) {
+      margin-bottom: 2px;
+    }
+
+    :global(img) {
+      max-width: 100%;
+      border-radius: 4px;
+    }
+
+    :global(table) {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 8px 0;
+    }
+
+    :global(th),
+    :global(td) {
+      border: 1px solid #3b4048;
+      padding: 6px 10px;
+      text-align: left;
+    }
+
+    :global(th) {
+      background: #1e2128;
+    }
+
+    :global(hr) {
+      border: none;
+      border-top: 1px solid #3b4048;
+      margin: 16px 0;
+    }
   }
 
   /* Draft mode actions */
@@ -923,6 +993,7 @@
     align-items: center;
     justify-content: flex-end;
   }
+
   .position-toggle {
     display: flex;
     border-radius: 4px;
@@ -930,6 +1001,7 @@
     border: 1px solid #3b4048;
     margin-right: auto;
   }
+
   .pos-btn {
     all: unset;
     padding: 5px 12px;
@@ -938,14 +1010,17 @@
     cursor: pointer;
     color: #9fadbc;
     background: transparent;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    &.active {
+      background: rgba(87, 157, 255, 0.15);
+      color: #579dff;
+    }
   }
-  .pos-btn:hover {
-    background: rgba(255, 255, 255, 0.06);
-  }
-  .pos-btn.active {
-    background: rgba(87, 157, 255, 0.15);
-    color: #579dff;
-  }
+
   .save-btn {
     background: #579dff;
     color: #1e2128;
@@ -955,14 +1030,17 @@
     font-weight: 600;
     font-size: 0.85rem;
     cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: #85b8ff;
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
   }
-  .save-btn:hover:not(:disabled) {
-    background: #85b8ff;
-  }
-  .save-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
+
   .cancel-btn {
     background: rgba(255, 255, 255, 0.08);
     color: #9fadbc;
@@ -971,16 +1049,18 @@
     border-radius: 4px;
     font-size: 0.85rem;
     cursor: pointer;
-  }
-  .cancel-btn:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: #fff;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+    }
   }
 
   /* Delete confirmation */
   .delete-icon:hover {
     color: #f87168;
   }
+
   .confirm-delete {
     display: flex;
     align-items: center;
@@ -988,15 +1068,18 @@
     padding: 20px;
     gap: 12px;
   }
+
   .confirm-delete-text {
     font-size: 0.95rem;
     color: #c7d1db;
     font-weight: 600;
   }
+
   .confirm-delete-btns {
     display: flex;
     gap: 8px;
   }
+
   .delete-btn {
     background: #c9372c;
     color: #fff;
@@ -1006,8 +1089,9 @@
     font-weight: 600;
     font-size: 0.85rem;
     cursor: pointer;
-  }
-  .delete-btn:hover {
-    background: #f87168;
+
+    &:hover {
+      background: #f87168;
+    }
   }
 </style>

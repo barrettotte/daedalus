@@ -164,7 +164,7 @@ func parseFileHeader(path string) (CardMetadata, string, error) {
 		if inFrontmatter {
 			frontmatterBuf.WriteString(line + "\n")
 		} else if dashCount >= 2 {
-			// in body — only read a few lines for the preview
+			// in body, only read a few lines for the preview
 			bodyLines++
 			if bodyLines > 20 {
 				break

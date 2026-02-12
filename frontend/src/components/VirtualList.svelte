@@ -1,5 +1,5 @@
 <!--
-  VirtualList.svelte — Only renders the cards visible in the viewport.
+  Only renders the cards visible in the viewport.
 
   WHY THIS EXISTS:
   The board can have hundreds of cards per list. Rendering all of them as real DOM
@@ -11,7 +11,7 @@
      This lets us instantly look up "where does item #N start?" without adding up heights.
 
   2. When the user scrolls, we binary search the prefix sums to find the first visible item.
-     Binary search is O(log n) — fast even with thousands of items.
+     Binary search is O(log n) - fast even with thousands of items.
 
   3. We render only those visible items (plus 2 extra above/below as buffer).
 
@@ -36,43 +36,53 @@
     │  (empty space)          │  <- totalHeight ensures correct scrollbar size
     └─────────────────────────┘
 -->
-<script>
-  import { onMount, onDestroy, afterUpdate } from "svelte";
+<script lang="ts">
+  import { onMount, onDestroy, untrack } from "svelte";
+  import type { Component } from "svelte";
+  import type { daedalus } from "../../wailsjs/go/models";
 
-  export let items = [];
-  export let estimatedHeight = 90;
-  export let component;
-  export let listKey = "";
+  let { items = [], estimatedHeight = 90, component, listKey = "" }: {
+    items: daedalus.KanbanCard[];
+    estimatedHeight?: number;
+    component: Component<any>;
+    listKey?: string;
+  } = $props();
 
-  let container;
-  let scrollTop = 0;
-  let containerHeight = 800;
+  let container: HTMLDivElement | undefined = $state(undefined);
+  let scrollTop = $state(0);
+  let containerHeight = $state(800);
 
-  let measuredHeights = {};  // card ID -> actual pixel height
-  let itemElements = {};     // card ID -> DOM element ref
+  // Plain objects - not reactive. measuredHeights is a cache; measureVersion is the reactive signal.
+  let measuredHeights: Record<number, number> = {};  // card ID -> actual pixel height
+  let itemElements: Record<number, HTMLDivElement> = {};  // card ID -> DOM element ref
+
+  // Bumped when measurements change - the single reactive signal that invalidates prefixSums.
+  let measureVersion = $state(0);
+
+  // Returns measured height for an item, falling back to the estimate if not yet measured.
+  function heightOf(index: number): number {
+    const id = items[index]?.metadata?.id;
+    if (id != null && id in measuredHeights) {
+      return measuredHeights[id];
+    }
+    return estimatedHeight;
+  }
 
   // prefixSums[i] = pixel offset where item i starts. Last entry = total height.
   // Example: heights [90, 100, 80] -> prefixSums = [0, 90, 190, 270]
-  let prefixSums = [];
-
-  // Returns measured height for an item, falling back to the estimate if not yet measured.
-  function heightOf(index) {
-    const id = items[index]?.metadata?.id;
-    return (id != null && measuredHeights[id]) || estimatedHeight;
-  }
-
-  // Rebuilds the prefix sum array from all item heights.
-  function buildPrefixSums() {
-    prefixSums = new Array(items.length + 1);
-    prefixSums[0] = 0;
-
+  // Synchronous derived - no async cycle possible.
+  let prefixSums = $derived.by(() => {
+    void measureVersion; // re-derive when measurements update
+    const sums = new Array(items.length + 1);
+    sums[0] = 0;
     for (let i = 0; i < items.length; i++) {
-      prefixSums[i + 1] = prefixSums[i] + heightOf(i);
+      sums[i + 1] = sums[i] + heightOf(i);
     }
-  }
+    return sums;
+  });
 
   // Binary searches prefix sums to find visible items, then walks forward to the last one.
-  function getVisibleRange() {
+  function getVisibleRange(): { start: number; end: number } {
     let lo = 0, hi = items.length;
     while (lo < hi) {
       const mid = (lo + hi) >>> 1;
@@ -98,10 +108,11 @@
   }
 
   // Measures actual DOM heights of visible items so prefix sums become accurate over time.
-  function measureItems() {
+  function measureItems(): void {
     let changed = false;
+    const currentVisible = untrack(() => visibleItems);
 
-    for (const item of visibleItems) {
+    for (const item of currentVisible) {
       const id = item.metadata.id;
       const el = itemElements[id];
 
@@ -115,11 +126,11 @@
       }
     }
     if (changed) {
-      measuredHeights = measuredHeights; // reassign to trigger Svelte reactivity
+      measureVersion++;
     }
 
     // Clean up off-screen DOM refs
-    const visibleIds = new Set(visibleItems.map(i => i.metadata.id));
+    const visibleIds = new Set(currentVisible.map(i => i.metadata.id));
     for (const id in itemElements) {
       if (!visibleIds.has(Number(id))) {
         delete itemElements[id];
@@ -128,18 +139,18 @@
   }
 
   // Throttles scroll events to one update per animation frame.
-  let scrollRaf = null;
-  function handleScroll(e) {
+  let scrollRaf: number | null = null;
+  function handleScroll(e: Event): void {
     if (scrollRaf) {
       return;
     }
     scrollRaf = requestAnimationFrame(() => {
-      scrollTop = e.target.scrollTop;
+      scrollTop = (e.target as HTMLDivElement).scrollTop;
       scrollRaf = null;
     });
   }
 
-  let resizeObserver;
+  let resizeObserver: ResizeObserver;
 
   onMount(() => {
     if (container) {
@@ -162,35 +173,40 @@
     }
   });
 
-  afterUpdate(measureItems);
+  let range = $derived(items.length > 0 ? getVisibleRange() : { start: 0, end: 0 });
+  let visibleItems = $derived(items.slice(range.start, range.end));
+  let topPadding = $derived(prefixSums[range.start] || 0);
+  let totalHeight = $derived(prefixSums[items.length] || 0);
 
-  $: if (items || measuredHeights) buildPrefixSums();
-  $: range = items.length > 0 ? getVisibleRange(scrollTop, containerHeight, prefixSums) : { start: 0, end: 0 };
-  $: visibleItems = items.slice(range.start, range.end);
-  $: topPadding = prefixSums[range.start] || 0;
-  $: totalHeight = prefixSums[items.length] || 0;
-
+  // Measure items after render when visible items change
+  $effect(() => {
+    void visibleItems;
+    measureItems();
+  });
 </script>
 
-<div class="virtual-scroll-container" bind:this={container} on:scroll={handleScroll}>
+<div class="virtual-scroll-container" bind:this={container} onscroll={handleScroll}>
   <div class="scroll-wrapper" style="height: {totalHeight}px; padding-top: {topPadding}px">
     {#each visibleItems as item (item.metadata.id)}
+      {@const CardComponent = component}
       <div class="item-slot" data-card-id={item.metadata.id} bind:this={itemElements[item.metadata.id]}>
-        <svelte:component this={component} card={item} {listKey} />
+        <CardComponent card={item} {listKey} />
       </div>
     {/each}
   </div>
 </div>
 
-<style>
+<style lang="scss">
   .virtual-scroll-container {
     height: 100%;
     overflow-y: auto;
     contain: strict;
   }
+
   .scroll-wrapper {
     box-sizing: border-box;
   }
+
   .item-slot {
     padding: 0 0 6px 0;
     box-sizing: border-box;

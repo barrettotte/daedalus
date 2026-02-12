@@ -1,20 +1,21 @@
-<script>
+<script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { GetMetrics } from "../../wailsjs/go/main/App";
-  import { showMetrics, boardData, addToast } from "../stores/board.js";
+  import { showMetrics, addToast } from "../stores/board";
+  import type { main } from "../../wailsjs/go/models";
 
-  let metrics = null;
-  let interval;
-  let fps = 0;
-  let domNodes = 0;
+  let metrics: main.AppMetrics | null = $state(null);
+  let interval: ReturnType<typeof setInterval>;
+  let fps = $state(0);
+  let domNodes = $state(0);
 
   // FPS track via requestAnimationFrame
   let frameCount = 0;
   let lastFpsTime = performance.now();
-  let rafId;
+  let rafId: number;
 
   // Increments the frame counter each animation frame and calculates FPS every second.
-  function countFrame() {
+  function countFrame(): void {
     frameCount++;
     const now = performance.now();
 
@@ -27,12 +28,12 @@
   }
 
   // Samples frontend metrics like DOM node count.
-  function updateFrontendMetrics() {
+  function updateFrontendMetrics(): void {
     domNodes = document.querySelectorAll('*').length;
   }
 
   // Fetches backend metrics from Go and updates frontend metrics.
-  async function fetchMetrics() {
+  async function fetchMetrics(): Promise<void> {
     try {
       metrics = await GetMetrics();
       updateFrontendMetrics();
@@ -51,8 +52,6 @@
     clearInterval(interval);
     cancelAnimationFrame(rafId);
   });
-
-
 </script>
 
 {#if $showMetrics && metrics}
@@ -65,7 +64,7 @@
     <div class="metrics-row"><span class="label" title="Number of completed garbage collection cycles">GC</span><span>{metrics.numGC}</span></div>
     <div class="metrics-row"><span class="label" title="Active goroutines">Goroutines</span><span>{metrics.goroutines}</span></div>
     <div class="metrics-divider"></div>
-    <div class="metrics-row"><span class="label" title="Resident set size — physical memory used by the whole process">Process RSS</span><span>{metrics.processRSS.toFixed(1)} MB</span></div>
+    <div class="metrics-row"><span class="label" title="Resident set size - physical memory used by the whole process">Process RSS</span><span>{metrics.processRSS.toFixed(1)} MB</span></div>
     <div class="metrics-row"><span class="label" title="CPU usage percentage since last sample">Process CPU</span><span>{metrics.processCPU.toFixed(1)}%</span></div>
     <div class="metrics-divider"></div>
     <div class="metrics-row"><span class="label" title="Number of lists">Lists</span><span>{metrics.numLists}</span></div>
@@ -75,7 +74,7 @@
   </div>
 {/if}
 
-<style>
+<style lang="scss">
   .metrics-overlay {
     position: fixed;
     bottom: 12px;
@@ -88,21 +87,21 @@
     font-family: monospace;
     z-index: 100;
     min-width: 150px;
-  }
 
-  .metrics-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 1px 0;
-  }
+    .metrics-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 1px 0;
+    }
 
-  .label {
-    color: #888;
-  }
+    .label {
+      color: #888;
+    }
 
-  .metrics-divider {
-    border-top: 1px solid #333;
-    margin: 3px 0;
+    .metrics-divider {
+      border-top: 1px solid #333;
+      margin: 3px 0;
+    }
   }
 </style>

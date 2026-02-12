@@ -1,48 +1,49 @@
-<script>
-  import { selectedCard, labelsExpanded, dragState, addToast } from "../stores/board.js";
+<script lang="ts">
+  import { selectedCard, labelsExpanded, dragState, addToast } from "../stores/board";
   import { SaveLabelsExpanded } from "../../wailsjs/go/main/App";
-  import { labelColor } from "../lib/utils.js";
+  import { labelColor } from "../lib/utils";
+  import type { daedalus } from "../../wailsjs/go/models";
 
-  export let card;
-  export let listKey = "";
-  $: meta = card.metadata;
-  $: isDragging = $dragState?.card?.filePath === card.filePath;
-  $: isOverdue = meta.due ? new Date(meta.due) < new Date() : false;
-  $: hasChecklist = meta.checklist && meta.checklist.length > 0;
-  $: checkedCount = hasChecklist ? meta.checklist.filter(i => i.done).length : 0;
-  $: hasDescription = card.previewText && card.previewText.replace(/^#\s+.*\n*/, "").trim().length > 0;
+  let { card, listKey = "" }: { card: daedalus.KanbanCard; listKey?: string } = $props();
+
+  let meta = $derived(card.metadata);
+  let isDragging = $derived($dragState?.card?.filePath === card.filePath);
+  let isOverdue = $derived(meta.due ? new Date(meta.due) < new Date() : false);
+  let hasChecklist = $derived(meta.checklist && meta.checklist.length > 0);
+  let checkedCount = $derived(hasChecklist ? meta.checklist!.filter(i => i.done).length : 0);
+  let hasDescription = $derived(card.previewText && card.previewText.replace(/^#\s+.*\n*/, "").trim().length > 0);
 
   // Sets this card as the selected card to open the detail modal.
-  function openDetail() {
+  function openDetail(): void {
     selectedCard.set(card);
   }
 
-  // Starts a drag operation — stores the card and source list in dragState.
-  function handleDragStart(e) {
+  // Starts drag operation, stores card and source list in dragState.
+  function handleDragStart(e: DragEvent): void {
     dragState.set({ card, sourceListKey: listKey });
 
     // WebKitGTK requires setData for the drop event to fire
-    e.dataTransfer.setData("text/plain", card.filePath);
-    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer!.setData("text/plain", card.filePath);
+    e.dataTransfer!.effectAllowed = "move";
 
-    // Hide default drag ghost — drop indicator provides visual feedback instead
+    // Hide default drag ghost
     const ghost = document.createElement("div");
     ghost.style.width = "1px";
     ghost.style.height = "1px";
     ghost.style.opacity = "0";
 
     document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, 0, 0);
+    e.dataTransfer!.setDragImage(ghost, 0, 0);
     requestAnimationFrame(() => document.body.removeChild(ghost));
   }
 
-  // Ends a drag operation — clears dragState.
-  function handleDragEnd() {
+  // Ends drag operation
+  function handleDragEnd(): void {
     dragState.set(null);
   }
 
   // Toggles all labels board-wide between expanded text and collapsed color pills, persisting to board.yaml.
-  function toggleLabels() {
+  function toggleLabels(): void {
     labelsExpanded.update(v => {
       const next = !v;
       SaveLabelsExpanded(next).catch(e => addToast(`Failed to save label state: ${e}`));
@@ -51,11 +52,11 @@
   }
 </script>
 
-<div class="card" class:dragging={isDragging} draggable="true" on:dragstart={handleDragStart} on:dragend={handleDragEnd} on:click={openDetail} on:keydown={e => e.key === 'Enter' && openDetail()}>
+<div class="card" class:dragging={isDragging} draggable="true" role="button" tabindex="0" ondragstart={handleDragStart} ondragend={handleDragEnd} onclick={openDetail} onkeydown={e => e.key === 'Enter' && openDetail()}>
   {#if meta.labels && meta.labels.length > 0}
     <div class="labels">
       {#each meta.labels as label}
-        <span class="label" class:collapsed={!$labelsExpanded} style="background: {labelColor(label)}" title={$labelsExpanded ? '' : label} on:click|stopPropagation={toggleLabels} on:keydown|stopPropagation={e => e.key === 'Enter' && toggleLabels()}>{#if $labelsExpanded}{label}{/if}</span>
+        <span class="label" class:collapsed={!$labelsExpanded} style="background: {labelColor(label)}" title={$labelsExpanded ? '' : label} role="button" tabindex="0" onclick={(e: MouseEvent) => { e.stopPropagation(); toggleLabels(); }} onkeydown={(e: KeyboardEvent) => { e.stopPropagation(); e.key === 'Enter' && toggleLabels(); }}>{#if $labelsExpanded}{label}{/if}</span>
       {/each}
     </div>
   {/if}
@@ -78,7 +79,7 @@
           <polyline points="9 11 12 14 22 4" fill="none" stroke="currentColor" stroke-width="2"/>
           <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" fill="none" stroke="currentColor" stroke-width="2"/>
         </svg>
-        {checkedCount}/{meta.checklist.length}
+        {checkedCount}/{meta.checklist!.length}
       </span>
     {/if}
     {#if hasDescription}
@@ -91,7 +92,7 @@
   </div>
 </div>
 
-<style>
+<style lang="scss">
   .card {
     background: #2b303b;
     border-radius: 4px;
@@ -103,14 +104,14 @@
     cursor: pointer;
     text-align: left;
     contain: content;
-  }
 
-  .card:hover {
-    background: #333846;
-  }
+    &:hover {
+      background: #333846;
+    }
 
-  .card.dragging {
-    opacity: 0.4;
+    &.dragging {
+      opacity: 0.4;
+    }
   }
 
   .title {
@@ -134,13 +135,13 @@
     padding: 2px 8px;
     border-radius: 3px;
     color: #fff;
-  }
 
-  .label.collapsed {
-    padding: 0;
-    min-width: 28px;
-    height: 8px;
-    font-size: 0;
+    &.collapsed {
+      padding: 0;
+      min-width: 28px;
+      height: 8px;
+      font-size: 0;
+    }
   }
 
   .badges {
@@ -159,15 +160,16 @@
     color: #8c9bab;
     border-radius: 3px;
     padding: 1px 4px;
-  }
 
-  .badge.on-time {
-    background: rgba(75, 206, 151, 0.15);
-    color: #4bce97;
-  }
-  .badge.overdue {
-    background: rgba(247, 68, 68, 0.15);
-    color: #f87168;
+    &.on-time {
+      background: rgba(75, 206, 151, 0.15);
+      color: #4bce97;
+    }
+
+    &.overdue {
+      background: rgba(247, 68, 68, 0.15);
+      color: #f87168;
+    }
   }
 
   .badge-icon {
@@ -175,6 +177,7 @@
     height: 12px;
     flex-shrink: 0;
   }
+
   .desc-icon {
     color: #6b7a8d;
     opacity: 0.6;

@@ -4,10 +4,11 @@ import "time"
 
 // BoardState holds runtime data in memory
 type BoardState struct {
-	Lists    map[string][]KanbanCard
-	MaxID    int
-	RootPath string
-	Config   *BoardConfig
+	Lists          map[string][]KanbanCard
+	MaxID          int
+	RootPath       string
+	Config         *BoardConfig
+	TotalFileBytes int64
 }
 
 // KanbanCard is the object sent to the frontend
@@ -22,8 +23,8 @@ type KanbanCard struct {
 type CardMetadata struct {
 	ID        int             `yaml:"id" json:"id"`
 	Title     string          `yaml:"title" json:"title"`
-	Created   time.Time       `yaml:"created" json:"created"`
-	Updated   time.Time       `yaml:"updated" json:"updated"`
+	Created   *time.Time      `yaml:"created,omitempty" json:"created,omitempty"`
+	Updated   *time.Time      `yaml:"updated,omitempty" json:"updated,omitempty"`
 	ListOrder float64         `yaml:"list_order" json:"list_order"`
 	Due       *time.Time      `yaml:"due,omitempty" json:"due,omitempty"`
 	Range     *DateRange      `yaml:"range,omitempty" json:"range,omitempty"`

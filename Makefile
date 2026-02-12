@@ -1,4 +1,4 @@
-.PHONY: dev build test test-v clean install
+.PHONY: dev build test clean install frontend-dev frontend-build
 
 dev:
 	wails dev

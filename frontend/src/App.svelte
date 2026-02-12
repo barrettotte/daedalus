@@ -1,17 +1,31 @@
 <script>
   import { onMount } from "svelte";
-  import { LoadBoard, SaveListConfig } from "../wailsjs/go/main/App";
-  import { boardData, boardConfig, sortedListKeys, isLoaded, selectedCard, showMetrics } from "./stores/board.js";
+  import { LoadBoard, SaveListConfig, SaveLabelsExpanded, SaveCollapsedLists } from "../wailsjs/go/main/App";
+  import { boardData, boardConfig, sortedListKeys, isLoaded, selectedCard, showMetrics, labelsExpanded, addToast } from "./stores/board.js";
+  import { formatListName, autoFocus } from "./lib/utils.js";
   import VirtualList from "./components/VirtualList.svelte";
   import Card from "./components/Card.svelte";
   import CardDetail from "./components/CardDetail.svelte";
   import Metrics from "./components/Metrics.svelte";
+  import Toast from "./components/Toast.svelte";
 
   let error = "";
   let editingTitle = null;
   let editingLimit = null;
   let editTitleValue = "";
   let editLimitValue = 0;
+  let collapsedLists = new Set();
+
+  // Toggles a list between collapsed and expanded, persisting to board.yaml.
+  function toggleCollapse(listKey) {
+    if (collapsedLists.has(listKey)) {
+      collapsedLists.delete(listKey);
+    } else {
+      collapsedLists.add(listKey);
+    }
+    collapsedLists = collapsedLists;
+    SaveCollapsedLists([...collapsedLists]).catch(e => addToast(`Failed to save collapsed state: ${e}`));
+  }
 
   // Loads the board from the backend and unpacks lists + config into separate stores.
   async function initBoard() {
@@ -19,19 +33,17 @@
       const response = await LoadBoard("");
       boardData.set(response.lists);
       boardConfig.set(response.config?.lists || {});
+
+      if (response.config?.labelsExpanded !== undefined && response.config.labelsExpanded !== null) {
+        labelsExpanded.set(response.config.labelsExpanded);
+      }
+      if (response.config?.collapsedLists) {
+        collapsedLists = new Set(response.config.collapsedLists);
+      }
       isLoaded.set(true);
     } catch (e) {
       error = e.toString();
     }
-  }
-
-  // Strips the numeric prefix and underscores from directory names into display titles.
-  function formatListName(rawName) {
-    const parts = rawName.split('___');
-    const name = parts.length > 1 ? parts[1] : rawName;
-    return name
-      .replace(/_/g, ' ')
-      .replace(/\b\w/g, l => l.toUpperCase());
   }
 
   // Returns the config title override if set, otherwise the formatted directory name.
@@ -89,7 +101,7 @@
         return c;
       });
     } catch (e) {
-      console.error("Failed to save title:", e);
+      addToast(`Failed to save list title: ${e}`);
     }
   }
 
@@ -117,7 +129,7 @@
         return c;
       });
     } catch (e) {
-      console.error("Failed to save limit:", e);
+      addToast(`Failed to save list limit: ${e}`);
     }
   }
 
@@ -139,12 +151,6 @@
     }
   }
 
-  // Svelte action that focuses and selects the content of an input on mount.
-  function autoFocus(node) {
-    node.focus();
-    node.select();
-  }
-
   onMount(initBoard);
 
 </script>
@@ -158,13 +164,11 @@
           <path d="M23 4v6h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        Refresh
       </button>
       <button class="top-btn" class:active={$showMetrics} on:click={() => showMetrics.update(v => !v)}>
         <svg viewBox="0 0 24 24" width="14" height="14">
           <rect x="18" y="3" width="4" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="2"/><rect x="10" y="8" width="4" height="13" rx="1" fill="none" stroke="currentColor" stroke-width="2"/><rect x="2" y="13" width="4" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
         </svg>
-        Metrics
       </button>
     </div>
   </div>
@@ -174,42 +178,54 @@
   {:else if $isLoaded}
     <div class="board-container" class:modal-open={$selectedCard}>
       {#each sortedListKeys($boardData) as listKey}
-        <div class="list-column">
-          <div class="list-header">
-            {#if editingTitle === listKey}
-              <input
-                class="edit-title-input"
-                type="text"
-                bind:value={editTitleValue}
-                on:blur={() => saveTitle(listKey)}
-                on:keydown={(e) => handleTitleKeydown(e, listKey)}
-                use:autoFocus
-              />
-            {:else}
-              <button class="list-title-btn" on:click={() => startEditTitle(listKey)}>{getDisplayTitle(listKey, $boardConfig)}</button>
-            {/if}
-            {#if editingLimit === listKey}
-              <input
-                class="edit-limit-input"
-                type="number"
-                min="0"
-                bind:value={editLimitValue}
-                on:blur={() => saveLimit(listKey)}
-                on:keydown={(e) => handleLimitKeydown(e, listKey)}
-                use:autoFocus
-              />
-            {:else}
-              <button
-                class="count-btn"
-                class:over-limit={isOverLimit(listKey, $boardData, $boardConfig)}
-                on:click={() => startEditLimit(listKey)}
-              >{getCountDisplay(listKey, $boardData, $boardConfig)}</button>
-            {/if}
+        {#if collapsedLists.has(listKey)}
+          <div class="list-column collapsed" on:click={() => toggleCollapse(listKey)} on:keydown={e => e.key === 'Enter' && toggleCollapse(listKey)}>
+            <span class="collapsed-title">{getDisplayTitle(listKey, $boardConfig)}</span>
+            <span class="collapsed-count">{getCountDisplay(listKey, $boardData, $boardConfig)}</span>
           </div>
-          <div class="list-body">
-            <VirtualList items={$boardData[listKey]} component={Card} estimatedHeight={90} />
+        {:else}
+          <div class="list-column">
+            <div class="list-header">
+              {#if editingTitle === listKey}
+                <input
+                  class="edit-title-input"
+                  type="text"
+                  bind:value={editTitleValue}
+                  on:blur={() => saveTitle(listKey)}
+                  on:keydown={(e) => handleTitleKeydown(e, listKey)}
+                  use:autoFocus
+                />
+              {:else}
+                <button class="list-title-btn" on:click={() => startEditTitle(listKey)}>{getDisplayTitle(listKey, $boardConfig)}</button>
+              {/if}
+              <div class="header-right">
+                <button class="collapse-btn" on:click={() => toggleCollapse(listKey)} title="Collapse list">
+                  <svg viewBox="0 0 24 24" width="12" height="12"><polyline points="6 9 12 15 18 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                {#if editingLimit === listKey}
+                  <input
+                    class="edit-limit-input"
+                    type="number"
+                    min="0"
+                    bind:value={editLimitValue}
+                    on:blur={() => saveLimit(listKey)}
+                    on:keydown={(e) => handleLimitKeydown(e, listKey)}
+                    use:autoFocus
+                  />
+                {:else}
+                  <button
+                    class="count-btn"
+                    class:over-limit={isOverLimit(listKey, $boardData, $boardConfig)}
+                    on:click={() => startEditLimit(listKey)}
+                  >{getCountDisplay(listKey, $boardData, $boardConfig)}</button>
+                {/if}
+              </div>
+            </div>
+            <div class="list-body">
+              <VirtualList items={$boardData[listKey]} component={Card} estimatedHeight={90} />
+            </div>
           </div>
-        </div>
+        {/if}
       {/each}
     </div>
   {:else}
@@ -217,6 +233,7 @@
   {/if}
   <CardDetail />
   <Metrics />
+  <Toast />
 </main>
 
 <style>
@@ -285,6 +302,7 @@
     overflow-x: auto;
     padding: 10px;
     gap: 10px;
+    will-change: scroll-position;
   }
 
   .list-column {
@@ -295,6 +313,39 @@
     border-radius: 8px;
     max-height: 100%;
     border: 1px solid #333;
+    contain: layout style paint;
+  }
+
+  .list-column.collapsed {
+    flex: 0 0 36px;
+    cursor: pointer;
+    align-items: center;
+    padding: 12px 0;
+    gap: 10px;
+    transition: background 0.1s;
+  }
+
+  .list-column.collapsed:hover {
+    background: #2a2d34;
+  }
+
+  .collapsed-title {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #9fadbc;
+    white-space: nowrap;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .collapsed-count {
+    writing-mode: vertical-rl;
+    font-size: 0.7rem;
+    color: #6b7a8d;
+    flex-shrink: 0;
   }
 
   .list-header {
@@ -303,6 +354,30 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .collapse-btn {
+    all: unset;
+    cursor: pointer;
+    color: #6b7a8d;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+  }
+
+  .collapse-btn:hover {
+    color: #9fadbc;
+    background: rgba(255, 255, 255, 0.08);
   }
 
   .list-title-btn {

@@ -16,18 +16,23 @@ import (
 
 // ScanBoard scans directory and builds in-memory state
 func ScanBoard(rootPath string) (*BoardState, error) {
+	absRoot, err := filepath.Abs(rootPath)
+	if err != nil {
+		return nil, fmt.Errorf("resolving root path: %w", err)
+	}
+
 	state := &BoardState{
 		Lists:    make(map[string][]KanbanCard),
-		RootPath: rootPath,
+		RootPath: absRoot,
 		MaxID:    0,
 	}
 
-	entries, err := os.ReadDir(rootPath)
+	entries, err := os.ReadDir(absRoot)
 	if err != nil {
 		return nil, err
 	}
 
-	config, err := LoadBoardConfig(rootPath)
+	config, err := LoadBoardConfig(absRoot)
 	if err != nil {
 		return nil, fmt.Errorf("loading board config: %w", err)
 	}
@@ -40,7 +45,7 @@ func ScanBoard(rootPath string) (*BoardState, error) {
 	for _, entry := range entries {
 		if entry.IsDir() && !strings.HasPrefix(entry.Name(), ".") {
 			dirName := entry.Name()
-			listPath := filepath.Join(rootPath, dirName)
+			listPath := filepath.Join(absRoot, dirName)
 			displayName := dirName
 
 			if parts := strings.SplitN(dirName, "___", 2); len(parts) == 2 {
@@ -50,14 +55,14 @@ func ScanBoard(rootPath string) (*BoardState, error) {
 			wg.Add(1)
 			go func(path, realName, displayName string) {
 				defer wg.Done()
-				cards, localMaxID := scanList(path, realName, displayName)
+				cards, localMaxID, localBytes := scanList(path, realName, displayName)
 
 				mutex.Lock()
-
 				state.Lists[realName] = cards
 				if localMaxID > state.MaxID {
 					state.MaxID = localMaxID
 				}
+				state.TotalFileBytes += localBytes
 				mutex.Unlock()
 
 			}(listPath, dirName, displayName)
@@ -68,15 +73,16 @@ func ScanBoard(rootPath string) (*BoardState, error) {
 }
 
 // scanList iterates over a directory (list) of markdown files (cards)
-func scanList(listPath, realName, displayName string) ([]KanbanCard, int) {
+func scanList(listPath, realName, displayName string) ([]KanbanCard, int, int64) {
 	files, err := os.ReadDir(listPath)
 	if err != nil {
 		fmt.Printf("Error reading list %s: %v\n", realName, err)
-		return nil, 0
+		return nil, 0, 0
 	}
 
 	var cards []KanbanCard
 	localMaxID := 0
+	var localBytes int64
 
 	for _, file := range files {
 
@@ -99,6 +105,10 @@ func scanList(listPath, realName, displayName string) ([]KanbanCard, int) {
 				localMaxID = meta.ID
 			}
 
+			if info, err := file.Info(); err == nil {
+				localBytes += info.Size()
+			}
+
 			cards = append(cards, KanbanCard{
 				FilePath:    fullPath,
 				ListName:    displayName,
@@ -116,7 +126,7 @@ func scanList(listPath, realName, displayName string) ([]KanbanCard, int) {
 		return cards[i].Metadata.ID < cards[j].Metadata.ID
 	})
 
-	return cards, localMaxID
+	return cards, localMaxID, localBytes
 }
 
 // parseFileHeader reads frontmatter and first few lines of card body
@@ -169,6 +179,105 @@ func parseFileHeader(path string) (CardMetadata, string, error) {
 		}
 	}
 	return meta, bodyPreviewBuf.String(), nil
+}
+
+// readRawFrontmatter reads an existing file and parses the YAML between --- delimiters into a raw map
+func readRawFrontmatter(path string) (map[string]interface{}, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	content := string(data)
+	if !strings.HasPrefix(strings.TrimSpace(content), "---") {
+		return nil, nil
+	}
+
+	parts := strings.SplitN(content, "---", 3)
+	if len(parts) < 3 {
+		return nil, nil
+	}
+
+	raw := make(map[string]interface{})
+	if err := yaml.Unmarshal([]byte(parts[1]), &raw); err != nil {
+		return nil, fmt.Errorf("yaml parse error: %w", err)
+	}
+	return raw, nil
+}
+
+// WriteCardFile writes a card's metadata and body to a markdown file, preserving unknown YAML fields
+func WriteCardFile(path string, meta CardMetadata, body string) error {
+	// Read existing frontmatter to preserve unknown fields like trello_data
+	existingRaw, err := readRawFrontmatter(path)
+	if err != nil {
+		return fmt.Errorf("reading existing frontmatter: %w", err)
+	}
+
+	// Marshal CardMetadata to YAML, then unmarshal to raw map
+	metaYaml, err := yaml.Marshal(&meta)
+	if err != nil {
+		return fmt.Errorf("marshaling metadata: %w", err)
+	}
+	metaRaw := make(map[string]interface{})
+	if err := yaml.Unmarshal(metaYaml, &metaRaw); err != nil {
+		return fmt.Errorf("unmarshaling metadata map: %w", err)
+	}
+
+	// Merge: start with meta map, then add unknown keys from existing
+	merged := metaRaw
+	if existingRaw != nil {
+		for k, v := range existingRaw {
+			if _, exists := merged[k]; !exists {
+				merged[k] = v
+			}
+		}
+	}
+
+	// Handle omitempty nil fields: remove keys that yaml.Marshal omitted
+	omitemptyFields := map[string]bool{
+		"created":   meta.Created == nil,
+		"updated":   meta.Updated == nil,
+		"due":       meta.Due == nil,
+		"range":     meta.Range == nil,
+		"icon":      meta.Icon == "",
+		"counter":   meta.Counter == nil,
+		"checklist": len(meta.Checklist) == 0,
+		"labels":    len(meta.Labels) == 0,
+	}
+	for field, shouldRemove := range omitemptyFields {
+		if shouldRemove {
+			delete(merged, field)
+		}
+	}
+
+	// Force-quote checklist desc fields to prevent YAML parsing issues
+	if checklist, ok := merged["checklist"].([]interface{}); ok {
+		for _, item := range checklist {
+			if m, ok := item.(map[string]interface{}); ok {
+				if desc, ok := m["desc"].(string); ok {
+					m["desc"] = &yaml.Node{Kind: yaml.ScalarNode, Value: desc, Style: yaml.DoubleQuotedStyle}
+				}
+			}
+		}
+	}
+
+	// Marshal merged map to YAML
+	finalYaml, err := yaml.Marshal(merged)
+	if err != nil {
+		return fmt.Errorf("marshaling final yaml: %w", err)
+	}
+
+	// Build the file content
+	var buf bytes.Buffer
+	buf.WriteString("---\n")
+	buf.Write(finalYaml)
+	buf.WriteString("---\n")
+	buf.WriteString(body)
+
+	return os.WriteFile(path, buf.Bytes(), 0644)
 }
 
 // ReadCardContent reads a card file and returns the full markdown body (after frontmatter)

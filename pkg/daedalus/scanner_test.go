@@ -3,7 +3,9 @@ package daedalus
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
 
 func writeTestCard(t *testing.T, dir, filename, content string) string {
@@ -371,5 +373,140 @@ func TestScanBoard_FilePaths(t *testing.T) {
 	expectedPath := filepath.Join(list, "7.md")
 	if cards[0].FilePath != expectedPath {
 		t.Errorf("filePath: got %q, want %q", cards[0].FilePath, expectedPath)
+	}
+}
+
+// Writing a card and reading it back should produce matching metadata and body.
+func TestWriteCardFile_RoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "1.md")
+	now := time.Now().Truncate(time.Second)
+	meta := CardMetadata{
+		ID:        1,
+		Title:     "Round Trip",
+		Created:   &now,
+		ListOrder: 5.5,
+		Labels:    []string{"test", "roundtrip"},
+		Checklist: []CheckListItem{
+			{Idx: 0, Desc: "Step 1", Done: true},
+			{Idx: 1, Desc: "Step 2", Done: false},
+		},
+	}
+	body := "# Round Trip\n\nSome description.\n"
+
+	if err := WriteCardFile(path, meta, body); err != nil {
+		t.Fatalf("WriteCardFile error: %v", err)
+	}
+
+	// Read back metadata
+	readMeta, preview, err := parseFileHeader(path)
+	if err != nil {
+		t.Fatalf("parseFileHeader error: %v", err)
+	}
+	if readMeta.Title != "Round Trip" {
+		t.Errorf("title: got %q, want %q", readMeta.Title, "Round Trip")
+	}
+	if readMeta.ID != 1 {
+		t.Errorf("id: got %d, want 1", readMeta.ID)
+	}
+	if readMeta.ListOrder != 5.5 {
+		t.Errorf("list_order: got %f, want 5.5", readMeta.ListOrder)
+	}
+	if len(readMeta.Labels) != 2 {
+		t.Errorf("labels: got %v, want 2 items", readMeta.Labels)
+	}
+	if len(readMeta.Checklist) != 2 {
+		t.Errorf("checklist: got %d items, want 2", len(readMeta.Checklist))
+	}
+	if preview == "" {
+		t.Error("expected non-empty preview")
+	}
+
+	// Read back body
+	readBody, err := ReadCardContent(path)
+	if err != nil {
+		t.Fatalf("ReadCardContent error: %v", err)
+	}
+	if readBody != body {
+		t.Errorf("body: got %q, want %q", readBody, body)
+	}
+}
+
+// Unknown YAML fields like trello_data should survive a WriteCardFile round-trip.
+func TestWriteCardFile_PreservesUnknownFields(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "2.md")
+
+	// Write initial file with trello_data field
+	initial := "---\ntitle: \"Trello Card\"\nid: 2\nlist_order: 1\ntrello_data:\n  board_id: \"abc123\"\n  card_id: \"def456\"\n---\n# Trello Card\n\nImported from Trello.\n"
+	if err := os.WriteFile(path, []byte(initial), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Update via WriteCardFile
+	meta := CardMetadata{
+		ID:        2,
+		Title:     "Updated Trello Card",
+		ListOrder: 1,
+	}
+	if err := WriteCardFile(path, meta, "# Updated Trello Card\n\nNew body.\n"); err != nil {
+		t.Fatalf("WriteCardFile error: %v", err)
+	}
+
+	// Read raw file and check trello_data is still there
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(content), "trello_data") {
+		t.Error("trello_data field was not preserved")
+	}
+	if !strings.Contains(string(content), "abc123") {
+		t.Error("trello_data board_id value was not preserved")
+	}
+
+	// Verify updated title was written
+	readMeta, _, err := parseFileHeader(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if readMeta.Title != "Updated Trello Card" {
+		t.Errorf("title: got %q, want %q", readMeta.Title, "Updated Trello Card")
+	}
+}
+
+// Clearing an omitempty field (like due) should remove it from the output file.
+func TestWriteCardFile_ClearsOmitemptyFields(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "3.md")
+	due := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
+
+	// First write with due date set
+	meta := CardMetadata{
+		ID:        3,
+		Title:     "Due Card",
+		ListOrder: 1,
+		Due:       &due,
+	}
+	if err := WriteCardFile(path, meta, "# Due Card\n"); err != nil {
+		t.Fatalf("first WriteCardFile error: %v", err)
+	}
+
+	// Verify due date is in the file
+	content, _ := os.ReadFile(path)
+	if !strings.Contains(string(content), "due") {
+		t.Fatal("due field should be present after first write")
+	}
+
+	// Second write with nil due date
+	meta.Due = nil
+	if err := WriteCardFile(path, meta, "# Due Card\n"); err != nil {
+		t.Fatalf("second WriteCardFile error: %v", err)
+	}
+
+	// Verify due date is gone
+	content, _ = os.ReadFile(path)
+	if strings.Contains(string(content), "due") {
+		t.Error("due field should be removed when set to nil")
 	}
 }

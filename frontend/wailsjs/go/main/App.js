@@ -14,6 +14,22 @@ export function LoadBoard(arg1) {
   return window['go']['main']['App']['LoadBoard'](arg1);
 }
 
+export function OpenFileExternal(arg1) {
+  return window['go']['main']['App']['OpenFileExternal'](arg1);
+}
+
+export function SaveCard(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SaveCard'](arg1, arg2, arg3);
+}
+
+export function SaveCollapsedLists(arg1) {
+  return window['go']['main']['App']['SaveCollapsedLists'](arg1);
+}
+
+export function SaveLabelsExpanded(arg1) {
+  return window['go']['main']['App']['SaveLabelsExpanded'](arg1);
+}
+
 export function SaveListConfig(arg1, arg2, arg3) {
   return window['go']['main']['App']['SaveListConfig'](arg1, arg2, arg3);
 }

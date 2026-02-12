@@ -1,7 +1,7 @@
 <script>
   import { onMount, onDestroy } from "svelte";
   import { GetMetrics } from "../../wailsjs/go/main/App";
-  import { showMetrics, boardData } from "../stores/board.js";
+  import { showMetrics, boardData, addToast } from "../stores/board.js";
 
   let metrics = null;
   let interval;
@@ -37,7 +37,7 @@
       metrics = await GetMetrics();
       updateFrontendMetrics();
     } catch (e) {
-      console.error("Failed to fetch metrics:", e);
+      addToast(`Failed to fetch metrics: ${e}`);
     }
   }
 
@@ -69,6 +69,7 @@
     <div class="metrics-divider"></div>
     <div class="metrics-row"><span class="label" title="Number of lists">Lists</span><span>{metrics.numLists}</span></div>
     <div class="metrics-row"><span class="label" title="Number of cards">Cards</span><span>{metrics.numCards}</span></div>
+    <div class="metrics-row"><span class="label" title="Highest card ID">Max ID</span><span>{metrics.maxID}</span></div>
     <div class="metrics-row"><span class="label" title="Total size of all markdown cards">MD size</span><span>{metrics.fileSizeMB.toFixed(1)} MB</span></div>
   </div>
 {/if}

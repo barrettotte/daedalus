@@ -4,6 +4,7 @@ import (
 	"daedalus/pkg/daedalus"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -205,6 +206,35 @@ func TestSaveListConfig_Success(t *testing.T) {
 	}
 }
 
+// SaveLabelsExpanded should persist the value to board.yaml and reload correctly.
+func TestSaveLabelsExpanded_Success(t *testing.T) {
+	app, root := setupTestBoard(t)
+
+	if err := app.SaveLabelsExpanded(false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	config, err := daedalus.LoadBoardConfig(root)
+	if err != nil {
+		t.Fatalf("error loading config: %v", err)
+	}
+	if config.LabelsExpanded == nil || *config.LabelsExpanded != false {
+		t.Errorf("expected labelsExpanded=false, got %v", config.LabelsExpanded)
+	}
+
+	if err := app.SaveLabelsExpanded(true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	config, err = daedalus.LoadBoardConfig(root)
+	if err != nil {
+		t.Fatalf("error loading config: %v", err)
+	}
+	if config.LabelsExpanded == nil || *config.LabelsExpanded != true {
+		t.Errorf("expected labelsExpanded=true, got %v", config.LabelsExpanded)
+	}
+}
+
 // SaveListConfig should return an error when no board has been loaded.
 func TestSaveListConfig_BoardNotLoaded(t *testing.T) {
 	app := NewApp()
@@ -257,5 +287,98 @@ func TestLoadBoard_WithConfigFile(t *testing.T) {
 	}
 	if lc.Title != "Custom" || lc.Limit != 3 {
 		t.Errorf("got title=%q limit=%d, want title=\"Custom\" limit=3", lc.Title, lc.Limit)
+	}
+}
+
+// SaveCard should write updated title and body to disk and return the updated card.
+func TestSaveCard_Success(t *testing.T) {
+	app, root := setupTestBoard(t)
+	cardPath := filepath.Join(root, "00___test", "1.md")
+
+	meta := daedalus.CardMetadata{
+		ID:        1,
+		Title:     "Updated Title",
+		ListOrder: 1,
+	}
+	result, err := app.SaveCard(cardPath, meta, "# Updated Title\n\nNew body.\n")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Metadata.Title != "Updated Title" {
+		t.Errorf("title: got %q, want %q", result.Metadata.Title, "Updated Title")
+	}
+
+	// Read file back to verify
+	content, err := os.ReadFile(cardPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(content), "Updated Title") {
+		t.Error("file should contain updated title")
+	}
+	if !strings.Contains(string(content), "New body.") {
+		t.Error("file should contain new body")
+	}
+}
+
+// SaveCard should reject paths that escape the board root directory.
+func TestSaveCard_PathTraversal(t *testing.T) {
+	app, root := setupTestBoard(t)
+	outsidePath := filepath.Join(root, "..", "evil.md")
+
+	meta := daedalus.CardMetadata{ID: 1, Title: "Evil"}
+	_, err := app.SaveCard(outsidePath, meta, "hacked")
+	if err == nil {
+		t.Fatal("expected error for path traversal")
+	}
+	if err.Error() != "path outside board directory" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// SaveCard should return an error when the board has not been loaded.
+func TestSaveCard_BoardNotLoaded(t *testing.T) {
+	app := NewApp()
+	meta := daedalus.CardMetadata{ID: 1, Title: "Test"}
+	_, err := app.SaveCard("/some/path.md", meta, "body")
+	if err == nil {
+		t.Fatal("expected error when board not loaded")
+	}
+	if err.Error() != "board not loaded" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// After SaveCard, the in-memory board state should reflect the updated card data.
+func TestSaveCard_UpdatesInMemory(t *testing.T) {
+	app, root := setupTestBoard(t)
+	cardPath := filepath.Join(root, "00___test", "1.md")
+
+	meta := daedalus.CardMetadata{
+		ID:        1,
+		Title:     "Memory Update",
+		ListOrder: 1,
+	}
+
+	_, err := app.SaveCard(cardPath, meta, "# Memory Update\n")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cards := app.board.Lists["00___test"]
+	found := false
+	for _, card := range cards {
+		if card.FilePath == cardPath {
+			found = true
+			if card.Metadata.Title != "Memory Update" {
+				t.Errorf("in-memory title: got %q, want %q", card.Metadata.Title, "Memory Update")
+			}
+			if card.Metadata.Updated == nil {
+				t.Error("expected Updated timestamp to be set")
+			}
+		}
+	}
+	if !found {
+		t.Error("card not found in board lists after save")
 	}
 }

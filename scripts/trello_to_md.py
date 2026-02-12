@@ -37,7 +37,7 @@ def get_yaml_checklists(card_id, checklists) -> list:
     for cl in card_checklists:
         for item in cl['checkItems']:
             yaml_tasks.append({
-                "desc": item['name'],
+                "desc": '"' + item['name'] + '"',
                 "done": item['state'] == 'complete'
             })
 

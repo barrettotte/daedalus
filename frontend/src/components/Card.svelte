@@ -1,30 +1,27 @@
 <script>
-  import { selectedCard, labelsExpanded } from "../stores/board.js";
+  import { selectedCard, labelsExpanded, addToast } from "../stores/board.js";
+  import { SaveLabelsExpanded } from "../../wailsjs/go/main/App";
+  import { labelColor } from "../lib/utils.js";
 
   export let card;
   $: meta = card.metadata;
   $: isOverdue = meta.due ? new Date(meta.due) < new Date() : false;
   $: hasChecklist = meta.checklist && meta.checklist.length > 0;
   $: checkedCount = hasChecklist ? meta.checklist.filter(i => i.done).length : 0;
-
-  // Hashes a label string into a deterministic HSL color for consistent badge coloring.
-  function labelColor(label) {
-    let hash = 0;
-    for (let i = 0; i < label.length; i++) {
-      hash = label.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const hue = ((hash % 360) + 360) % 360;
-    return `hsl(${hue}, 55%, 45%)`;
-  }
+  $: hasDescription = card.previewText && card.previewText.replace(/^#\s+.*\n*/, "").trim().length > 0;
 
   // Sets this card as the selected card to open the detail modal.
   function openDetail() {
     selectedCard.set(card);
   }
 
-  // Toggles all labels board-wide between expanded text and collapsed color pills.
+  // Toggles all labels board-wide between expanded text and collapsed color pills, persisting to board.yaml.
   function toggleLabels() {
-    labelsExpanded.update(v => !v);
+    labelsExpanded.update(v => {
+      const next = !v;
+      SaveLabelsExpanded(next).catch(e => addToast(`Failed to save label state: ${e}`));
+      return next;
+    });
   }
 </script>
 
@@ -43,7 +40,7 @@
     {#if meta.due}
       <span class="badge" class:overdue={isOverdue} class:on-time={!isOverdue}>
         <svg class="badge-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><polyline points="12 6 12 12 16 14" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-        {new Date(meta.due).toLocaleDateString()}
+        {meta.due.slice(0, 10)}
       </span>
     {/if}
     {#if hasChecklist}
@@ -52,10 +49,8 @@
         {checkedCount}/{meta.checklist.length}
       </span>
     {/if}
-    {#if card.previewText && card.previewText.trim()}
-      <span class="badge desc-badge">
-        <svg class="badge-icon" viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6" stroke="currentColor" stroke-width="2"/><line x1="4" y1="12" x2="16" y2="12" stroke="currentColor" stroke-width="2"/><line x1="4" y1="18" x2="12" y2="18" stroke="currentColor" stroke-width="2"/></svg>
-      </span>
+    {#if hasDescription}
+      <svg class="badge-icon desc-icon" viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6" stroke="currentColor" stroke-width="2"/><line x1="4" y1="12" x2="16" y2="12" stroke="currentColor" stroke-width="2"/><line x1="4" y1="18" x2="12" y2="18" stroke="currentColor" stroke-width="2"/></svg>
     {/if}
   </div>
 </div>
@@ -66,12 +61,12 @@
     border-radius: 4px;
     padding: 8px 10px;
     margin: 0 6px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.25);
     color: #c7d1db;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
     cursor: pointer;
-    transition: background 0.1s;
     text-align: left;
+    contain: content;
   }
 
   .card:hover {
@@ -82,7 +77,7 @@
     font-size: 0.85rem;
     font-weight: 400;
     line-height: 1.3;
-    margin: 4px 0 6px 0;
+    margin: 10px 0 8px 0;
     word-break: break-word;
   }
 
@@ -90,7 +85,7 @@
     display: flex;
     gap: 4px;
     flex-wrap: wrap;
-    margin: 2px 0 6px 0;
+    margin: 2px 0 0 0;
   }
 
   .label {
@@ -99,7 +94,6 @@
     padding: 2px 8px;
     border-radius: 3px;
     color: #fff;
-    transition: all 0.1s;
   }
 
   .label.collapsed {
@@ -140,5 +134,9 @@
     width: 12px;
     height: 12px;
     flex-shrink: 0;
+  }
+  .desc-icon {
+    color: #6b7a8d;
+    opacity: 0.6;
   }
 </style>

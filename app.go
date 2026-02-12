@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -28,12 +29,16 @@ type AppMetrics struct {
 	NumLists   int     `json:"numLists"`
 	MaxID      int     `json:"maxID"`
 	FileSizeMB float64 `json:"fileSizeMB"`
+	ProcessRSS float64 `json:"processRSS"`
+	ProcessCPU float64 `json:"processCPU"`
 }
 
 // App struct
 type App struct {
-	ctx   context.Context
-	board *daedalus.BoardState
+	ctx          context.Context
+	board        *daedalus.BoardState
+	prevCPUTicks int64
+	prevWallTime time.Time
 }
 
 // NewApp creates a new App application struct
@@ -211,6 +216,144 @@ func (a *App) SaveCard(filePath string, metadata daedalus.CardMetadata, body str
 	return &updatedCard, nil
 }
 
+// CreateCard creates a new card at the top of the given list directory, writes it to disk,
+// updates in-memory state, and returns the new KanbanCard.
+func (a *App) CreateCard(listDirName string, title string, body string) (*daedalus.KanbanCard, error) {
+	if a.board == nil {
+		return nil, fmt.Errorf("board not loaded")
+	}
+
+	cards, ok := a.board.Lists[listDirName]
+	if !ok {
+		return nil, fmt.Errorf("list not found: %s", listDirName)
+	}
+
+	a.board.MaxID++
+	newID := a.board.MaxID
+
+	// Place at top of list: one less than the current first card's order
+	listOrder := 0.0
+	if len(cards) > 0 {
+		listOrder = cards[0].Metadata.ListOrder - 1
+	}
+
+	// Use provided title, falling back to ID string if empty
+	if strings.TrimSpace(title) == "" {
+		title = fmt.Sprintf("%d", newID)
+	}
+
+	now := time.Now()
+	meta := daedalus.CardMetadata{
+		ID:        newID,
+		Title:     title,
+		Created:   &now,
+		Updated:   &now,
+		ListOrder: listOrder,
+	}
+
+	// Construct full file body matching SaveCard pattern
+	fullBody := fmt.Sprintf("# %s\n\n%s", title, body)
+
+	filePath := filepath.Join(a.board.RootPath, listDirName, fmt.Sprintf("%d.md", newID))
+	if err := daedalus.WriteCardFile(filePath, meta, fullBody); err != nil {
+		return nil, fmt.Errorf("writing new card: %w", err)
+	}
+
+	// Update cached total file size
+	if info, err := os.Stat(filePath); err == nil {
+		a.board.TotalFileBytes += info.Size()
+	}
+
+	// Generate preview from body (first ~150 chars)
+	preview := body
+	if len(preview) > 150 {
+		preview = preview[:150]
+	}
+
+	card := daedalus.KanbanCard{
+		FilePath:    filePath,
+		ListName:    listDirName,
+		Metadata:    meta,
+		PreviewText: preview,
+	}
+
+	// Prepend to list
+	a.board.Lists[listDirName] = append([]daedalus.KanbanCard{card}, cards...)
+
+	return &card, nil
+}
+
+// DeleteCard removes a card file from disk and from the in-memory board state.
+// MaxID is intentionally not decremented (high-water mark for unique IDs).
+func (a *App) DeleteCard(filePath string) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+
+	absPath, err := a.validatePath(filePath)
+	if err != nil {
+		return err
+	}
+
+	// Capture file size before removal for TotalFileBytes bookkeeping
+	var fileSize int64
+	if info, err := os.Stat(absPath); err == nil {
+		fileSize = info.Size()
+	}
+
+	if err := os.Remove(absPath); err != nil {
+		return fmt.Errorf("removing card file: %w", err)
+	}
+
+	a.board.TotalFileBytes -= fileSize
+
+	// Remove card from in-memory lists
+	for listName, cards := range a.board.Lists {
+		for i, card := range cards {
+			if card.FilePath == absPath {
+				a.board.Lists[listName] = append(cards[:i], cards[i+1:]...)
+				return nil
+			}
+		}
+	}
+
+	return nil
+}
+
+// readProcessRSS reads the resident set size from /proc/self/statm in megabytes.
+func readProcessRSS() float64 {
+	data, err := os.ReadFile("/proc/self/statm")
+	if err != nil {
+		return 0
+	}
+	var size, resident int64
+	if _, err := fmt.Sscanf(string(data), "%d %d", &size, &resident); err != nil {
+		return 0
+	}
+	return float64(resident*int64(os.Getpagesize())) / 1024 / 1024
+}
+
+// readProcessCPUTicks reads utime + stime from /proc/self/stat in clock ticks.
+func readProcessCPUTicks() int64 {
+	data, err := os.ReadFile("/proc/self/stat")
+	if err != nil {
+		return 0
+	}
+	s := string(data)
+	// Skip past comm field (may contain spaces/parens) by finding last ")"
+	i := strings.LastIndex(s, ")")
+	if i < 0 || i+2 >= len(s) {
+		return 0
+	}
+	fields := strings.Fields(s[i+2:])
+	if len(fields) < 13 {
+		return 0
+	}
+	utime, _ := strconv.ParseInt(fields[11], 10, 64)
+	stime, _ := strconv.ParseInt(fields[12], 10, 64)
+	return utime + stime
+}
+
 // GetMetrics returns runtime performance metrics
 func (a *App) GetMetrics() AppMetrics {
 	var m runtime.MemStats
@@ -231,6 +374,22 @@ func (a *App) GetMetrics() AppMetrics {
 		}
 	}
 
+	// Process-level metrics from /proc/self
+	processRSS := readProcessRSS()
+	processCPU := 0.0
+	cpuTicks := readProcessCPUTicks()
+	now := time.Now()
+	if a.prevCPUTicks > 0 && !a.prevWallTime.IsZero() {
+		wallDelta := now.Sub(a.prevWallTime).Seconds()
+		if wallDelta > 0 {
+			// Convert tick delta to seconds (100 ticks/sec on Linux) then to percentage
+			cpuDelta := float64(cpuTicks-a.prevCPUTicks) / 100.0
+			processCPU = (cpuDelta / wallDelta) * 100
+		}
+	}
+	a.prevCPUTicks = cpuTicks
+	a.prevWallTime = now
+
 	return AppMetrics{
 		HeapAlloc:  float64(m.HeapAlloc) / 1024 / 1024,
 		Sys:        float64(m.Sys) / 1024 / 1024,
@@ -240,5 +399,7 @@ func (a *App) GetMetrics() AppMetrics {
 		NumLists:   numLists,
 		MaxID:      maxID,
 		FileSizeMB: float64(totalBytes) / 1024 / 1024,
+		ProcessRSS: processRSS,
+		ProcessCPU: processCPU,
 	}
 }

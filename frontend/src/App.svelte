@@ -1,7 +1,7 @@
 <script>
   import { onMount } from "svelte";
   import { LoadBoard, SaveListConfig, SaveLabelsExpanded, SaveCollapsedLists } from "../wailsjs/go/main/App";
-  import { boardData, boardConfig, sortedListKeys, isLoaded, selectedCard, showMetrics, labelsExpanded, addToast } from "./stores/board.js";
+  import { boardData, boardConfig, sortedListKeys, isLoaded, selectedCard, draftListKey, showMetrics, labelsExpanded, addToast } from "./stores/board.js";
   import { formatListName, autoFocus } from "./lib/utils.js";
   import VirtualList from "./components/VirtualList.svelte";
   import Card from "./components/Card.svelte";
@@ -151,9 +151,38 @@
     }
   }
 
+  // Opens the draft-creation modal for the given list (no backend call yet).
+  function createCard(listKey) {
+    draftListKey.set(listKey);
+  }
+
+  // Handles global keydown: "n" creates a card in the first list (unless typing or modal is open).
+  function handleGlobalKeydown(e) {
+    if (e.key !== "n" || e.metaKey || e.ctrlKey || e.altKey) {
+      return;
+    }
+
+    const tag = e.target.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || e.target.isContentEditable) {
+      return;
+    }
+
+    if ($selectedCard || $draftListKey) {
+      return;
+    }
+
+    const keys = sortedListKeys($boardData);
+    if (keys.length > 0) {
+      e.preventDefault();
+      createCard(keys[0]);
+    }
+  }
+
   onMount(initBoard);
 
 </script>
+
+<svelte:window on:keydown={handleGlobalKeydown} />
 
 <main>
   <div class="top-bar">
@@ -167,7 +196,9 @@
       </button>
       <button class="top-btn" class:active={$showMetrics} on:click={() => showMetrics.update(v => !v)}>
         <svg viewBox="0 0 24 24" width="14" height="14">
-          <rect x="18" y="3" width="4" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="2"/><rect x="10" y="8" width="4" height="13" rx="1" fill="none" stroke="currentColor" stroke-width="2"/><rect x="2" y="13" width="4" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
+          <rect x="18" y="3" width="4" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
+          <rect x="10" y="8" width="4" height="13" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
+          <rect x="2" y="13" width="4" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
         </svg>
       </button>
     </div>
@@ -176,7 +207,7 @@
   {#if error}
     <div class="error">{error}</div>
   {:else if $isLoaded}
-    <div class="board-container" class:modal-open={$selectedCard}>
+    <div class="board-container" class:modal-open={$selectedCard || $draftListKey}>
       {#each sortedListKeys($boardData) as listKey}
         {#if collapsedLists.has(listKey)}
           <div class="list-column collapsed" on:click={() => toggleCollapse(listKey)} on:keydown={e => e.key === 'Enter' && toggleCollapse(listKey)}>
@@ -199,8 +230,16 @@
                 <button class="list-title-btn" on:click={() => startEditTitle(listKey)}>{getDisplayTitle(listKey, $boardConfig)}</button>
               {/if}
               <div class="header-right">
+                <button class="collapse-btn" on:click={() => createCard(listKey)} title="Add card">
+                  <svg viewBox="0 0 24 24" width="12" height="12">
+                    <line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                </button>
                 <button class="collapse-btn" on:click={() => toggleCollapse(listKey)} title="Collapse list">
-                  <svg viewBox="0 0 24 24" width="12" height="12"><polyline points="6 9 12 15 18 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  <svg viewBox="0 0 24 24" width="12" height="12">
+                    <polyline points="6 9 12 15 18 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
                 </button>
                 {#if editingLimit === listKey}
                   <input

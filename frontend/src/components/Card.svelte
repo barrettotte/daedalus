@@ -39,18 +39,28 @@
   <div class="badges">
     {#if meta.due}
       <span class="badge" class:overdue={isOverdue} class:on-time={!isOverdue}>
-        <svg class="badge-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><polyline points="12 6 12 12 16 14" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        <svg class="badge-icon" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+          <polyline points="12 6 12 12 16 14" fill="none" stroke="currentColor" stroke-width="2"/>
+        </svg>
         {meta.due.slice(0, 10)}
       </span>
     {/if}
     {#if hasChecklist}
       <span class="badge checklist-badge">
-        <svg class="badge-icon" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        <svg class="badge-icon" viewBox="0 0 24 24">
+          <polyline points="9 11 12 14 22 4" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" fill="none" stroke="currentColor" stroke-width="2"/>
+        </svg>
         {checkedCount}/{meta.checklist.length}
       </span>
     {/if}
     {#if hasDescription}
-      <svg class="badge-icon desc-icon" viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6" stroke="currentColor" stroke-width="2"/><line x1="4" y1="12" x2="16" y2="12" stroke="currentColor" stroke-width="2"/><line x1="4" y1="18" x2="12" y2="18" stroke="currentColor" stroke-width="2"/></svg>
+      <svg class="badge-icon desc-icon" viewBox="0 0 24 24">
+        <line x1="4" y1="6" x2="20" y2="6" stroke="currentColor" stroke-width="2"/>
+        <line x1="4" y1="12" x2="16" y2="12" stroke="currentColor" stroke-width="2"/>
+        <line x1="4" y1="18" x2="12" y2="18" stroke="currentColor" stroke-width="2"/>
+      </svg>
     {/if}
   </div>
 </div>

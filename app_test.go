@@ -2,6 +2,7 @@ package main
 
 import (
 	"daedalus/pkg/daedalus"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -287,6 +288,210 @@ func TestLoadBoard_WithConfigFile(t *testing.T) {
 	}
 	if lc.Title != "Custom" || lc.Limit != 3 {
 		t.Errorf("got title=%q limit=%d, want title=\"Custom\" limit=3", lc.Title, lc.Limit)
+	}
+}
+
+// CreateCard should increment MaxID, write the file to disk, and prepend the card to the list.
+func TestCreateCard_Success(t *testing.T) {
+	app, root := setupTestBoard(t)
+
+	oldMaxID := app.board.MaxID
+	card, err := app.CreateCard("00___test", "New Card", "Some body text")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if card.Metadata.ID != oldMaxID+1 {
+		t.Errorf("ID: got %d, want %d", card.Metadata.ID, oldMaxID+1)
+	}
+	if app.board.MaxID != oldMaxID+1 {
+		t.Errorf("MaxID: got %d, want %d", app.board.MaxID, oldMaxID+1)
+	}
+
+	// File should exist on disk
+	expectedPath := filepath.Join(root, "00___test", fmt.Sprintf("%d.md", card.Metadata.ID))
+	if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
+		t.Error("expected card file to exist on disk")
+	}
+
+	// Card should be prepended (first in list)
+	cards := app.board.Lists["00___test"]
+	if len(cards) < 2 {
+		t.Fatalf("expected at least 2 cards, got %d", len(cards))
+	}
+	if cards[0].Metadata.ID != card.Metadata.ID {
+		t.Errorf("new card should be first in list, got ID %d", cards[0].Metadata.ID)
+	}
+
+	// New card's list_order should be less than the original card's
+	if cards[0].Metadata.ListOrder >= cards[1].Metadata.ListOrder {
+		t.Errorf("new card list_order (%f) should be less than existing (%f)",
+			cards[0].Metadata.ListOrder, cards[1].Metadata.ListOrder)
+	}
+
+	// ListName should be set
+	if card.ListName != "00___test" {
+		t.Errorf("ListName: got %q, want %q", card.ListName, "00___test")
+	}
+
+	// Title should match the provided title
+	if card.Metadata.Title != "New Card" {
+		t.Errorf("Title: got %q, want %q", card.Metadata.Title, "New Card")
+	}
+
+	// PreviewText should match the provided body
+	if card.PreviewText != "Some body text" {
+		t.Errorf("PreviewText: got %q, want %q", card.PreviewText, "Some body text")
+	}
+}
+
+// CreateCard should return an error when no board has been loaded.
+func TestCreateCard_BoardNotLoaded(t *testing.T) {
+	app := NewApp()
+	_, err := app.CreateCard("00___test", "", "")
+	if err == nil {
+		t.Fatal("expected error when board not loaded")
+	}
+	if err.Error() != "board not loaded" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// CreateCard should return an error for a nonexistent list directory.
+func TestCreateCard_InvalidList(t *testing.T) {
+	app, _ := setupTestBoard(t)
+
+	_, err := app.CreateCard("99___nonexistent", "", "")
+	if err == nil {
+		t.Fatal("expected error for invalid list")
+	}
+	if !strings.Contains(err.Error(), "list not found") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// CreateCard with an empty title should fall back to using the ID as the title.
+func TestCreateCard_EmptyTitle(t *testing.T) {
+	app, _ := setupTestBoard(t)
+
+	card, err := app.CreateCard("00___test", "", "some body")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expected := fmt.Sprintf("%d", card.Metadata.ID)
+	if card.Metadata.Title != expected {
+		t.Errorf("Title: got %q, want %q", card.Metadata.Title, expected)
+	}
+}
+
+// CreateCard should truncate the preview text at 150 characters for long bodies.
+func TestCreateCard_LongBodyPreview(t *testing.T) {
+	app, _ := setupTestBoard(t)
+
+	longBody := strings.Repeat("x", 300)
+	card, err := app.CreateCard("00___test", "Title", longBody)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(card.PreviewText) != 150 {
+		t.Errorf("PreviewText length: got %d, want 150", len(card.PreviewText))
+	}
+}
+
+// DeleteCard should remove the file from disk, remove it from in-memory lists, and leave MaxID unchanged.
+func TestDeleteCard_Success(t *testing.T) {
+	app, root := setupTestBoard(t)
+
+	cardPath := filepath.Join(root, "00___test", "1.md")
+	oldMaxID := app.board.MaxID
+
+	err := app.DeleteCard(cardPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// File should be gone from disk
+	if _, err := os.Stat(cardPath); !os.IsNotExist(err) {
+		t.Error("expected card file to be deleted from disk")
+	}
+
+	// Card should be removed from in-memory lists
+	for _, cards := range app.board.Lists {
+		for _, card := range cards {
+			if card.FilePath == cardPath {
+				t.Error("card should not exist in board lists after delete")
+			}
+		}
+	}
+
+	// MaxID should NOT be decremented
+	if app.board.MaxID != oldMaxID {
+		t.Errorf("MaxID changed: got %d, want %d", app.board.MaxID, oldMaxID)
+	}
+}
+
+// DeleteCard should reject paths that escape the board root directory.
+func TestDeleteCard_PathTraversal(t *testing.T) {
+	app, root := setupTestBoard(t)
+	outsidePath := filepath.Join(root, "..", "evil.md")
+
+	err := app.DeleteCard(outsidePath)
+	if err == nil {
+		t.Fatal("expected error for path traversal")
+	}
+	if err.Error() != "path outside board directory" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// DeleteCard should return an error when no board has been loaded.
+func TestDeleteCard_BoardNotLoaded(t *testing.T) {
+	app := NewApp()
+	err := app.DeleteCard("/some/path.md")
+	if err == nil {
+		t.Fatal("expected error when board not loaded")
+	}
+	if err.Error() != "board not loaded" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// DeleteCard should return an error when the file does not exist.
+func TestDeleteCard_NonexistentFile(t *testing.T) {
+	app, root := setupTestBoard(t)
+	badPath := filepath.Join(root, "00___test", "999.md")
+
+	err := app.DeleteCard(badPath)
+	if err == nil {
+		t.Fatal("expected error for nonexistent file")
+	}
+	if !strings.Contains(err.Error(), "removing card file") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// DeleteCard should decrement TotalFileBytes by the size of the removed file.
+func TestDeleteCard_UpdatesTotalFileBytes(t *testing.T) {
+	app, root := setupTestBoard(t)
+
+	cardPath := filepath.Join(root, "00___test", "1.md")
+	info, err := os.Stat(cardPath)
+	if err != nil {
+		t.Fatalf("could not stat card file: %v", err)
+	}
+	fileSize := info.Size()
+	bytesBefore := app.board.TotalFileBytes
+
+	err = app.DeleteCard(cardPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expected := bytesBefore - fileSize
+	if app.board.TotalFileBytes != expected {
+		t.Errorf("TotalFileBytes: got %d, want %d", app.board.TotalFileBytes, expected)
 	}
 }
 

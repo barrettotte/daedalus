@@ -9,14 +9,11 @@ export namespace daedalus {
 	    }
 	
 	    constructor(source: any = {}) {
-	        if ('string' === typeof source) {
-				source = JSON.parse(source);
-			}
+	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.title = source["title"];
 	        this.limit = source["limit"];
 	    }
 	}
-
 	export class BoardConfig {
 	    lists: Record<string, ListConfig>;
 	    labelsExpanded?: boolean;
@@ -27,9 +24,7 @@ export namespace daedalus {
 	    }
 	
 	    constructor(source: any = {}) {
-	        if ('string' === typeof source) {
-				source = JSON.parse(source);
-			}
+	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.lists = this.convertValues(source["lists"], ListConfig, true);
 	        this.labelsExpanded = source["labelsExpanded"];
 	        this.collapsedLists = source["collapsedLists"];
@@ -53,7 +48,6 @@ export namespace daedalus {
 		    return a;
 		}
 	}
-
 	export class CheckListItem {
 	    idx: number;
 	    desc: string;
@@ -64,15 +58,12 @@ export namespace daedalus {
 	    }
 	
 	    constructor(source: any = {}) {
-	        if ('string' === typeof source) {
-				source = JSON.parse(source);
-			}
+	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.idx = source["idx"];
 	        this.desc = source["desc"];
 	        this.done = source["done"];
 	    }
 	}
-
 	export class Counter {
 	    current: number;
 	    max: number;
@@ -83,27 +74,24 @@ export namespace daedalus {
 	    }
 	
 	    constructor(source: any = {}) {
-	        if ('string' === typeof source) {
-				source = JSON.parse(source);
-			}
+	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.current = source["current"];
 	        this.max = source["max"];
 	        this.label = source["label"];
 	    }
 	}
-
 	export class DateRange {
-	    start: any; // Go type: time
-	    end: any; // Go type: time
+	    // Go type: time
+	    start: any;
+	    // Go type: time
+	    end: any;
 	
 	    static createFrom(source: any = {}) {
 	        return new DateRange(source);
 	    }
 	
 	    constructor(source: any = {}) {
-	        if ('string' === typeof source) {
-				source = JSON.parse(source);
-			}
+	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.start = this.convertValues(source["start"], null);
 	        this.end = this.convertValues(source["end"], null);
 	    }
@@ -126,14 +114,16 @@ export namespace daedalus {
 		    return a;
 		}
 	}
-
 	export class CardMetadata {
 	    id: number;
 	    title: string;
-	    created?: any; // Go type: time
-	    updated?: any; // Go type: time
+	    // Go type: time
+	    created?: any;
+	    // Go type: time
+	    updated?: any;
 	    list_order: number;
-	    due?: any; // Go type: time
+	    // Go type: time
+	    due?: any;
 	    range?: DateRange;
 	    labels: string[];
 	    icon: string;
@@ -145,9 +135,7 @@ export namespace daedalus {
 	    }
 	
 	    constructor(source: any = {}) {
-	        if ('string' === typeof source) {
-				source = JSON.parse(source);
-			}
+	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.title = source["title"];
 	        this.created = this.convertValues(source["created"], null);
@@ -179,7 +167,9 @@ export namespace daedalus {
 		    return a;
 		}
 	}
-
+	
+	
+	
 	export class KanbanCard {
 	    filePath: string;
 	    listName: string;
@@ -191,9 +181,7 @@ export namespace daedalus {
 	    }
 	
 	    constructor(source: any = {}) {
-	        if ('string' === typeof source) {
-				source = JSON.parse(source);
-			}
+	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.filePath = source["filePath"];
 	        this.listName = source["listName"];
 	        this.metadata = this.convertValues(source["metadata"], CardMetadata);
@@ -218,6 +206,7 @@ export namespace daedalus {
 		    return a;
 		}
 	}
+
 }
 
 export namespace main {
@@ -231,15 +220,15 @@ export namespace main {
 	    numLists: number;
 	    maxID: number;
 	    fileSizeMB: number;
+	    processRSS: number;
+	    processCPU: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppMetrics(source);
 	    }
 	
 	    constructor(source: any = {}) {
-	        if ('string' === typeof source) {
-				source = JSON.parse(source);
-			}
+	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.heapAlloc = source["heapAlloc"];
 	        this.sys = source["sys"];
 	        this.numGC = source["numGC"];
@@ -248,9 +237,10 @@ export namespace main {
 	        this.numLists = source["numLists"];
 	        this.maxID = source["maxID"];
 	        this.fileSizeMB = source["fileSizeMB"];
+	        this.processRSS = source["processRSS"];
+	        this.processCPU = source["processCPU"];
 	    }
 	}
-
 	export class BoardResponse {
 	    lists: Record<string, Array<daedalus.KanbanCard>>;
 	    config?: daedalus.BoardConfig;
@@ -283,4 +273,6 @@ export namespace main {
 		    return a;
 		}
 	}
+
 }
+

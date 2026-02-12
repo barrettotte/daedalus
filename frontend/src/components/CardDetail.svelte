@@ -1,7 +1,7 @@
 <script>
   import { afterUpdate } from "svelte";
-  import { selectedCard, updateCardInBoard, boardConfig, boardData, addToast } from "../stores/board.js";
-  import { GetCardContent, SaveCard, OpenFileExternal } from "../../wailsjs/go/main/App";
+  import { selectedCard, draftListKey, updateCardInBoard, addCardToBoard, boardConfig, boardData, addToast } from "../stores/board.js";
+  import { GetCardContent, SaveCard, OpenFileExternal, CreateCard } from "../../wailsjs/go/main/App";
   import { marked } from "marked";
   import { labelColor, formatDate, formatDateTime, formatListName, autoFocus } from "../lib/utils.js";
 
@@ -17,6 +17,11 @@
   let editTitle = "";
   let editBody = "";
 
+  // Draft mode state — for creating new cards before they exist on disk
+  let draftTitle = "";
+  let draftBody = "";
+  let saving = false;
+
   afterUpdate(() => {
     const curId = $selectedCard ? $selectedCard.metadata.id : null;
     if (curId && curId !== prevCardId && backdropEl) {
@@ -28,11 +33,37 @@
     }
   });
 
-  // Closes the detail modal by clearing the selected card and resetting edit state.
+  // Closes whichever modal is active — draft or existing card detail.
   function close() {
-    editingTitle = false;
-    editingBody = false;
-    selectedCard.set(null);
+    if ($draftListKey) {
+      draftTitle = "";
+      draftBody = "";
+      saving = false;
+      draftListKey.set(null);
+    } else {
+      editingTitle = false;
+      editingBody = false;
+      selectedCard.set(null);
+    }
+  }
+
+  // Validates and saves the draft card to disk, then adds it to the board store.
+  async function saveDraft() {
+    if (!draftTitle.trim()) {
+      return;
+    }
+    saving = true;
+
+    try {
+      const card = await CreateCard($draftListKey, draftTitle.trim(), draftBody);
+      addCardToBoard($draftListKey, card);
+      draftTitle = "";
+      draftBody = "";
+      draftListKey.set(null);
+    } catch (e) {
+      addToast(`Failed to create card: ${e}`);
+    }
+    saving = false;
   }
 
   // Opens both title and body for inline editing.
@@ -116,8 +147,17 @@
     }
   }
 
-  // Closes the modal when Escape is pressed, cancelling any active inline edit first.
+  // Handles keyboard shortcuts: Ctrl/Cmd+Enter saves draft, Escape closes/cancels.
   function handleKeydown(e) {
+    if ($draftListKey) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        saveDraft();
+      } else if (e.key === "Escape") {
+        close();
+      }
+      return;
+    }
     if (e.key === "Escape") {
       if (editingTitle) {
         editingTitle = false;
@@ -134,6 +174,13 @@
     if (e.target === e.currentTarget) {
       close();
     }
+  }
+
+  // Resets draft fields whenever a new draft is started.
+  $: if ($draftListKey) {
+    draftTitle = "";
+    draftBody = "";
+    saving = false;
   }
 
   $: if ($selectedCard) {
@@ -217,7 +264,47 @@
 
 <svelte:window on:keydown={handleKeydown} />
 
-{#if $selectedCard && meta}
+{#if $draftListKey}
+  <div class="backdrop" on:click={handleBackdropClick} on:keydown={handleKeydown}>
+    <div class="modal">
+      <div class="modal-header">
+        <input
+          class="edit-title-input"
+          type="text"
+          bind:value={draftTitle}
+          placeholder="Card title"
+          on:keydown={e => e.key === 'Enter' && saveDraft()}
+          use:autoFocus
+        />
+        <div class="header-btns">
+          <button class="header-btn" on:click={close} title="Close">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div class="main-col">
+          <div class="section">
+            <textarea
+              class="edit-body-textarea"
+              bind:value={draftBody}
+              placeholder="Card description (markdown)"
+            ></textarea>
+          </div>
+          <div class="draft-actions">
+            <button class="save-btn" on:click={saveDraft} disabled={saving || !draftTitle.trim()}>
+              {saving ? "Saving..." : "Save"}
+            </button>
+            <button class="cancel-btn" on:click={close}>Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{:else if $selectedCard && meta}
   <div class="backdrop" bind:this={backdropEl} on:click={handleBackdropClick} on:keydown={handleKeydown}>
     <div class="modal">
       <div class="modal-header">
@@ -787,5 +874,42 @@
     border: none;
     border-top: 1px solid #3b4048;
     margin: 16px 0;
+  }
+
+  /* Draft mode actions */
+  .draft-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .save-btn {
+    background: #579dff;
+    color: #1e2128;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .save-btn:hover:not(:disabled) {
+    background: #85b8ff;
+  }
+  .save-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .cancel-btn {
+    background: rgba(255, 255, 255, 0.08);
+    color: #9fadbc;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .cancel-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
   }
 </style>

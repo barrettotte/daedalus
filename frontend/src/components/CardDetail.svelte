@@ -1,7 +1,7 @@
 <script>
   import { afterUpdate } from "svelte";
-  import { selectedCard, draftListKey, updateCardInBoard, addCardToBoard, boardConfig, boardData, addToast } from "../stores/board.js";
-  import { GetCardContent, SaveCard, OpenFileExternal, CreateCard } from "../../wailsjs/go/main/App";
+  import { selectedCard, draftListKey, draftPosition, updateCardInBoard, addCardToBoard, removeCardFromBoard, boardConfig, boardData, addToast } from "../stores/board.js";
+  import { GetCardContent, SaveCard, OpenFileExternal, CreateCard, DeleteCard } from "../../wailsjs/go/main/App";
   import { marked } from "marked";
   import { labelColor, formatDate, formatDateTime, formatListName, autoFocus } from "../lib/utils.js";
 
@@ -16,6 +16,9 @@
   let editingBody = false;
   let editTitle = "";
   let editBody = "";
+
+  // Delete confirmation state
+  let confirmingDelete = false;
 
   // Draft mode state — for creating new cards before they exist on disk
   let draftTitle = "";
@@ -55,8 +58,10 @@
     saving = true;
 
     try {
-      const card = await CreateCard($draftListKey, draftTitle.trim(), draftBody);
-      addCardToBoard($draftListKey, card);
+      const pos = $draftPosition;
+      const card = await CreateCard($draftListKey, draftTitle.trim(), draftBody, pos);
+      addCardToBoard($draftListKey, card, pos);
+
       draftTitle = "";
       draftBody = "";
       draftListKey.set(null);
@@ -163,6 +168,8 @@
         editingTitle = false;
       } else if (editingBody) {
         editingBody = false;
+      } else if (confirmingDelete) {
+        confirmingDelete = false;
       } else {
         close();
       }
@@ -189,6 +196,7 @@
     rawBody = "";
     editingTitle = false;
     editingBody = false;
+    confirmingDelete = false;
 
     GetCardContent($selectedCard.filePath).then(content => {
       // Strip leading h1 since title is already in the modal header
@@ -206,6 +214,18 @@
   // Opens the card's markdown file in the system default editor.
   function openExternal() {
     OpenFileExternal($selectedCard.filePath).catch(e => addToast(`Failed to open file: ${e}`));
+  }
+
+  // Deletes the card from disk and removes it from the board store.
+  async function deleteCard() {
+    const filePath = $selectedCard.filePath;
+    try {
+      await DeleteCard(filePath);
+      removeCardFromBoard(filePath);
+      close();
+    } catch (e) {
+      addToast(`Failed to delete card: ${e}`);
+    }
   }
 
   $: meta = $selectedCard ? $selectedCard.metadata : null;
@@ -295,6 +315,10 @@
             ></textarea>
           </div>
           <div class="draft-actions">
+            <div class="position-toggle">
+              <button class="pos-btn" class:active={$draftPosition === 'top'} on:click={() => draftPosition.set('top')}>Top</button>
+              <button class="pos-btn" class:active={$draftPosition === 'bottom'} on:click={() => draftPosition.set('bottom')}>Bottom</button>
+            </div>
             <button class="save-btn" on:click={saveDraft} disabled={saving || !draftTitle.trim()}>
               {saving ? "Saving..." : "Save"}
             </button>
@@ -336,6 +360,12 @@
               <line x1="10" y1="14" x2="21" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </button>
+          <button class="header-btn delete-icon" on:click={() => confirmingDelete = true} title="Delete card">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <polyline points="3 6 5 6 21 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
           <button class="header-btn" on:click={close} title="Close">
             <svg viewBox="0 0 24 24" width="16" height="16">
               <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -345,6 +375,15 @@
         </div>
       </div>
 
+      {#if confirmingDelete}
+        <div class="confirm-delete">
+          <span class="confirm-delete-text">Delete this card?</span>
+          <div class="confirm-delete-btns">
+            <button class="delete-btn" on:click={deleteCard}>Delete</button>
+            <button class="cancel-btn" on:click={() => confirmingDelete = false}>Cancel</button>
+          </div>
+        </div>
+      {:else}
       <div class="modal-body">
         <div class="main-col">
 
@@ -477,6 +516,7 @@
           {/if}
         </div>
       </div>
+      {/if}
     </div>
   </div>
 {/if}
@@ -880,7 +920,31 @@
   .draft-actions {
     display: flex;
     gap: 8px;
+    align-items: center;
     justify-content: flex-end;
+  }
+  .position-toggle {
+    display: flex;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid #3b4048;
+    margin-right: auto;
+  }
+  .pos-btn {
+    all: unset;
+    padding: 5px 12px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    color: #9fadbc;
+    background: transparent;
+  }
+  .pos-btn:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .pos-btn.active {
+    background: rgba(87, 157, 255, 0.15);
+    color: #579dff;
   }
   .save-btn {
     background: #579dff;
@@ -911,5 +975,39 @@
   .cancel-btn:hover {
     background: rgba(255, 255, 255, 0.15);
     color: #fff;
+  }
+
+  /* Delete confirmation */
+  .delete-icon:hover {
+    color: #f87168;
+  }
+  .confirm-delete {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px;
+    gap: 12px;
+  }
+  .confirm-delete-text {
+    font-size: 0.95rem;
+    color: #c7d1db;
+    font-weight: 600;
+  }
+  .confirm-delete-btns {
+    display: flex;
+    gap: 8px;
+  }
+  .delete-btn {
+    background: #c9372c;
+    color: #fff;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .delete-btn:hover {
+    background: #f87168;
   }
 </style>

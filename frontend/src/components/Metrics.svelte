@@ -52,8 +52,6 @@
     cancelAnimationFrame(rafId);
   });
 
-  // Refresh metrics when board data changes
-  $: $boardData, fetchMetrics();
 
 </script>
 
@@ -62,13 +60,13 @@
     <div class="metrics-row"><span class="label" title="Frames per second">FPS</span><span>{fps}</span></div>
     <div class="metrics-row"><span class="label" title="Total HTML elements in document">DOM nodes</span><span>{domNodes}</span></div>
     <div class="metrics-divider"></div>
-    <div class="metrics-row"><span class="label" title="Resident set size — physical memory used by the whole process">Process RSS</span><span>{metrics.processRSS.toFixed(1)} MB</span></div>
-    <div class="metrics-row"><span class="label" title="CPU usage percentage since last sample">Process CPU</span><span>{metrics.processCPU.toFixed(1)}%</span></div>
-    <div class="metrics-divider"></div>
     <div class="metrics-row"><span class="label" title="Go heap memory allocated for live objects">Go heap</span><span>{metrics.heapAlloc.toFixed(1)} MB</span></div>
     <div class="metrics-row"><span class="label" title="Total memory obtained from OS by Go runtime">Go sys</span><span>{metrics.sys.toFixed(1)} MB</span></div>
     <div class="metrics-row"><span class="label" title="Number of completed garbage collection cycles">GC</span><span>{metrics.numGC}</span></div>
     <div class="metrics-row"><span class="label" title="Active goroutines">Goroutines</span><span>{metrics.goroutines}</span></div>
+    <div class="metrics-divider"></div>
+    <div class="metrics-row"><span class="label" title="Resident set size — physical memory used by the whole process">Process RSS</span><span>{metrics.processRSS.toFixed(1)} MB</span></div>
+    <div class="metrics-row"><span class="label" title="CPU usage percentage since last sample">Process CPU</span><span>{metrics.processCPU.toFixed(1)}%</span></div>
     <div class="metrics-divider"></div>
     <div class="metrics-row"><span class="label" title="Number of lists">Lists</span><span>{metrics.numLists}</span></div>
     <div class="metrics-row"><span class="label" title="Number of cards">Cards</span><span>{metrics.numCards}</span></div>

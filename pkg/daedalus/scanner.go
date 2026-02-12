@@ -143,11 +143,10 @@ func parseFileHeader(path string) (CardMetadata, string, error) {
 
 	inFrontmatter := false
 	dashCount := 0
-	linesToRead := 50 // only read a bit
+	bodyLines := 0
 
-	for scanner.Scan() && linesToRead > 0 {
+	for scanner.Scan() {
 		line := scanner.Text()
-		linesToRead--
 
 		if strings.TrimSpace(line) == "---" {
 			dashCount++
@@ -165,7 +164,11 @@ func parseFileHeader(path string) (CardMetadata, string, error) {
 		if inFrontmatter {
 			frontmatterBuf.WriteString(line + "\n")
 		} else if dashCount >= 2 {
-			// in body
+			// in body — only read a few lines for the preview
+			bodyLines++
+			if bodyLines > 20 {
+				break
+			}
 			if bodyPreviewBuf.Len() < 150 {
 				bodyPreviewBuf.WriteString(line + "\n")
 			}
@@ -264,11 +267,42 @@ func WriteCardFile(path string, meta CardMetadata, body string) error {
 		}
 	}
 
-	// Marshal merged map to YAML
-	finalYaml, err := yaml.Marshal(merged)
-	if err != nil {
-		return fmt.Errorf("marshaling final yaml: %w", err)
+	// Marshal fields in priority order: important metadata first, bulky data last
+	priorityKeys := []string{"id", "title", "list_order", "created", "updated", "due", "range", "labels", "icon"}
+	added := make(map[string]bool)
+	var yamlBuf bytes.Buffer
+
+	for _, key := range priorityKeys {
+		if val, ok := merged[key]; ok {
+			b, err := yaml.Marshal(map[string]interface{}{key: val})
+			if err != nil {
+				return fmt.Errorf("marshaling field %s: %w", key, err)
+			}
+			yamlBuf.Write(b)
+			added[key] = true
+		}
 	}
+
+	// Remaining keys sorted alphabetically, with trello_data forced to the very end
+	var remaining []string
+	for key := range merged {
+		if !added[key] && key != "trello_data" {
+			remaining = append(remaining, key)
+		}
+	}
+	sort.Strings(remaining)
+	if _, ok := merged["trello_data"]; ok {
+		remaining = append(remaining, "trello_data")
+	}
+
+	for _, key := range remaining {
+		b, err := yaml.Marshal(map[string]interface{}{key: merged[key]})
+		if err != nil {
+			return fmt.Errorf("marshaling field %s: %w", key, err)
+		}
+		yamlBuf.Write(b)
+	}
+	finalYaml := yamlBuf.Bytes()
 
 	// Build the file content
 	var buf bytes.Buffer

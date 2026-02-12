@@ -1,8 +1,8 @@
 <script>
-  import { onMount } from "svelte";
-  import { LoadBoard, SaveListConfig, SaveLabelsExpanded, SaveCollapsedLists } from "../wailsjs/go/main/App";
-  import { boardData, boardConfig, sortedListKeys, isLoaded, selectedCard, draftListKey, showMetrics, labelsExpanded, addToast } from "./stores/board.js";
-  import { formatListName, autoFocus } from "./lib/utils.js";
+  import { onMount, onDestroy } from "svelte";
+  import { LoadBoard, SaveListConfig, SaveLabelsExpanded, SaveCollapsedLists, MoveCard } from "../wailsjs/go/main/App";
+  import { boardData, boardConfig, sortedListKeys, isLoaded, selectedCard, draftListKey, draftPosition, showMetrics, labelsExpanded, dragState, dropTarget, moveCardInBoard, computeListOrder, addToast } from "./stores/board.js";
+  import { formatListName, autoFocus, labelColor } from "./lib/utils.js";
   import VirtualList from "./components/VirtualList.svelte";
   import Card from "./components/Card.svelte";
   import CardDetail from "./components/CardDetail.svelte";
@@ -15,6 +15,250 @@
   let editTitleValue = "";
   let editLimitValue = 0;
   let collapsedLists = new Set();
+  let boardContainerEl;
+  let autoScrollRaf = null;
+  let dragX = 0;
+  let dragY = 0;
+  let activeIndicators = new Set();
+
+  // Clears drop indicator classes from tracked elements (avoids querySelectorAll on every dragover).
+  function clearDropIndicators() {
+    for (const el of activeIndicators) {
+      el.classList.remove('drop-above', 'drop-below', 'drop-top');
+    }
+    activeIndicators.clear();
+  }
+
+  // Adds a drop indicator class to an element and tracks it for efficient cleanup.
+  function addIndicator(el, cls) {
+    el.classList.add(cls);
+    activeIndicators.add(el);
+  }
+
+  // Allows the element to be a valid drop target — WebKitGTK requires dragenter prevention in addition to dragover.
+  function handleDragEnter(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  }
+
+  // Handles dragover on a list body — positions the drop indicator and triggers auto-scroll.
+  // preventDefault must be called unconditionally — WebKitGTK requires it on every dragover to allow drops.
+  function handleDragOver(e, listKey) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    dragX = e.clientX;
+    dragY = e.clientY;
+    if (!$dragState) {
+      return;
+    }
+
+    clearDropIndicators();
+
+    // Find the closest item-slot under the cursor
+    const slot = e.target.closest('[data-card-id]');
+    if (slot) {
+      const rect = slot.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+
+      if (e.clientY < midY) {
+        // Top half — insert before this card
+        addIndicator(slot, 'drop-above');
+        dropTarget.set({ listKey, cardId: Number(slot.dataset.cardId), position: "above" });
+      } else {
+        // Bottom half — insert after this card; show indicator on next card for consistent position
+        const next = slot.nextElementSibling;
+
+        if (next && next.hasAttribute('data-card-id')) {
+          addIndicator(next, 'drop-above');
+          dropTarget.set({ listKey, cardId: Number(next.dataset.cardId), position: "above" });
+        } else {
+          addIndicator(slot, 'drop-below');
+          dropTarget.set({ listKey, cardId: Number(slot.dataset.cardId), position: "below" });
+        }
+      }
+
+    } else {
+      // No card under cursor — determine if near top or bottom of the list
+      const listBody = e.currentTarget;
+      const rect = listBody.getBoundingClientRect();
+      const cards = $boardData[listKey] || [];
+
+      if (cards.length > 0 && e.clientY < rect.top + rect.height / 3) {
+        dropTarget.set({ listKey, cardId: cards[0].metadata.id, position: "above" });
+        addIndicator(listBody, 'drop-top');
+      } else {
+        dropTarget.set({ listKey, cardId: null, position: "below" });
+      }
+    }
+
+    // Auto-scroll: vertical (inside the list's scroll container) and horizontal (board)
+    handleAutoScroll(e);
+  }
+
+  // Handles dragleave — clears visual indicator only when cursor truly exits the list body.
+  // Never clears dropTarget here; that's handled by handleDrop and the dragState reactive cleanup.
+  function handleDragLeave(e) {
+    const related = e.relatedTarget;
+    // relatedTarget is null in WebKitGTK — skip cleanup to avoid false positives
+    if (related && !e.currentTarget.contains(related)) {
+      clearDropIndicators();
+    }
+  }
+
+  // Handles drop on a list body — computes target index and list_order, then calls MoveCard API.
+  async function handleDrop(e, listKey) {
+    e.preventDefault();
+    clearDropIndicators();
+
+    const drag = $dragState;
+    const drop = $dropTarget;
+    dragState.set(null);
+    dropTarget.set(null);
+
+    if (!drag || !drop) {
+      return;
+    }
+
+    const cards = $boardData[listKey] || [];
+    let targetIndex;
+
+    if (drop.cardId == null) {
+      // Drop on empty list or empty area
+      targetIndex = cards.length;
+    } else {
+      const cardIdx = cards.findIndex(c => c.metadata.id === drop.cardId);
+      if (cardIdx === -1) {
+        targetIndex = cards.length;
+      } else {
+        targetIndex = drop.position === "above" ? cardIdx : cardIdx + 1;
+      }
+    }
+
+    // Adjust targetIndex if dragging within the same list and the source is before the target
+    const sourceCards = $boardData[drag.sourceListKey] || [];
+    const sourceIdx = sourceCards.findIndex(c => c.filePath === drag.card.filePath);
+
+    if (drag.sourceListKey === listKey && sourceIdx !== -1) {
+      // No-op if dropping at the same position
+      if (targetIndex === sourceIdx || targetIndex === sourceIdx + 1) {
+        return;
+      }
+      // Adjust for removal of source card
+      if (sourceIdx < targetIndex) {
+        targetIndex--;
+      }
+    }
+
+    // Build the target cards array without the dragged card for computing list_order
+    const targetCards = (drag.sourceListKey === listKey)
+      ? cards.filter(c => c.filePath !== drag.card.filePath)
+      : cards;
+
+    const newListOrder = computeListOrder(targetCards, targetIndex);
+
+    // Capture original path before optimistic update (needed for the API call)
+    const originalPath = drag.card.filePath;
+    moveCardInBoard(originalPath, drag.sourceListKey, listKey, targetIndex, newListOrder);
+
+    try {
+      const result = await MoveCard(originalPath, listKey, newListOrder);
+      // Cross-list moves change the filePath on disk — sync the store with the backend response
+      if (result.filePath !== originalPath) {
+        boardData.update(lists => {
+          const cards = lists[listKey];
+          if (cards) {
+            const idx = cards.findIndex(c => c.metadata.id === drag.card.metadata.id);
+            if (idx !== -1) {
+              cards[idx] = { ...cards[idx], filePath: result.filePath, listName: result.listName };
+            }
+          }
+          return lists;
+        });
+      }
+    } catch (err) {
+      addToast(`Failed to move card: ${err}`);
+      initBoard(); // Reload board to recover consistent state
+    }
+  }
+
+  // Handles drag over the list header — treats as drop at the top of the list.
+  function handleHeaderDragOver(e, listKey) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    dragX = e.clientX;
+    dragY = e.clientY;
+
+    if (!$dragState) {
+      return;
+    }
+
+    clearDropIndicators();
+    const cards = $boardData[listKey] || [];
+    if (cards.length > 0) {
+      dropTarget.set({ listKey, cardId: cards[0].metadata.id, position: "above" });
+    } else {
+      dropTarget.set({ listKey, cardId: null, position: "below" });
+    }
+
+    // Show indicator at the top of the list body
+    const listCol = e.currentTarget.closest('.list-column');
+    if (listCol) {
+      const listBody = listCol.querySelector('.list-body');
+      if (listBody) {
+        addIndicator(listBody, 'drop-top');
+      }
+    }
+  }
+
+  // Handles drop on the footer add-button area — drop at the bottom of the list.
+  function handleFooterDragOver(e, listKey) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    dragX = e.clientX;
+    dragY = e.clientY;
+    if (!$dragState) {
+      return;
+    }
+
+    clearDropIndicators();
+    dropTarget.set({ listKey, cardId: null, position: "below" });
+    handleAutoScroll(e);
+  }
+
+  // Auto-scrolls the board container horizontally and list bodies vertically during drag.
+  function handleAutoScroll(e) {
+    if (autoScrollRaf) {
+      return;
+    }
+    autoScrollRaf = requestAnimationFrame(() => {
+      autoScrollRaf = null;
+      const edgeSize = 40;
+      const speed = 12;
+
+      // Horizontal auto-scroll on board container
+      if (boardContainerEl) {
+        const rect = boardContainerEl.getBoundingClientRect();
+
+        if (e.clientX < rect.left + edgeSize) {
+          boardContainerEl.scrollLeft -= speed;
+        } else if (e.clientX > rect.right - edgeSize) {
+          boardContainerEl.scrollLeft += speed;
+        }
+      }
+
+      // Vertical auto-scroll on the nearest virtual-scroll-container
+      const scrollContainer = e.target.closest('.virtual-scroll-container');
+      if (scrollContainer) {
+        const rect = scrollContainer.getBoundingClientRect();
+
+        if (e.clientY < rect.top + edgeSize) {
+          scrollContainer.scrollTop -= speed;
+        } else if (e.clientY > rect.bottom - edgeSize) {
+          scrollContainer.scrollTop += speed;
+        }
+      }
+    });
+  }
 
   // Toggles a list between collapsed and expanded, persisting to board.yaml.
   function toggleCollapse(listKey) {
@@ -151,8 +395,15 @@
     }
   }
 
-  // Opens the draft-creation modal for the given list (no backend call yet).
+  // Opens the draft-creation modal for the given list, defaulting to top placement.
   function createCard(listKey) {
+    draftPosition.set("top");
+    draftListKey.set(listKey);
+  }
+
+  // Opens the draft-creation modal for the given list, defaulting to bottom placement.
+  function createCardBottom(listKey) {
+    draftPosition.set("bottom");
     draftListKey.set(listKey);
   }
 
@@ -178,7 +429,24 @@
     }
   }
 
+  // Clean up indicators, drop state, and auto-scroll when drag ends (drop or cancel).
+  $: if (!$dragState) {
+    clearDropIndicators();
+    dropTarget.set(null);
+    if (autoScrollRaf) {
+      cancelAnimationFrame(autoScrollRaf);
+      autoScrollRaf = null;
+    }
+  }
+
   onMount(initBoard);
+
+  onDestroy(() => {
+    if (autoScrollRaf) {
+      cancelAnimationFrame(autoScrollRaf);
+      autoScrollRaf = null;
+    }
+  });
 
 </script>
 
@@ -207,7 +475,7 @@
   {#if error}
     <div class="error">{error}</div>
   {:else if $isLoaded}
-    <div class="board-container" class:modal-open={$selectedCard || $draftListKey}>
+    <div class="board-container" class:modal-open={$selectedCard || $draftListKey} bind:this={boardContainerEl}>
       {#each sortedListKeys($boardData) as listKey}
         {#if collapsedLists.has(listKey)}
           <div class="list-column collapsed" on:click={() => toggleCollapse(listKey)} on:keydown={e => e.key === 'Enter' && toggleCollapse(listKey)}>
@@ -216,7 +484,7 @@
           </div>
         {:else}
           <div class="list-column">
-            <div class="list-header">
+            <div class="list-header" on:dragenter={handleDragEnter} on:dragover={(e) => handleHeaderDragOver(e, listKey)} on:drop={(e) => handleDrop(e, listKey)}>
               {#if editingTitle === listKey}
                 <input
                   class="edit-title-input"
@@ -260,15 +528,33 @@
                 {/if}
               </div>
             </div>
-            <div class="list-body">
-              <VirtualList items={$boardData[listKey]} component={Card} estimatedHeight={90} />
+            <div class="list-body" on:dragenter={handleDragEnter} on:dragover={(e) => handleDragOver(e, listKey)} on:dragleave={handleDragLeave} on:drop={(e) => handleDrop(e, listKey)}>
+              <VirtualList items={$boardData[listKey]} component={Card} estimatedHeight={90} listKey={listKey} />
             </div>
+            <button class="list-footer-add" on:click={() => createCardBottom(listKey)} on:dragenter={handleDragEnter} on:dragover={(e) => handleFooterDragOver(e, listKey)} on:drop={(e) => handleDrop(e, listKey)} title="Add card to bottom">
+              <svg viewBox="0 0 24 24" width="12" height="12">
+                <line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
           </div>
         {/if}
       {/each}
     </div>
   {:else}
     <div class="loading">Loading cards...</div>
+  {/if}
+  {#if $dragState}
+    <div class="drag-ghost" style="left: {dragX + 10}px; top: {dragY - 20}px">
+      {#if $dragState.card.metadata.labels?.length > 0}
+        <div class="ghost-labels">
+          {#each $dragState.card.metadata.labels as label}
+            <span class="ghost-label" style="background: {labelColor(label)}"></span>
+          {/each}
+        </div>
+      {/if}
+      <div class="ghost-title">{$dragState.card.metadata.title}</div>
+    </div>
   {/if}
   <CardDetail />
   <Metrics />
@@ -435,6 +721,24 @@
     overflow: hidden;
   }
 
+  .list-footer-add {
+    all: unset;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 6px 0;
+    cursor: pointer;
+    color: #6b7a8d;
+    border-top: 1px solid #333;
+    box-sizing: border-box;
+  }
+
+  .list-footer-add:hover {
+    color: #9fadbc;
+    background: rgba(255, 255, 255, 0.04);
+  }
+
   .count-btn {
     all: unset;
     background: #333;
@@ -487,5 +791,74 @@
 
   .board-container.modal-open :global(.virtual-scroll-container) {
     overflow-y: hidden;
+  }
+
+  :global(.list-body.drop-top) {
+    position: relative;
+  }
+
+  :global(.list-body.drop-top::before) {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 6px;
+    right: 6px;
+    height: 2px;
+    background: #579dff;
+    z-index: 2;
+    border-radius: 1px;
+  }
+
+  :global(.item-slot.drop-above),
+  :global(.item-slot.drop-below) {
+    position: relative;
+    z-index: 1;
+  }
+
+  :global(.item-slot.drop-above) {
+    box-shadow: 0 -2px 0 0 #579dff;
+  }
+
+  :global(.item-slot.drop-below) {
+    box-shadow: 0 2px 0 0 #579dff;
+  }
+
+  .drag-ghost {
+    position: fixed;
+    width: 250px;
+    background: #2b303b;
+    border-radius: 4px;
+    padding: 8px 10px;
+    color: #c7d1db;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+    pointer-events: none;
+    z-index: 10000;
+    opacity: 0.9;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    transform: rotate(3deg);
+    border: 1px solid rgba(87, 157, 255, 0.4);
+  }
+
+  .ghost-labels {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+
+  .ghost-label {
+    min-width: 28px;
+    height: 8px;
+    border-radius: 3px;
+  }
+
+  .ghost-title {
+    font-size: 0.85rem;
+    font-weight: 400;
+    line-height: 1.3;
+    word-break: break-word;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
   }
 </style>

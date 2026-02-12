@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -216,9 +217,10 @@ func (a *App) SaveCard(filePath string, metadata daedalus.CardMetadata, body str
 	return &updatedCard, nil
 }
 
-// CreateCard creates a new card at the top of the given list directory, writes it to disk,
+// CreateCard creates a new card in the given list directory, writes it to disk,
 // updates in-memory state, and returns the new KanbanCard.
-func (a *App) CreateCard(listDirName string, title string, body string) (*daedalus.KanbanCard, error) {
+// Position "bottom" places it after the last card; anything else (including "top") places it before the first.
+func (a *App) CreateCard(listDirName string, title string, body string, position string) (*daedalus.KanbanCard, error) {
 	if a.board == nil {
 		return nil, fmt.Errorf("board not loaded")
 	}
@@ -231,10 +233,14 @@ func (a *App) CreateCard(listDirName string, title string, body string) (*daedal
 	a.board.MaxID++
 	newID := a.board.MaxID
 
-	// Place at top of list: one less than the current first card's order
+	// Determine list_order based on position
 	listOrder := 0.0
 	if len(cards) > 0 {
-		listOrder = cards[0].Metadata.ListOrder - 1
+		if position == "bottom" {
+			listOrder = cards[len(cards)-1].Metadata.ListOrder + 1
+		} else {
+			listOrder = cards[0].Metadata.ListOrder - 1
+		}
 	}
 
 	// Use provided title, falling back to ID string if empty
@@ -277,8 +283,12 @@ func (a *App) CreateCard(listDirName string, title string, body string) (*daedal
 		PreviewText: preview,
 	}
 
-	// Prepend to list
-	a.board.Lists[listDirName] = append([]daedalus.KanbanCard{card}, cards...)
+	// Add to list at the requested position
+	if position == "bottom" {
+		a.board.Lists[listDirName] = append(cards, card)
+	} else {
+		a.board.Lists[listDirName] = append([]daedalus.KanbanCard{card}, cards...)
+	}
 
 	return &card, nil
 }
@@ -318,6 +328,101 @@ func (a *App) DeleteCard(filePath string) error {
 	}
 
 	return nil
+}
+
+// MoveCard moves a card to a target list at a given list_order. Handles both same-list
+// reordering and cross-list moves (file rename to new directory).
+func (a *App) MoveCard(filePath string, targetListDirName string, newListOrder float64) (*daedalus.KanbanCard, error) {
+	if a.board == nil {
+		return nil, fmt.Errorf("board not loaded")
+	}
+
+	absPath, err := a.validatePath(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate target list exists
+	if _, ok := a.board.Lists[targetListDirName]; !ok {
+		return nil, fmt.Errorf("target list not found: %s", targetListDirName)
+	}
+
+	// Find card in memory
+	var sourceListKey string
+	var sourceIdx int
+	var found bool
+	for listKey, cards := range a.board.Lists {
+		for i, card := range cards {
+			if card.FilePath == absPath {
+				sourceListKey = listKey
+				sourceIdx = i
+				found = true
+				break
+			}
+		}
+		if found {
+			break
+		}
+	}
+	if !found {
+		return nil, fmt.Errorf("card not found in any list")
+	}
+
+	card := a.board.Lists[sourceListKey][sourceIdx]
+
+	// Read card body from disk
+	body, err := daedalus.ReadCardContent(absPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading card content: %w", err)
+	}
+
+	// Update metadata
+	now := time.Now()
+	card.Metadata.Updated = &now
+	card.Metadata.ListOrder = newListOrder
+
+	// Determine new file path
+	filename := filepath.Base(absPath)
+	newPath := filepath.Join(a.board.RootPath, targetListDirName, filename)
+
+	crossList := sourceListKey != targetListDirName
+
+	if crossList {
+		// Move file to new directory
+		if err := os.Rename(absPath, newPath); err != nil {
+			return nil, fmt.Errorf("moving card file: %w", err)
+		}
+		card.FilePath = newPath
+		card.ListName = targetListDirName
+	}
+
+	// Write updated frontmatter
+	if err := daedalus.WriteCardFile(card.FilePath, card.Metadata, body); err != nil {
+		return nil, fmt.Errorf("writing card file: %w", err)
+	}
+
+	// Update in-memory state: remove from source
+	srcCards := a.board.Lists[sourceListKey]
+	a.board.Lists[sourceListKey] = append(srcCards[:sourceIdx], srcCards[sourceIdx+1:]...)
+
+	// Insert at sorted position in target list
+	a.board.Lists[targetListDirName] = insertSorted(a.board.Lists[targetListDirName], card)
+
+	return &card, nil
+}
+
+// insertSorted inserts a card into a sorted slice at the correct position by ListOrder then ID.
+func insertSorted(cards []daedalus.KanbanCard, card daedalus.KanbanCard) []daedalus.KanbanCard {
+	idx := sort.Search(len(cards), func(i int) bool {
+		if cards[i].Metadata.ListOrder != card.Metadata.ListOrder {
+			return cards[i].Metadata.ListOrder > card.Metadata.ListOrder
+		}
+		return cards[i].Metadata.ID > card.Metadata.ID
+	})
+	cards = append(cards, daedalus.KanbanCard{})
+	copy(cards[idx+1:], cards[idx:])
+	cards[idx] = card
+	return cards
 }
 
 // readProcessRSS reads the resident set size from /proc/self/statm in megabytes.

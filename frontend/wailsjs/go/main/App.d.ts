@@ -3,7 +3,7 @@
 import {daedalus} from '../models';
 import {main} from '../models';
 
-export function CreateCard(arg1:string,arg2:string,arg3:string):Promise<daedalus.KanbanCard>;
+export function CreateCard(arg1:string,arg2:string,arg3:string,arg4:string):Promise<daedalus.KanbanCard>;
 
 export function DeleteCard(arg1:string):Promise<void>;
 
@@ -12,6 +12,8 @@ export function GetCardContent(arg1:string):Promise<string>;
 export function GetMetrics():Promise<main.AppMetrics>;
 
 export function LoadBoard(arg1:string):Promise<main.BoardResponse>;
+
+export function MoveCard(arg1:string,arg2:string,arg3:number):Promise<daedalus.KanbanCard>;
 
 export function OpenFileExternal(arg1:string):Promise<void>;
 

@@ -1,10 +1,12 @@
 <script>
-  import { selectedCard, labelsExpanded, addToast } from "../stores/board.js";
+  import { selectedCard, labelsExpanded, dragState, addToast } from "../stores/board.js";
   import { SaveLabelsExpanded } from "../../wailsjs/go/main/App";
   import { labelColor } from "../lib/utils.js";
 
   export let card;
+  export let listKey = "";
   $: meta = card.metadata;
+  $: isDragging = $dragState?.card?.filePath === card.filePath;
   $: isOverdue = meta.due ? new Date(meta.due) < new Date() : false;
   $: hasChecklist = meta.checklist && meta.checklist.length > 0;
   $: checkedCount = hasChecklist ? meta.checklist.filter(i => i.done).length : 0;
@@ -13,6 +15,30 @@
   // Sets this card as the selected card to open the detail modal.
   function openDetail() {
     selectedCard.set(card);
+  }
+
+  // Starts a drag operation — stores the card and source list in dragState.
+  function handleDragStart(e) {
+    dragState.set({ card, sourceListKey: listKey });
+
+    // WebKitGTK requires setData for the drop event to fire
+    e.dataTransfer.setData("text/plain", card.filePath);
+    e.dataTransfer.effectAllowed = "move";
+
+    // Hide default drag ghost — drop indicator provides visual feedback instead
+    const ghost = document.createElement("div");
+    ghost.style.width = "1px";
+    ghost.style.height = "1px";
+    ghost.style.opacity = "0";
+
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 0, 0);
+    requestAnimationFrame(() => document.body.removeChild(ghost));
+  }
+
+  // Ends a drag operation — clears dragState.
+  function handleDragEnd() {
+    dragState.set(null);
   }
 
   // Toggles all labels board-wide between expanded text and collapsed color pills, persisting to board.yaml.
@@ -25,7 +51,7 @@
   }
 </script>
 
-<div class="card" on:click={openDetail} on:keydown={e => e.key === 'Enter' && openDetail()}>
+<div class="card" class:dragging={isDragging} draggable="true" on:dragstart={handleDragStart} on:dragend={handleDragEnd} on:click={openDetail} on:keydown={e => e.key === 'Enter' && openDetail()}>
   {#if meta.labels && meta.labels.length > 0}
     <div class="labels">
       {#each meta.labels as label}
@@ -81,6 +107,10 @@
 
   .card:hover {
     background: #333846;
+  }
+
+  .card.dragging {
+    opacity: 0.4;
   }
 
   .title {

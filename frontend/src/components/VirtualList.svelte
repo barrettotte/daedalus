@@ -42,6 +42,7 @@
   export let items = [];
   export let estimatedHeight = 90;
   export let component;
+  export let listKey = "";
 
   let container;
   let scrollTop = 0;
@@ -156,6 +157,9 @@
     if (resizeObserver) {
       resizeObserver.disconnect();
     }
+    if (scrollRaf) {
+      cancelAnimationFrame(scrollRaf);
+    }
   });
 
   afterUpdate(measureItems);
@@ -171,8 +175,8 @@
 <div class="virtual-scroll-container" bind:this={container} on:scroll={handleScroll}>
   <div class="scroll-wrapper" style="height: {totalHeight}px; padding-top: {topPadding}px">
     {#each visibleItems as item (item.metadata.id)}
-      <div class="item-slot" bind:this={itemElements[item.metadata.id]}>
-        <svelte:component this={component} card={item} />
+      <div class="item-slot" data-card-id={item.metadata.id} bind:this={itemElements[item.metadata.id]}>
+        <svelte:component this={component} card={item} {listKey} />
       </div>
     {/each}
   </div>

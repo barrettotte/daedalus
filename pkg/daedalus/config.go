@@ -17,7 +17,8 @@ type ListConfig struct {
 type BoardConfig struct {
 	Lists          map[string]ListConfig `yaml:"lists" json:"lists"`
 	LabelsExpanded *bool                 `yaml:"labels_expanded,omitempty" json:"labelsExpanded,omitempty"`
-	CollapsedLists []string              `yaml:"collapsed_lists,omitempty" json:"collapsedLists,omitempty"`
+	CollapsedLists     []string              `yaml:"collapsed_lists,omitempty" json:"collapsedLists,omitempty"`
+	HalfCollapsedLists []string              `yaml:"half_collapsed_lists,omitempty" json:"halfCollapsedLists,omitempty"`
 }
 
 // LoadBoardConfig reads board.yaml from rootPath. Returns empty config if file is missing.

@@ -18,6 +18,7 @@ export namespace daedalus {
 	    lists: Record<string, ListConfig>;
 	    labelsExpanded?: boolean;
 	    collapsedLists?: string[];
+	    halfCollapsedLists?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new BoardConfig(source);
@@ -28,6 +29,7 @@ export namespace daedalus {
 	        this.lists = this.convertValues(source["lists"], ListConfig, true);
 	        this.labelsExpanded = source["labelsExpanded"];
 	        this.collapsedLists = source["collapsedLists"];
+	        this.halfCollapsedLists = source["halfCollapsedLists"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -216,6 +218,7 @@ export namespace daedalus {
 export namespace main {
 	
 	export class AppMetrics {
+	    pid: number;
 	    heapAlloc: number;
 	    sys: number;
 	    numGC: number;
@@ -233,6 +236,7 @@ export namespace main {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.pid = source["pid"];
 	        this.heapAlloc = source["heapAlloc"];
 	        this.sys = source["sys"];
 	        this.numGC = source["numGC"];

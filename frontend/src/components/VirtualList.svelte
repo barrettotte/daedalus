@@ -217,10 +217,29 @@
     height: 100%;
     overflow-y: auto;
     contain: strict;
+    padding-bottom: 6px;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 3px;
+    }
+
+    &::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
   }
 
   .scroll-wrapper {
     box-sizing: border-box;
+    padding-left: 6px;
   }
 
   .item-slot {

@@ -64,6 +64,7 @@
     <div class="metrics-row"><span class="label" title="Number of completed garbage collection cycles">GC</span><span>{metrics.numGC}</span></div>
     <div class="metrics-row"><span class="label" title="Active goroutines">Goroutines</span><span>{metrics.goroutines}</span></div>
     <div class="metrics-divider"></div>
+    <div class="metrics-row"><span class="label" title="Process ID">PID</span><span>{metrics.pid}</span></div>
     <div class="metrics-row">
       <span class="label" title="Resident set size - physical memory used by the whole process">Process RSS</span>
       <span>{metrics.processRSS.toFixed(1)} MB</span>

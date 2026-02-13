@@ -4,7 +4,7 @@
   import { WindowSetTitle } from "../wailsjs/runtime/runtime";
   import {
     LoadBoard, SaveLabelsExpanded,
-    SaveCollapsedLists, DeleteCard,
+    SaveCollapsedLists, SaveHalfCollapsedLists, DeleteCard,
   } from "../wailsjs/go/main/App";
   import {
     boardData, boardConfig, boardPath, sortedListKeys, isLoaded,
@@ -30,6 +30,7 @@
 
   let error = $state("");
   let collapsedLists = $state(new SvelteSet<string>());
+  let halfCollapsedLists = $state(new SvelteSet<string>());
   let showKeyboardHelp = $state(false);
   let confirmingFocusDelete = $state(false);
   let boardContainerEl: HTMLDivElement | undefined = $state(undefined);
@@ -69,14 +70,27 @@
     }
   }
 
-  // Toggles a list between collapsed and expanded, persisting to board.yaml.
-  function toggleCollapse(listKey: string): void {
-    if (collapsedLists.has(listKey)) {
+  // Cycles a list through expanded -> half-collapsed -> fully collapsed -> expanded.
+  function cycleCollapseState(listKey: string): void {
+    if (halfCollapsedLists.has(listKey)) {
+      // Half-collapsed -> fully collapsed
+      halfCollapsedLists.delete(listKey);
+      collapsedLists.add(listKey);
+    } else if (collapsedLists.has(listKey)) {
+      // Fully collapsed -> expanded
       collapsedLists.delete(listKey);
     } else {
-      collapsedLists.add(listKey);
+      // Expanded -> half-collapsed
+      halfCollapsedLists.add(listKey);
     }
     SaveCollapsedLists([...collapsedLists]).catch(e => addToast(`Failed to save collapsed state: ${e}`));
+    SaveHalfCollapsedLists([...halfCollapsedLists]).catch(e => addToast(`Failed to save half-collapsed state: ${e}`));
+  }
+
+  // Expands a half-collapsed list to full (used by the "Show N more" button).
+  function expandFromHalf(listKey: string): void {
+    halfCollapsedLists.delete(listKey);
+    SaveHalfCollapsedLists([...halfCollapsedLists]).catch(e => addToast(`Failed to save half-collapsed state: ${e}`));
   }
 
   // Loads the board from the backend and unpacks lists + config into separate stores.
@@ -96,6 +110,9 @@
       }
       if (response.config?.collapsedLists) {
         collapsedLists = new SvelteSet(response.config.collapsedLists);
+      }
+      if (response.config?.halfCollapsedLists) {
+        halfCollapsedLists = new SvelteSet(response.config.halfCollapsedLists);
       }
       isLoaded.set(true);
     } catch (e) {
@@ -256,7 +273,9 @@
         }
       } else if (e.key === "ArrowDown") {
         const cards = $boardData[focus.listKey] || [];
-        if (focus.cardIndex < cards.length - 1) {
+        const maxIndex = halfCollapsedLists.has(focus.listKey) ? Math.min(4, cards.length - 1) : cards.length - 1;
+
+        if (focus.cardIndex < maxIndex) {
           focusedCard.set({ listKey: focus.listKey, cardIndex: focus.cardIndex + 1 });
         }
       } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
@@ -415,8 +434,9 @@
     <div class="board-container" class:modal-open={$selectedCard || $draftListKey} bind:this={boardContainerEl}>
       {#each sortedListKeys($boardData) as listKey}
         {#if collapsedLists.has(listKey)}
-          <div class="list-column collapsed" role="button" tabindex="0" onclick={() => toggleCollapse(listKey)}
-            onkeydown={e => e.key === 'Enter' && toggleCollapse(listKey)}
+          <div class="list-column collapsed" role="button" tabindex="0"
+            onclick={() => cycleCollapseState(listKey)}
+            onkeydown={e => e.key === 'Enter' && cycleCollapseState(listKey)}
           >
             <span class="collapsed-count">
               {getCountDisplay(listKey, $boardData, $boardConfig)}
@@ -425,11 +445,38 @@
               {getDisplayTitle(listKey, $boardConfig)}
             </span>
           </div>
-        {:else}
-          <div class="list-column" class:list-full={$dragState && $dragState.sourceListKey !== listKey && isAtLimit(listKey, $boardData, $boardConfig)}>
-            <ListHeader {listKey} 
+        {:else if halfCollapsedLists.has(listKey)}
+          {@const allItems = $filteredBoardData[listKey] || []}
+          {@const visibleItems = allItems.slice(0, 5)}
+          {@const remaining = allItems.length - 5}
+          <div class="list-column half-collapsed">
+            <ListHeader {listKey}
               oncreatecard={() => createCard(listKey)}
-              oncollapse={() => toggleCollapse(listKey)}
+              oncollapse={() => cycleCollapseState(listKey)}
+              onreload={initBoard}
+            />
+            <div class="list-body half-collapsed-body" role="list">
+              <VirtualList
+                items={visibleItems} component={Card}
+                estimatedHeight={90} listKey={listKey}
+                focusIndex={$focusedCard?.listKey === listKey ? $focusedCard.cardIndex : -1}
+              />
+            </div>
+            {#if remaining > 0}
+              <button class="show-more-bar" onclick={() => expandFromHalf(listKey)}>
+                Show {remaining} more
+              </button>
+            {/if}
+          </div>
+        {:else}
+          <div class="list-column"
+            class:list-full={$dragState
+              && $dragState.sourceListKey !== listKey
+              && isAtLimit(listKey, $boardData, $boardConfig)}
+          >
+            <ListHeader {listKey}
+              oncreatecard={() => createCard(listKey)}
+              oncollapse={() => cycleCollapseState(listKey)}
               onreload={initBoard}
             />
             <div class="list-body" role="list"
@@ -438,7 +485,7 @@
               ondragleave={handleDragLeave}
               ondrop={(e) => handleDrop(e, listKey, initBoard)}
             >
-              <VirtualList items={$filteredBoardData[listKey]} component={Card} estimatedHeight={90} listKey={listKey} 
+              <VirtualList items={$filteredBoardData[listKey]} component={Card} estimatedHeight={90} listKey={listKey}
                 focusIndex={$focusedCard?.listKey === listKey ? $focusedCard.cardIndex : -1}
               />
             </div>
@@ -671,10 +718,34 @@
     flex-shrink: 0;
   }
 
+  .half-collapsed-body {
+    max-height: 470px;
+  }
+
+  .show-more-bar {
+    all: unset;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 6px 0;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    font-size: 0.78rem;
+    font-weight: 500;
+    border-top: 1px solid var(--color-border-medium);
+    box-sizing: border-box;
+
+    &:hover {
+      color: var(--color-text-secondary);
+      background: var(--overlay-hover-faint);
+    }
+  }
+
   .list-body {
     flex: 1;
     overflow: hidden;
-    padding-top: 6px;
+    padding-top: 12px;
   }
 
   .list-footer-add {

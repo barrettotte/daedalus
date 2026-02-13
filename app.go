@@ -23,6 +23,7 @@ type BoardResponse struct {
 
 // AppMetrics holds runtime performance metrics for the frontend overlay
 type AppMetrics struct {
+	PID        int     `json:"pid"`
 	HeapAlloc  float64 `json:"heapAlloc"`
 	Sys        float64 `json:"sys"`
 	NumGC      uint32  `json:"numGC"`
@@ -106,6 +107,15 @@ func (a *App) SaveCollapsedLists(lists []string) error {
 		return fmt.Errorf("board not loaded")
 	}
 	a.board.Config.CollapsedLists = lists
+	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
+}
+
+// SaveHalfCollapsedLists persists the set of half-collapsed list keys to board.yaml.
+func (a *App) SaveHalfCollapsedLists(lists []string) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+	a.board.Config.HalfCollapsedLists = lists
 	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
 }
 
@@ -517,6 +527,7 @@ func (a *App) GetMetrics() AppMetrics {
 	a.prevWallTime = now
 
 	return AppMetrics{
+		PID:        os.Getpid(),
 		HeapAlloc:  float64(m.HeapAlloc) / 1024 / 1024,
 		Sys:        float64(m.Sys) / 1024 / 1024,
 		NumGC:      m.NumGC,

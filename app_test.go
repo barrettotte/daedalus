@@ -257,6 +257,40 @@ func TestSaveLabelsExpanded_Success(t *testing.T) {
 	}
 }
 
+// SaveHalfCollapsedLists should persist the list to board.yaml and reload correctly.
+func TestSaveHalfCollapsedLists_Success(t *testing.T) {
+	app, root := setupTestBoard(t)
+
+	lists := []string{"00___test", "10___done"}
+	if err := app.SaveHalfCollapsedLists(lists); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	config, err := daedalus.LoadBoardConfig(root)
+	if err != nil {
+		t.Fatalf("error loading config: %v", err)
+	}
+	if len(config.HalfCollapsedLists) != 2 {
+		t.Fatalf("expected 2 half-collapsed lists, got %d", len(config.HalfCollapsedLists))
+	}
+	if config.HalfCollapsedLists[0] != "00___test" || config.HalfCollapsedLists[1] != "10___done" {
+		t.Errorf("unexpected half-collapsed lists: %v", config.HalfCollapsedLists)
+	}
+
+	// Clear and verify empty
+	if err := app.SaveHalfCollapsedLists(nil); err != nil {
+		t.Fatalf("unexpected error clearing: %v", err)
+	}
+
+	config, err = daedalus.LoadBoardConfig(root)
+	if err != nil {
+		t.Fatalf("error loading config: %v", err)
+	}
+	if len(config.HalfCollapsedLists) != 0 {
+		t.Errorf("expected empty half-collapsed lists, got %v", config.HalfCollapsedLists)
+	}
+}
+
 // SaveListConfig should return an error when no board has been loaded.
 func TestSaveListConfig_BoardNotLoaded(t *testing.T) {
 	app := NewApp()

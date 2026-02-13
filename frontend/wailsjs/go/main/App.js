@@ -38,6 +38,10 @@ export function SaveCollapsedLists(arg1) {
   return window['go']['main']['App']['SaveCollapsedLists'](arg1);
 }
 
+export function SaveHalfCollapsedLists(arg1) {
+  return window['go']['main']['App']['SaveHalfCollapsedLists'](arg1);
+}
+
 export function SaveLabelsExpanded(arg1) {
   return window['go']['main']['App']['SaveLabelsExpanded'](arg1);
 }

@@ -21,6 +21,8 @@ export function SaveCard(arg1:string,arg2:daedalus.CardMetadata,arg3:string):Pro
 
 export function SaveCollapsedLists(arg1:Array<string>):Promise<void>;
 
+export function SaveHalfCollapsedLists(arg1:Array<string>):Promise<void>;
+
 export function SaveLabelsExpanded(arg1:boolean):Promise<void>;
 
 export function SaveListConfig(arg1:string,arg2:string,arg3:number):Promise<void>;

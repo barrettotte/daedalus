@@ -1,23 +1,22 @@
 <script lang="ts">
   import type { daedalus } from "../../wailsjs/go/models";
 
-  let {
-    checklist,
-    ontoggle,
-  }: {
+  let { checklist, ontoggle }: {
     checklist: daedalus.CheckListItem[];
     ontoggle: (idx: number) => void;
   } = $props();
 
   // Number of completed checklist items.
-  let checkedCount = $derived(
-    checklist.filter(i => i.done).length,
-  );
+  let checkedCount = $derived(checklist.filter(i => i.done).length);
 
   // Completion percentage for the progress bar.
-  let checkPct = $derived(
-    checklist.length > 0 ? (checkedCount / checklist.length) * 100 : 0,
-  );
+  let checkPct = $derived(checklist.length > 0 ? (checkedCount / checklist.length) * 100 : 0);
+
+  // Whether all checklist items are done.
+  let allDone = $derived(checklist.length > 0 && checkedCount === checklist.length);
+
+  // Whether the checklist items are visible or collapsed.
+  let expanded = $state(true);
 
   // Returns true if the string is a URL.
   function isUrl(str: string): boolean {
@@ -26,7 +25,10 @@
 
 </script>
 
-<div class="section-header">
+<button class="section-header" onclick={() => expanded = !expanded}>
+  <svg class="chevron" class:collapsed={!expanded} viewBox="0 0 24 24">
+    <polyline points="6 9 12 15 18 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
   <svg class="section-icon" viewBox="0 0 24 24">
     <polyline points="9 11 12 14 22 4" fill="none" stroke="currentColor" stroke-width="2"/>
     <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" fill="none" stroke="currentColor" stroke-width="2"/>
@@ -35,8 +37,9 @@
   <div class="checklist-bar">
     <div class="progress-fill" class:complete={checkPct === 100} style="width: {checkPct}%"></div>
   </div>
-  <span class="checklist-count">{checkedCount}/{checklist.length}</span>
-</div>
+  <span class="checklist-count" class:all-done={allDone}>{checkedCount}/{checklist.length}</span>
+</button>
+{#if expanded}
 <ul class="checklist">
   {#each checklist as item, idx}
     <li class:done={item.done}>
@@ -64,13 +67,36 @@
     </li>
   {/each}
 </ul>
+{/if}
 
 <style lang="scss">
   .section-header {
+    all: unset;
     display: flex;
     align-items: center;
     gap: 8px;
     margin-bottom: 8px;
+    width: 100%;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 4px 0;
+    box-sizing: border-box;
+
+    &:hover {
+      background: var(--overlay-hover-faint);
+    }
+  }
+
+  .chevron {
+    width: 16px;
+    height: 16px;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+    transition: transform 0.15s;
+
+    &.collapsed {
+      transform: rotate(-90deg);
+    }
   }
 
   .section-icon {
@@ -100,6 +126,10 @@
     font-size: 0.75rem;
     color: var(--color-text-tertiary);
     flex-shrink: 0;
+
+    &.all-done {
+      color: var(--color-success);
+    }
   }
 
   .progress-fill {

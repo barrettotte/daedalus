@@ -49,114 +49,114 @@ export const openInEditMode: Writable<boolean> = writable(false);
 
 // Updates a single card in the boardData store by matching filePath.
 export function updateCardInBoard(updatedCard: daedalus.KanbanCard): void {
-    boardData.update(lists => {
-        for (const listKey of Object.keys(lists)) {
-            const idx = lists[listKey].findIndex(c => c.filePath === updatedCard.filePath);
-            if (idx !== -1) {
-                lists[listKey][idx] = updatedCard;
-                break;
-            }
-        }
-        return lists;
-    });
+  boardData.update(lists => {
+    for (const listKey of Object.keys(lists)) {
+      const idx = lists[listKey].findIndex(c => c.filePath === updatedCard.filePath);
+      if (idx !== -1) {
+        lists[listKey][idx] = updatedCard;
+        break;
+      }
+    }
+    return lists;
+  });
 }
 
 // Removes a card from the boardData store by matching filePath across all lists.
 export function removeCardFromBoard(filePath: string): void {
-    boardData.update(lists => {
-        for (const listKey of Object.keys(lists)) {
-            const idx = lists[listKey].findIndex(c => c.filePath === filePath);
-            if (idx !== -1) {
-                lists[listKey].splice(idx, 1);
-                break;
-            }
-        }
-        return lists;
-    });
+  boardData.update(lists => {
+    for (const listKey of Object.keys(lists)) {
+      const idx = lists[listKey].findIndex(c => c.filePath === filePath);
+      if (idx !== -1) {
+        lists[listKey].splice(idx, 1);
+        break;
+      }
+    }
+    return lists;
+  });
 }
 
 // Adds a new card to the given list. Prepends for "top", appends for "bottom",
 // or splices at the parsed index for numeric position strings.
 export function addCardToBoard(listKey: string, card: daedalus.KanbanCard, position: string = "top"): void {
-    boardData.update(lists => {
-        if (lists[listKey]) {
-            if (position === "bottom") {
-                lists[listKey] = [...lists[listKey], card];
-            } else {
-                const idx = parseInt(position, 10);
-                if (!isNaN(idx)) {
-                    const clamped = Math.max(0, Math.min(idx, lists[listKey].length));
-                    const copy = [...lists[listKey]];
-                    copy.splice(clamped, 0, card);
-                    lists[listKey] = copy;
-                } else {
-                    lists[listKey] = [card, ...lists[listKey]];
-                }
-            }
+  boardData.update(lists => {
+    if (lists[listKey]) {
+      if (position === "bottom") {
+        lists[listKey] = [...lists[listKey], card];
+      } else {
+        const idx = parseInt(position, 10);
+        if (!isNaN(idx)) {
+          const clamped = Math.max(0, Math.min(idx, lists[listKey].length));
+          const copy = [...lists[listKey]];
+          copy.splice(clamped, 0, card);
+          lists[listKey] = copy;
+        } else {
+          lists[listKey] = [card, ...lists[listKey]];
         }
-        return lists;
-    });
+      }
+    }
+    return lists;
+  });
 }
 
 // Moves a card from one list position to another, updating list_order in the store.
 export function moveCardInBoard(filePath: string, sourceListKey: string, targetListKey: string, targetIndex: number, newListOrder: number): void {
-    boardData.update(lists => {
-        const srcIdx = lists[sourceListKey].findIndex(c => c.filePath === filePath);
-        if (srcIdx === -1) {
-            return lists;
-        }
+  boardData.update(lists => {
+    const srcIdx = lists[sourceListKey].findIndex(c => c.filePath === filePath);
+    if (srcIdx === -1) {
+      return lists;
+    }
 
-        const card = { ...lists[sourceListKey][srcIdx] } as daedalus.KanbanCard;
-        card.metadata = { ...card.metadata, list_order: newListOrder } as daedalus.CardMetadata;
+    const card = { ...lists[sourceListKey][srcIdx] } as daedalus.KanbanCard;
+    card.metadata = { ...card.metadata, list_order: newListOrder } as daedalus.CardMetadata;
 
-        // Remove from source
-        lists[sourceListKey] = [...lists[sourceListKey]];
-        lists[sourceListKey].splice(srcIdx, 1);
+    // Remove from source
+    lists[sourceListKey] = [...lists[sourceListKey]];
+    lists[sourceListKey].splice(srcIdx, 1);
 
-        // Insert at target
-        lists[targetListKey] = [...lists[targetListKey]];
-        lists[targetListKey].splice(targetIndex, 0, card);
+    // Insert at target
+    lists[targetListKey] = [...lists[targetListKey]];
+    lists[targetListKey].splice(targetIndex, 0, card);
 
-        return lists;
-    });
+    return lists;
+  });
 }
 
 // Computes a list_order float64 for inserting a card at targetIndex in the given cards array.
 export function computeListOrder(cards: daedalus.KanbanCard[], targetIndex: number): number {
-    if (cards.length === 0) {
-        return 0;
-    }
-    if (targetIndex <= 0) {
-        return cards[0].metadata.list_order - 1;
-    }
-    if (targetIndex >= cards.length) {
-        return cards[cards.length - 1].metadata.list_order + 1;
-    }
+  if (cards.length === 0) {
+    return 0;
+  }
+  if (targetIndex <= 0) {
+    return cards[0].metadata.list_order - 1;
+  }
+  if (targetIndex >= cards.length) {
+    return cards[cards.length - 1].metadata.list_order + 1;
+  }
 
-    const before = cards[targetIndex - 1].metadata.list_order;
-    const after = cards[targetIndex].metadata.list_order;
-    return (before + after) / 2;
+  const before = cards[targetIndex - 1].metadata.list_order;
+  const after = cards[targetIndex].metadata.list_order;
+  return (before + after) / 2;
 }
 
 // Returns true when a list has a limit set and the card count is at or above it.
 export function isAtLimit(listKey: string, lists: BoardLists, config: BoardConfigMap): boolean {
-    const cfg = config[listKey];
-    if (!cfg || cfg.limit <= 0) {
-        return false;
-    }
-    return (lists[listKey]?.length || 0) >= cfg.limit;
+  const cfg = config[listKey];
+  if (!cfg || cfg.limit <= 0) {
+    return false;
+  }
+  return (lists[listKey]?.length || 0) >= cfg.limit;
 }
 
 // Sort lists based on folder naming convention (01_, 02_, ...)
 export const sortedListKeys = (lists: BoardLists): string[] => {
-    return Object.keys(lists).sort();
+  return Object.keys(lists).sort();
 };
 
 export const searchQuery: Writable<string> = writable("");
 
-// Parsed search token: plain text, #label prefix, or @date prefix.
+// Parsed search token: plain text, #label prefix, #<digits> card ID, or @date prefix.
 interface SearchToken {
-  type: "text" | "label" | "date";
+  type: "text" | "label" | "date" | "id";
   value: string;
 }
 
@@ -170,7 +170,9 @@ function parseSearchTokens(query: string): SearchToken[] {
     }
     if (part.startsWith("#")) {
       const val = part.slice(1);
-      if (val) {
+      if (val && /^\d+$/.test(val)) {
+        tokens.push({ type: "id", value: val });
+      } else if (val) {
         tokens.push({ type: "label", value: val.toLowerCase() });
       }
     } else if (part.startsWith("@")) {
@@ -193,6 +195,10 @@ function cardMatchesToken(card: daedalus.KanbanCard, token: SearchToken): boolea
     return title.includes(token.value) || preview.includes(token.value);
   }
 
+  if (token.type === "id") {
+    return card.metadata.id === Number(token.value);
+  }
+
   if (token.type === "label") {
     const labels = card.metadata.labels || [];
     return labels.some(l => l.toLowerCase().includes(token.value));
@@ -209,6 +215,7 @@ function cardMatchesToken(card: daedalus.KanbanCard, token: SearchToken): boolea
     const dateStr = `${y}-${m}-${d}`;
     return dateStr.startsWith(token.value);
   }
+
   return false;
 }
 
@@ -218,6 +225,7 @@ function filterBoard(lists: BoardLists, query: string): BoardLists {
   if (tokens.length === 0) {
     return lists;
   }
+
   const result: BoardLists = {};
   for (const key of Object.keys(lists)) {
     result[key] = lists[key].filter(
@@ -228,15 +236,12 @@ function filterBoard(lists: BoardLists, query: string): BoardLists {
 }
 
 // Filters boardData by the current search query, returning matching cards per list.
-export const filteredBoardData: Readable<BoardLists> = derived(
-  [boardData, searchQuery],
-  ([$boardData, $searchQuery]) => {
-    if (!$searchQuery.trim()) {
-      return $boardData;
-    }
-    return filterBoard($boardData, $searchQuery);
-  },
-);
+export const filteredBoardData: Readable<BoardLists> = derived([boardData, searchQuery], ([$boardData, $searchQuery]) => {
+  if (!$searchQuery.trim()) {
+    return $boardData;
+  }
+  return filterBoard($boardData, $searchQuery);
+});
 
 export const toasts: Writable<Toast[]> = writable([]);
 let toastId = 0;
@@ -245,6 +250,7 @@ let toastId = 0;
 export function addToast(message: string, duration: number = 4000): void {
     const id = ++toastId;
     toasts.update(t => [...t, { id, message }]);
+
     setTimeout(() => {
         toasts.update(t => t.filter(item => item.id !== id));
     }, duration);

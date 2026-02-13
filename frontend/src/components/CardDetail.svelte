@@ -25,6 +25,10 @@
   let editTitle = $state("");
   let editBody = $state("");
 
+  // Live character and word counts for the body edit textarea.
+  let charCount = $derived(editingBody ? editBody.length : 0);
+  let wordCount = $derived(editingBody && editBody.trim() ? editBody.trim().split(/\s+/).length : 0);
+
   // Delete confirmation state
   let confirmingDelete = $state(false);
 
@@ -33,18 +37,6 @@
 
   // Guards against stale async responses when rapidly switching cards.
   let loadGeneration = 0;
-
-  // Scroll reset when selected card changes
-  $effect(() => {
-    const curId = $selectedCard ? $selectedCard.metadata.id : null;
-    if (curId && curId !== prevCardId && backdropEl) {
-      backdropEl.scrollTop = 0;
-      prevCardId = curId;
-    }
-    if (!curId) {
-      prevCardId = null;
-    }
-  });
 
   // Closes the card detail modal.
   function close(): void {
@@ -70,6 +62,7 @@
   // Saves the title on blur, or discards if unchanged. Defaults blank titles to the card number.
   async function blurTitle(): Promise<void> {
     editingTitle = false;
+
     if (!editTitle || !editTitle.trim()) {
       editTitle = String(meta!.id);
     }
@@ -79,6 +72,7 @@
 
     const fullBody = `# ${editTitle}\n\n${rawBody}`;
     const updatedMeta = { ...meta!, title: editTitle } as daedalus.CardMetadata;
+
     try {
       const result = await SaveCard($selectedCard!.filePath, updatedMeta, fullBody);
       updateCardInBoard(result);
@@ -97,9 +91,11 @@
   // Saves the body on blur, or discards if unchanged.
   async function blurBody(): Promise<void> {
     editingBody = false;
+
     if (editBody === rawBody) {
       return;
     }
+
     const fullBody = `# ${meta!.title}\n\n${editBody}`;
 
     try {
@@ -128,15 +124,13 @@
   }
 
   // Saves due date and/or date range changes and persists to disk.
-  async function saveDates(
-    due: string | null,
-    range: { start: string; end: string } | null,
-  ): Promise<void> {
+  async function saveDates(due: string | null, range: { start: string; end: string } | null): Promise<void> {
     const updatedMeta = {
       ...meta!,
       due: due ?? undefined,
       range: range ?? undefined,
     } as daedalus.CardMetadata;
+
     const fullBody = `# ${meta!.title}\n\n${rawBody}`;
 
     try {
@@ -178,6 +172,7 @@
 
     const cards = $boardData[focus.listKey] || [];
     const newIndex = focus.cardIndex + delta;
+
     if (newIndex < 0 || newIndex >= cards.length) {
       return;
     }
@@ -280,45 +275,66 @@
     mouseDownOnBackdrop = false;
   }
 
-  // Loads card content when a card is selected.
+  // Loads card content when a different card is selected. Skips reload when
+  // the same card is updated (e.g. checklist toggle, counter change).
   $effect(() => {
-    if ($selectedCard) {
-      const gen = ++loadGeneration;
-      loading = true;
-      bodyHtml = "";
-      rawBody = "";
-      editingTitle = false;
-      editingBody = false;
-      confirmingDelete = false;
-      moveDropdownOpen = false;
+    if (!$selectedCard) {
+      prevCardId = null;
+      return;
+    }
 
-      const shouldEdit = $openInEditMode;
-      if (shouldEdit) {
-        openInEditMode.set(false);
+    const cardId = $selectedCard.metadata.id;
+    if (cardId === prevCardId) {
+      return;
+    }
+
+    // Scroll to top when opening a new card
+    if (backdropEl) {
+      backdropEl.scrollTop = 0;
+    }
+    prevCardId = cardId;
+
+    const gen = ++loadGeneration;
+    loading = true;
+    bodyHtml = "";
+    rawBody = "";
+    editingTitle = false;
+    editingBody = false;
+    confirmingDelete = false;
+    moveDropdownOpen = false;
+
+    const shouldEdit = $openInEditMode;
+    if (shouldEdit) {
+      openInEditMode.set(false);
+    }
+
+    GetCardContent($selectedCard.filePath).then(content => {
+      if (gen !== loadGeneration) {
+        return;
       }
 
-      GetCardContent($selectedCard.filePath).then(content => {
-        if (gen !== loadGeneration) { return; }
-        // Strip leading h1 since title is already in the modal header
-        const body = (content || "").replace(/^#\s+.*\n*/, "");
-        rawBody = body;
-        bodyHtml = marked.parse(body, { async: false });
-        loading = false;
+      // Strip leading h1 since title is already in the modal header
+      const body = (content || "").replace(/^#\s+.*\n*/, "");
+      rawBody = body;
+      bodyHtml = marked.parse(body, { async: false });
+      loading = false;
 
-        // If opened via E shortcut, start in edit mode
-        if (shouldEdit) {
-          editTitle = meta!.title;
-          editBody = body;
-          editingTitle = true;
-          editingBody = true;
-        }
-      }).catch(() => {
-        if (gen !== loadGeneration) { return; }
-        bodyHtml = "<p><em>Could not load card content.</em></p>";
-        rawBody = "";
-        loading = false;
-      });
-    }
+      // If opened via E shortcut, start in edit mode
+      if (shouldEdit) {
+        editTitle = meta!.title;
+        editBody = body;
+        editingTitle = true;
+        editingBody = true;
+      }
+
+    }).catch(() => {
+      if (gen !== loadGeneration) {
+        return;
+      }
+      bodyHtml = "<p><em>Could not load card content.</em></p>";
+      rawBody = "";
+      loading = false;
+    });
   });
 
   // Opens the card's markdown file in the system default editor.
@@ -339,6 +355,7 @@
   }
 
   let meta = $derived($selectedCard ? $selectedCard.metadata : null);
+
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -348,13 +365,8 @@
     <div class="modal" role="dialog">
       <div class="modal-header">
         {#if editingTitle}
-          <input
-            class="edit-title-input"
-            type="text"
-            bind:value={editTitle}
-            onblur={blurTitle}
-            onkeydown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-            use:autoFocus
+          <input class="edit-title-input" type="text" bind:value={editTitle} onblur={blurTitle}
+            onkeydown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} use:autoFocus
           />
         {:else}
           <button class="card-title clickable" onclick={startEditTitle}>{meta.title}</button>
@@ -407,9 +419,8 @@
           <!-- Description -->
           <div class="section">
             {#if editingBody}
-              <textarea class="edit-body-textarea" bind:value={editBody} onblur={blurBody}
-                placeholder="Card description (markdown)" use:autoFocus
-              ></textarea>
+              <textarea class="edit-body-textarea" bind:value={editBody} onblur={blurBody} placeholder="Card description (markdown)" use:autoFocus></textarea>
+              <div class="edit-footer">{charCount} chars, {wordCount} words</div>
             {:else if loading}
               <p class="loading-text">Loading...</p>
             {:else if bodyHtml.trim()}
@@ -427,12 +438,7 @@
           {/if}
         </div>
 
-        <CardSidebar
-          {meta}
-          bind:moveDropdownOpen
-          onsavecounter={saveCounter}
-          onsavedates={saveDates}
-        />
+        <CardSidebar {meta} bind:moveDropdownOpen onsavecounter={saveCounter} onsavedates={saveDates}/>
       </div>
       {/if}
     </div>
@@ -575,6 +581,13 @@
     }
   }
 
+  .edit-footer {
+    text-align: right;
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+    padding: 4px 12px;
+  }
+
   /* Markdown body */
   .loading-text {
     color: var(--color-text-muted);
@@ -606,9 +619,15 @@
       margin-bottom: 8px;
     }
 
-    :global(h1) { font-size: 1.2rem; }
-    :global(h2) { font-size: 1.05rem; }
-    :global(h3) { font-size: 0.95rem; }
+    :global(h1) {
+      font-size: 1.2rem;
+    }
+    :global(h2) {
+      font-size: 1.05rem;
+    }
+    :global(h3) {
+      font-size: 0.95rem;
+    }
 
     :global(a) {
       color: var(--color-accent);
@@ -644,8 +663,7 @@
       color: var(--color-text-tertiary);
     }
 
-    :global(ul),
-    :global(ol) {
+    :global(ul), :global(ol) {
       padding-left: 20px;
     }
 
@@ -664,8 +682,7 @@
       margin: 8px 0;
     }
 
-    :global(th),
-    :global(td) {
+    :global(th), :global(td) {
       border: 1px solid var(--color-border);
       padding: 6px 10px;
       text-align: left;

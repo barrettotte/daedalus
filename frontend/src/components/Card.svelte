@@ -11,6 +11,7 @@
   let hasChecklist = $derived(meta.checklist && meta.checklist.length > 0);
   let checkedCount = $derived(hasChecklist ? meta.checklist!.filter(i => i.done).length : 0);
   let hasDescription = $derived(card.previewText && card.previewText.replace(/^#\s+.*\n*/, "").trim().length > 0);
+  let checklistComplete = $derived(hasChecklist ? checkedCount === meta.checklist!.length : false);
   let counterComplete = $derived(meta.counter ? meta.counter.current === meta.counter.max : false);
 
   // Sets this card as the selected card to open the detail modal.
@@ -87,7 +88,7 @@
       </span>
     {/if}
     {#if hasChecklist}
-      <span class="badge checklist-badge">
+      <span class="badge" class:checklist-done={checklistComplete}>
         <svg class="badge-icon" viewBox="0 0 24 24">
           <polyline points="9 11 12 14 22 4" fill="none" stroke="currentColor" stroke-width="2"/>
           <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" fill="none" stroke="currentColor" stroke-width="2"/>
@@ -109,18 +110,10 @@
     {#if meta.range}
       <span class="badge">
         <svg class="badge-icon" viewBox="0 0 24 24">
-          <rect x="3" y="4" width="18" height="18" rx="2"
-            fill="none" stroke="currentColor" stroke-width="2"
-          />
-          <line x1="3" y1="10" x2="21" y2="10"
-            stroke="currentColor" stroke-width="2"
-          />
-          <line x1="16" y1="2" x2="16" y2="6"
-            stroke="currentColor" stroke-width="2"
-          />
-          <line x1="8" y1="2" x2="8" y2="6"
-            stroke="currentColor" stroke-width="2"
-          />
+          <rect x="3" y="4" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+          <line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="2"/>
+          <line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" stroke-width="2"/>
+          <line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" stroke-width="2"/>
         </svg>
         {formatDate(meta.range.start)} - {formatDate(meta.range.end)}
       </span>
@@ -202,7 +195,7 @@
     border-radius: 3px;
     padding: 1px 4px;
 
-    &.counter-done {
+    &.checklist-done, &.counter-done {
       background: var(--overlay-success);
       color: var(--color-success);
     }

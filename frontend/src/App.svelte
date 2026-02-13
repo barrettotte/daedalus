@@ -13,6 +13,7 @@
     removeCardFromBoard, addToast, isAtLimit,
     searchQuery, filteredBoardData,
   } from "./stores/board";
+  import type { daedalus } from "../wailsjs/go/models";
   import { labelColor, getDisplayTitle, getCountDisplay } from "./lib/utils";
   import {
     dragPos, setBoardContainer, clearDropIndicators,
@@ -27,11 +28,13 @@
   import Metrics from "./components/Metrics.svelte";
   import Toast from "./components/Toast.svelte";
   import KeyboardHelp from "./components/KeyboardHelp.svelte";
+  import About from "./components/About.svelte";
 
   let error = $state("");
   let collapsedLists = $state(new SvelteSet<string>());
   let halfCollapsedLists = $state(new SvelteSet<string>());
   let showKeyboardHelp = $state(false);
+  let showAbout = $state(false);
   let confirmingFocusDelete = $state(false);
   let boardContainerEl: HTMLDivElement | undefined = $state(undefined);
   let searchInputEl: HTMLInputElement | undefined = $state(undefined);
@@ -189,7 +192,14 @@
     const tag = (e.target as HTMLElement).tagName;
     const isTyping = tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement).isContentEditable;
 
-    // Escape closes help overlay first; all other keys ignored while it's open.
+    // Escape closes overlays first; all other keys ignored while they're open.
+    if (showAbout) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        showAbout = false;
+      }
+      return;
+    }
     if (showKeyboardHelp) {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -360,6 +370,36 @@
     setBoardContainer(boardContainerEl);
   });
 
+  // Auto-open a card when search query is exactly #<digits> and a unique match exists.
+  $effect(() => {
+    const q = $searchQuery.trim();
+    if (!/^#\d+$/.test(q)) {
+      return;
+    }
+    const targetId = Number(q.slice(1));
+    const lists = $boardData;
+
+    let found: daedalus.KanbanCard | null = null;
+    for (const key of Object.keys(lists)) {
+      for (const card of lists[key]) {
+        if (card.metadata.id === targetId) {
+          found = card;
+          break;
+        }
+      }
+      if (found) {
+        break;
+      }
+    }
+    if (found) {
+      selectedCard.set(found);
+      requestAnimationFrame(() => {
+        searchQuery.set("");
+        searchOpen = false;
+      });
+    }
+  });
+
   onMount(initBoard);
 
   onDestroy(() => {
@@ -370,10 +410,15 @@
 
 <svelte:window onkeydown={handleGlobalKeydown} />
 <svelte:document onselectstart={(e) => {
-  const tag = (e.target as HTMLElement).tagName;
-  if (tag !== "INPUT" && tag !== "TEXTAREA" && !(e.target as HTMLElement).isContentEditable) {
-    e.preventDefault();
+  const target = e.target as HTMLElement;
+  const tag = target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable) {
+    return;
   }
+  if (window.getComputedStyle(target).userSelect !== "none") {
+    return;
+  }
+  e.preventDefault();
 }} />
 
 <main>
@@ -425,6 +470,23 @@
           <rect x="2" y="13" width="4" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
         </svg>
       </button>
+      <button class="top-btn" onclick={() => showKeyboardHelp = true} title="Keyboard shortcuts (?)">
+        <svg viewBox="0 0 24 24" width="14" height="14">
+          <rect x="2" y="4" width="20" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+          <line x1="6" y1="10" x2="6" y2="10.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="10" y1="10" x2="10" y2="10.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="14" y1="10" x2="14" y2="10.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="18" y1="10" x2="18" y2="10.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="8" y1="16" x2="16" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button class="top-btn" onclick={() => showAbout = true} title="About">
+        <svg viewBox="0 0 24 24" width="14" height="14">
+          <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+          <line x1="12" y1="16" x2="12" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <line x1="12" y1="8" x2="12.01" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
     </div>
   </div>
 
@@ -456,9 +518,7 @@
               onreload={initBoard}
             />
             <div class="list-body half-collapsed-body" role="list">
-              <VirtualList
-                items={visibleItems} component={Card}
-                estimatedHeight={90} listKey={listKey}
+              <VirtualList items={visibleItems} component={Card} estimatedHeight={90} listKey={listKey}
                 focusIndex={$focusedCard?.listKey === listKey ? $focusedCard.cardIndex : -1}
               />
             </div>
@@ -528,6 +588,9 @@
   <Toast />
   {#if showKeyboardHelp}
     <KeyboardHelp onclose={() => showKeyboardHelp = false} />
+  {/if}
+  {#if showAbout}
+    <About onclose={() => showAbout = false} />
   {/if}
 </main>
 

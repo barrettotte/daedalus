@@ -20,6 +20,7 @@ export namespace daedalus {
 	    showYearProgress?: boolean;
 	    collapsedLists?: string[];
 	    halfCollapsedLists?: string[];
+	    darkMode?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new BoardConfig(source);
@@ -32,6 +33,7 @@ export namespace daedalus {
 	        this.showYearProgress = source["showYearProgress"];
 	        this.collapsedLists = source["collapsedLists"];
 	        this.halfCollapsedLists = source["halfCollapsedLists"];
+	        this.darkMode = source["darkMode"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

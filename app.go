@@ -110,6 +110,15 @@ func (a *App) SaveShowYearProgress(show bool) error {
 	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
 }
 
+// SaveDarkMode persists the dark mode preference to board.yaml.
+func (a *App) SaveDarkMode(dark bool) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+	a.board.Config.DarkMode = &dark
+	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
+}
+
 // SaveCollapsedLists persists the set of collapsed list keys to board.yaml.
 func (a *App) SaveCollapsedLists(lists []string) error {
 	if a.board == nil {

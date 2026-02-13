@@ -467,7 +467,7 @@
 
   .sidebar-value {
     font-size: 0.8rem;
-    color: #b6c2d1;
+    color: var(--color-text-secondary);
   }
 
   .position-hint {

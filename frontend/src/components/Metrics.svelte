@@ -100,7 +100,7 @@
     }
 
     .label {
-      color: #888;
+      color: var(--color-text-muted);
     }
 
     .metrics-divider {

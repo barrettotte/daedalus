@@ -22,7 +22,7 @@
   }
 
   .toast {
-    background: #3b1c1c;
+    background: var(--color-toast-bg);
     border: 1px solid rgba(248, 113, 104, 0.3);
     color: var(--color-error);
     font-size: 0.8rem;

@@ -62,7 +62,7 @@
     border-radius: 8px;
     max-width: 420px;
     width: 90%;
-    color: #b6c2d1;
+    color: var(--color-text-secondary);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
     text-align: left;
     user-select: text;
@@ -97,7 +97,7 @@
 
     &:hover {
       background: var(--overlay-hover-strong);
-      color: #fff;
+      color: var(--color-text-primary);
     }
   }
 

@@ -38,6 +38,10 @@ export function SaveCollapsedLists(arg1) {
   return window['go']['main']['App']['SaveCollapsedLists'](arg1);
 }
 
+export function SaveDarkMode(arg1) {
+  return window['go']['main']['App']['SaveDarkMode'](arg1);
+}
+
 export function SaveHalfCollapsedLists(arg1) {
   return window['go']['main']['App']['SaveHalfCollapsedLists'](arg1);
 }

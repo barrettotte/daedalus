@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { boardConfig, boardData, addToast, isAtLimit } from "../stores/board";
-  import { SaveListConfig } from "../../wailsjs/go/main/App";
+  import { boardConfig, boardData, boardPath, addToast, isAtLimit } from "../stores/board";
+  import { SaveListConfig, OpenFileExternal } from "../../wailsjs/go/main/App";
   import {
     getDisplayTitle, getCountDisplay, isOverLimit,
     formatListName, autoFocus,
@@ -96,6 +96,11 @@
     }
   }
 
+  // Opens the list's directory in the system file explorer.
+  function openInExplorer(): void {
+    OpenFileExternal($boardPath + "/" + listKey).catch(e => addToast(`Failed to open folder: ${e}`));
+  }
+
   // Handles keydown events on the limit input.
   function handleLimitKeydown(e: KeyboardEvent): void {
     if (e.key === "Enter") {
@@ -121,6 +126,13 @@
     </button>
   {/if}
   <div class="header-right">
+    <button class="collapse-btn" onclick={openInExplorer} title="Open in file explorer">
+      <svg viewBox="0 0 24 24" width="12" height="12">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+        />
+      </svg>
+    </button>
     <button class="collapse-btn" onclick={oncreatecard} title="Add card">
       <svg viewBox="0 0 24 24" width="12" height="12">
         <line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -137,7 +149,11 @@
         onblur={saveLimit} onkeydown={handleLimitKeydown} use:autoFocus
       />
     {:else}
-      <button class="count-btn" class:at-limit={isAtLimit(listKey, $boardData, $boardConfig)} class:over-limit={isOverLimit(listKey, $boardData, $boardConfig)} onclick={startEditLimit}>
+      <button class="count-btn"
+        class:at-limit={isAtLimit(listKey, $boardData, $boardConfig)}
+        class:over-limit={isOverLimit(listKey, $boardData, $boardConfig)}
+        onclick={startEditLimit}
+      >
         {getCountDisplay(listKey, $boardData, $boardConfig)}
       </button>
     {/if}
@@ -212,7 +228,7 @@
   .edit-title-input {
     background: var(--color-bg-inset);
     border: 1px solid var(--color-accent);
-    color: white;
+    color: var(--color-text-primary);
     font-size: 0.85rem;
     font-weight: 600;
     padding: 2px 6px;
@@ -226,7 +242,7 @@
   .edit-limit-input {
     background: var(--color-bg-inset);
     border: 1px solid var(--color-accent);
-    color: white;
+    color: var(--color-text-primary);
     font-size: 0.8rem;
     padding: 2px 6px;
     border-radius: 10px;

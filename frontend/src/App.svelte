@@ -4,7 +4,7 @@
   import { WindowSetTitle } from "../wailsjs/runtime/runtime";
   import {
     LoadBoard, SaveLabelsExpanded, SaveShowYearProgress,
-    SaveCollapsedLists, SaveHalfCollapsedLists, DeleteCard,
+    SaveCollapsedLists, SaveHalfCollapsedLists, SaveDarkMode, DeleteCard,
   } from "../wailsjs/go/main/App";
   import {
     boardData, boardConfig, boardPath, sortedListKeys, isLoaded,
@@ -36,6 +36,7 @@
   let showKeyboardHelp = $state(false);
   let showAbout = $state(false);
   let showYearProgress = $state(false);
+  let darkMode = $state(true);
   let confirmingFocusDelete = $state(false);
   let boardContainerEl: HTMLDivElement | undefined = $state(undefined);
   let searchInputEl: HTMLInputElement | undefined = $state(undefined);
@@ -84,6 +85,7 @@
   function matchedCardCount(filtered: Record<string, any[]>, raw: Record<string, any[]>): { matched: number; total: number } {
     let matched = 0;
     let total = 0;
+
     for (const key of Object.keys(raw)) {
       total += (raw[key] || []).length;
       matched += (filtered[key] || []).length;
@@ -97,6 +99,7 @@
     if (prefill) {
       searchQuery.set(prefill);
     }
+
     requestAnimationFrame(() => {
       if (searchInputEl) {
         searchInputEl.focus();
@@ -126,6 +129,13 @@
   function toggleYearProgress(): void {
     showYearProgress = !showYearProgress;
     SaveShowYearProgress(showYearProgress).catch(e => addToast(`Failed to save year progress state: ${e}`));
+  }
+
+  // Toggles between dark and light mode, applying the CSS class and persisting to board.yaml.
+  function toggleDarkMode(): void {
+    darkMode = !darkMode;
+    document.documentElement.classList.toggle("light", !darkMode);
+    SaveDarkMode(darkMode).catch(e => addToast(`Failed to save dark mode state: ${e}`));
   }
 
   // Cycles a list through expanded -> half-collapsed -> fully collapsed -> expanded.
@@ -159,16 +169,20 @@
       boardData.set(response.lists);
       boardConfig.set(response.config?.lists || {} as Record<string, any>);
       boardPath.set(response.boardPath || "");
+
       if (response.boardPath) {
         WindowSetTitle(`Daedalus - ${response.boardPath}`);
       }
-
       if (response.config?.labelsExpanded !== undefined && response.config.labelsExpanded !== null) {
         labelsExpanded.set(response.config.labelsExpanded);
       }
       if (response.config?.showYearProgress !== undefined && response.config.showYearProgress !== null) {
         showYearProgress = response.config.showYearProgress;
       }
+      if (response.config?.darkMode !== undefined && response.config.darkMode !== null) {
+        darkMode = response.config.darkMode;
+      }
+      document.documentElement.classList.toggle("light", !darkMode);
       if (response.config?.collapsedLists) {
         collapsedLists = new SvelteSet(response.config.collapsedLists);
       }
@@ -176,6 +190,7 @@
         halfCollapsedLists = new SvelteSet(response.config.halfCollapsedLists);
       }
       isLoaded.set(true);
+
     } catch (e) {
       error = (e as Error).toString();
     }
@@ -208,6 +223,7 @@
     }
     const columns = boardContainerEl.querySelectorAll('.list-column');
     const keys = sortedListKeys($boardData);
+
     const idx = keys.indexOf(listKey);
     if (idx >= 0 && columns[idx]) {
       columns[idx].scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -329,7 +345,6 @@
       confirmingFocusDelete = false;
 
       const focus = $focusedCard;
-
       if (!focus) {
         // No current focus - start at first card of first non-collapsed list
         for (const key of keys) {
@@ -383,6 +398,7 @@
       e.preventDefault();
       const cards = $boardData[$focusedCard.listKey] || [];
       const card = cards[$focusedCard.cardIndex];
+
       if (card) {
         selectedCard.set(card);
       }
@@ -402,6 +418,7 @@
       e.preventDefault();
       const cards = $boardData[$focusedCard.listKey] || [];
       const card = cards[$focusedCard.cardIndex];
+
       if (card) {
         openInEditMode.set(true);
         selectedCard.set(card);
@@ -477,6 +494,7 @@
 <svelte:document onselectstart={(e) => {
   const target = e.target as HTMLElement;
   const tag = target.tagName;
+
   if (tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable) {
     return;
   }
@@ -532,6 +550,25 @@
         <svg viewBox="0 0 24 24" width="14" height="14">
           <path d="M6 2h12v6l-4 4 4 4v6H6v-6l4-4-4-4V2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
+      </button>
+      <button class="top-btn" onclick={toggleDarkMode} title={darkMode ? "Switch to light mode" : "Switch to dark mode"}>
+        {#if darkMode}
+          <svg viewBox="0 0 24 24" width="14" height="14">
+            <circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="2"/>
+            <line x1="12" y1="1" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="12" y1="21" x2="12" y2="23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="1" y1="12" x2="3" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="21" y1="12" x2="23" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        {:else}
+          <svg viewBox="0 0 24 24" width="14" height="14">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        {/if}
       </button>
       <button class="top-btn" class:active={$showMetrics} onclick={() => showMetrics.update(v => !v)} title="Toggle metrics">
         <svg viewBox="0 0 24 24" width="14" height="14">
@@ -679,7 +716,7 @@
   :global(body) {
     margin: 0;
     background-color: var(--color-bg-base);
-    color: white;
+    color: var(--color-text-primary);
     font-family: sans-serif;
     overflow: hidden;
     user-select: none;

@@ -467,7 +467,7 @@
     max-width: 720px;
     width: 95%;
     position: relative;
-    color: #b6c2d1;
+    color: var(--color-text-secondary);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
     margin-bottom: 48px;
     text-align: left;
@@ -514,7 +514,7 @@
 
     &:hover {
       background: var(--overlay-hover-strong);
-      color: #fff;
+      color: var(--color-text-primary);
     }
   }
 
@@ -522,7 +522,7 @@
     cursor: pointer;
 
     &:hover {
-      outline: 1px solid rgba(255, 255, 255, 0.1);
+      outline: 1px solid var(--overlay-hover-medium);
       outline-offset: 4px;
       border-radius: 4px;
     }
@@ -566,7 +566,7 @@
     min-height: 200px;
     background: var(--color-bg-base);
     border: 1px solid var(--color-border);
-    color: #b6c2d1;
+    color: var(--color-text-secondary);
     font-size: 0.9rem;
     font-family: monospace;
     padding: 12px;
@@ -605,7 +605,7 @@
   .markdown-body {
     line-height: 1.6;
     font-size: 0.9rem;
-    color: #b6c2d1;
+    color: var(--color-text-secondary);
     background: var(--overlay-subtle);
     border-radius: 6px;
     padding: 12px 16px;
@@ -710,7 +710,7 @@
 
     &:hover {
       background: var(--overlay-hover-strong);
-      color: #fff;
+      color: var(--color-text-primary);
     }
   }
 

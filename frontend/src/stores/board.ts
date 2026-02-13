@@ -74,14 +74,23 @@ export function removeCardFromBoard(filePath: string): void {
     });
 }
 
-// Adds a new card to the given list. Prepends for "top", appends for "bottom".
+// Adds a new card to the given list. Prepends for "top", appends for "bottom",
+// or splices at the parsed index for numeric position strings.
 export function addCardToBoard(listKey: string, card: daedalus.KanbanCard, position: string = "top"): void {
     boardData.update(lists => {
         if (lists[listKey]) {
             if (position === "bottom") {
                 lists[listKey] = [...lists[listKey], card];
             } else {
-                lists[listKey] = [card, ...lists[listKey]];
+                const idx = parseInt(position, 10);
+                if (!isNaN(idx)) {
+                    const clamped = Math.max(0, Math.min(idx, lists[listKey].length));
+                    const copy = [...lists[listKey]];
+                    copy.splice(clamped, 0, card);
+                    lists[listKey] = copy;
+                } else {
+                    lists[listKey] = [card, ...lists[listKey]];
+                }
             }
         }
         return lists;

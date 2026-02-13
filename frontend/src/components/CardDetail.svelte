@@ -258,11 +258,21 @@
     }
   }
 
-  // Closes the modal when clicking the backdrop area outside the modal content.
-  function handleBackdropClick(e: MouseEvent): void {
-    if (e.target === e.currentTarget) {
+  // Tracks whether mousedown started on the backdrop, so drags from inside the
+  // modal that end on the backdrop don't accidentally close it.
+  let mouseDownOnBackdrop = false;
+
+  // Records that mousedown landed directly on the backdrop.
+  function handleBackdropMousedown(e: MouseEvent): void {
+    mouseDownOnBackdrop = e.target === e.currentTarget;
+  }
+
+  // Closes the modal only if both mousedown and mouseup targeted the backdrop.
+  function handleBackdropMouseup(e: MouseEvent): void {
+    if (mouseDownOnBackdrop && e.target === e.currentTarget) {
       close();
     }
+    mouseDownOnBackdrop = false;
   }
 
   // Resets draft fields only on transition from null → non-null (new draft started).
@@ -337,6 +347,52 @@
   let meta = $derived($selectedCard ? $selectedCard.metadata : null);
   let isOverdue = $derived(meta && meta.due ? new Date(meta.due) < new Date() : false);
 
+  // Number of cards in the draft target list.
+  let draftListCount = $derived.by(() => {
+    if (!$draftListKey) {
+      return 0;
+    }
+    return ($boardData[$draftListKey] || []).length;
+  });
+
+  // 1-based position number derived from the current draftPosition value.
+  let positionDisplayValue = $derived.by(() => {
+    const pos = $draftPosition;
+    if (pos === "top") {
+      return 1;
+    }
+    if (pos === "bottom") {
+      return draftListCount + 1;
+    }
+    const idx = parseInt(pos, 10);
+    if (!isNaN(idx)) {
+      return idx + 1;
+    }
+    return 1;
+  });
+
+  // Converts 1-based user input to the store's position value, clamping to valid range.
+  function handlePositionInput(e: Event): void {
+    const input = e.target as HTMLInputElement;
+    const raw = parseInt(input.value, 10);
+    if (isNaN(raw)) {
+      input.value = String(positionDisplayValue);
+      return;
+    }
+    const max = draftListCount + 1;
+    const val = Math.max(1, Math.min(raw, max));
+    if (val !== raw) {
+      input.value = String(val);
+    }
+    if (val === 1) {
+      draftPosition.set("top");
+    } else if (val === max) {
+      draftPosition.set("bottom");
+    } else {
+      draftPosition.set(String(val - 1));
+    }
+  }
+
   let checkedCount = $derived(meta && meta.checklist
     ? meta.checklist.filter(i => i.done).length : 0);
 
@@ -350,6 +406,18 @@
   function isUrl(str: string): boolean {
     return /^https?:\/\/\S+$/.test(str);
   }
+
+  // Derives the list display name for the draft modal from config or formatted directory name.
+  let draftListDisplayName = $derived.by(() => {
+    if (!$draftListKey) {
+      return "";
+    }
+    const cfg = $boardConfig[$draftListKey];
+    if (cfg && cfg.title) {
+      return cfg.title;
+    }
+    return formatListName($draftListKey);
+  });
 
   // Derives the list display name from the config title or formatted directory name.
   let listDisplayName = $derived.by(() => {
@@ -391,17 +459,20 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if $draftListKey}
-  <div class="backdrop" role="presentation" onclick={handleBackdropClick} onkeydown={handleKeydown}>
+  <div class="backdrop" role="presentation" onmousedown={handleBackdropMousedown} onmouseup={handleBackdropMouseup} onkeydown={handleKeydown}>
     <div class="modal" role="dialog">
       <div class="modal-header">
-        <input
-          class="edit-title-input"
-          type="text"
-          bind:value={draftTitle}
-          placeholder="Card title"
-          onkeydown={e => e.key === 'Enter' && saveDraft()}
-          use:autoFocus
-        />
+        <div class="draft-header-col">
+          <div class="draft-list-name">Drafting a card in <strong>{draftListDisplayName}</strong></div>
+          <input
+            class="edit-title-input"
+            type="text"
+            bind:value={draftTitle}
+            placeholder="Card title"
+            onkeydown={e => e.key === 'Enter' && saveDraft()}
+            use:autoFocus
+          />
+        </div>
         <div class="header-btns">
           <button class="header-btn" onclick={close} title="Close">
             <svg viewBox="0 0 24 24" width="16" height="16">
@@ -421,21 +492,37 @@
             ></textarea>
           </div>
           <div class="draft-actions">
-            <div class="position-toggle">
-              <button class="pos-btn" class:active={$draftPosition === 'top'} onclick={() => draftPosition.set('top')}>Top</button>
-              <button class="pos-btn" class:active={$draftPosition === 'bottom'} onclick={() => draftPosition.set('bottom')}>Bottom</button>
+            <div class="position-section">
+              <span class="position-label">Position</span>
+              <div class="position-toggle">
+                <button class="pos-btn" class:active={$draftPosition === 'top'} onclick={() => draftPosition.set('top')}>Top</button>
+                <button class="pos-btn" class:active={$draftPosition === 'bottom'} onclick={() => draftPosition.set('bottom')}>Bottom</button>
+              </div>
+              <div class="position-specific-row">
+                <input
+                  class="position-input"
+                  type="number"
+                  min="1"
+                  max={draftListCount + 1}
+                  value={positionDisplayValue}
+                  oninput={handlePositionInput}
+                />
+                <span class="position-hint">of {draftListCount + 1}</span>
+              </div>
             </div>
-            <button class="save-btn" onclick={saveDraft} disabled={saving || !draftTitle.trim()}>
-              {saving ? "Saving..." : "Save"}
-            </button>
-            <button class="cancel-btn" onclick={close}>Cancel</button>
+            <div class="draft-btns">
+              <button class="save-btn" onclick={saveDraft} disabled={saving || !draftTitle.trim()}>
+                {saving ? "Saving..." : "Save"}
+              </button>
+              <button class="cancel-btn" onclick={close}>Cancel</button>
+            </div>
           </div>
         </div>
       </div>
     </div>
   </div>
 {:else if $selectedCard && meta}
-  <div class="backdrop" bind:this={backdropEl} role="presentation" onclick={handleBackdropClick} onkeydown={handleKeydown}>
+  <div class="backdrop" bind:this={backdropEl} role="presentation" onmousedown={handleBackdropMousedown} onmouseup={handleBackdropMouseup} onkeydown={handleKeydown}>
     <div class="modal" role="dialog">
       <div class="modal-header">
         {#if editingTitle}
@@ -707,6 +794,23 @@
       outline: 1px solid rgba(255, 255, 255, 0.1);
       outline-offset: 4px;
       border-radius: 4px;
+    }
+  }
+
+  .draft-header-col {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .draft-list-name {
+    font-size: 0.78rem;
+    color: var(--color-text-tertiary);
+
+    strong {
+      color: var(--color-text-secondary);
     }
   }
 
@@ -1080,9 +1184,21 @@
   /* Draft mode actions */
   .draft-actions {
     display: flex;
+    align-items: flex-end;
     gap: 8px;
-    align-items: center;
-    justify-content: flex-end;
+  }
+
+  .position-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-right: auto;
+  }
+
+  .position-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
   }
 
   .position-toggle {
@@ -1090,7 +1206,48 @@
     border-radius: 4px;
     overflow: hidden;
     border: 1px solid var(--color-border);
-    margin-right: auto;
+    width: fit-content;
+  }
+
+  .position-specific-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .draft-btns {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .position-input {
+    width: 44px;
+    background: var(--color-bg-base);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-primary);
+    font-size: 0.78rem;
+    padding: 4px 6px;
+    border-radius: 4px;
+    outline: none;
+    text-align: center;
+    appearance: textfield;
+    -moz-appearance: textfield;
+
+    &:focus {
+      border-color: var(--color-accent);
+    }
+
+    &::-webkit-inner-spin-button,
+    &::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+  }
+
+  .position-hint {
+    font-size: 0.75rem;
+    color: var(--color-text-tertiary);
   }
 
   .pos-btn {

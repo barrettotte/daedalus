@@ -219,7 +219,8 @@ func (a *App) SaveCard(filePath string, metadata daedalus.CardMetadata, body str
 
 // CreateCard creates a new card in the given list directory, writes it to disk,
 // updates in-memory state, and returns the new KanbanCard.
-// Position "bottom" places it after the last card; anything else (including "top") places it before the first.
+// Position "bottom" appends, a numeric string inserts at that 0-based index,
+// and anything else (including "top") prepends.
 func (a *App) CreateCard(listDirName string, title string, body string, position string) (*daedalus.KanbanCard, error) {
 	if a.board == nil {
 		return nil, fmt.Errorf("board not loaded")
@@ -233,13 +234,29 @@ func (a *App) CreateCard(listDirName string, title string, body string, position
 	a.board.MaxID++
 	newID := a.board.MaxID
 
-	// Determine list_order based on position
+	// Determine list_order and insertion index based on position.
+	// Numeric strings (e.g. "3") insert at that 0-based index with a midpoint list_order.
 	listOrder := 0.0
+	insertIdx := 0
 	if len(cards) > 0 {
 		if position == "bottom" {
 			listOrder = cards[len(cards)-1].Metadata.ListOrder + 1
+			insertIdx = len(cards)
+		} else if idx, err := strconv.Atoi(position); err == nil {
+			if idx <= 0 {
+				listOrder = cards[0].Metadata.ListOrder - 1
+				insertIdx = 0
+			} else if idx >= len(cards) {
+				listOrder = cards[len(cards)-1].Metadata.ListOrder + 1
+				insertIdx = len(cards)
+			} else {
+				listOrder = (cards[idx-1].Metadata.ListOrder + cards[idx].Metadata.ListOrder) / 2
+				insertIdx = idx
+			}
 		} else {
+			// "top" or any unrecognized value
 			listOrder = cards[0].Metadata.ListOrder - 1
+			insertIdx = 0
 		}
 	}
 
@@ -283,12 +300,12 @@ func (a *App) CreateCard(listDirName string, title string, body string, position
 		PreviewText: preview,
 	}
 
-	// Add to list at the requested position
-	if position == "bottom" {
-		a.board.Lists[listDirName] = append(cards, card)
-	} else {
-		a.board.Lists[listDirName] = append([]daedalus.KanbanCard{card}, cards...)
-	}
+	// Insert card at the computed index
+	updated := make([]daedalus.KanbanCard, 0, len(cards)+1)
+	updated = append(updated, cards[:insertIdx]...)
+	updated = append(updated, card)
+	updated = append(updated, cards[insertIdx:]...)
+	a.board.Lists[listDirName] = updated
 
 	return &card, nil
 }

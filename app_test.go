@@ -642,6 +642,88 @@ func TestSaveCard_UpdatesInMemory(t *testing.T) {
 	}
 }
 
+// CreateCard with a numeric position "1" should insert between the first and second cards.
+func TestCreateCard_NumericMiddle(t *testing.T) {
+	app, _ := setupTestBoardMulti(t)
+
+	card, err := app.CreateCard("00___open", "Middle Card", "body", "1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// list_order should be midpoint of cards[0] (1.0) and cards[1] (2.0)
+	if card.Metadata.ListOrder != 1.5 {
+		t.Errorf("ListOrder: got %f, want 1.5", card.Metadata.ListOrder)
+	}
+
+	cards := app.board.Lists["00___open"]
+	if len(cards) != 4 {
+		t.Fatalf("expected 4 cards, got %d", len(cards))
+	}
+	if cards[1].Metadata.ID != card.Metadata.ID {
+		t.Errorf("new card should be at index 1, got ID %d", cards[1].Metadata.ID)
+	}
+}
+
+// CreateCard with numeric position "0" should behave like top.
+func TestCreateCard_NumericZero(t *testing.T) {
+	app, _ := setupTestBoardMulti(t)
+
+	card, err := app.CreateCard("00___open", "Zero Card", "body", "0")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cards := app.board.Lists["00___open"]
+	if cards[0].Metadata.ID != card.Metadata.ID {
+		t.Errorf("new card should be first, got ID %d", cards[0].Metadata.ID)
+	}
+	if card.Metadata.ListOrder >= cards[1].Metadata.ListOrder {
+		t.Errorf("list_order (%f) should be less than first existing (%f)",
+			card.Metadata.ListOrder, cards[1].Metadata.ListOrder)
+	}
+}
+
+// CreateCard with a numeric position beyond the end should behave like bottom.
+func TestCreateCard_NumericBeyondEnd(t *testing.T) {
+	app, _ := setupTestBoardMulti(t)
+
+	card, err := app.CreateCard("00___open", "Beyond Card", "body", "99")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cards := app.board.Lists["00___open"]
+	last := cards[len(cards)-1]
+	if last.Metadata.ID != card.Metadata.ID {
+		t.Errorf("new card should be last, got ID %d", last.Metadata.ID)
+	}
+	prev := cards[len(cards)-2]
+	if card.Metadata.ListOrder <= prev.Metadata.ListOrder {
+		t.Errorf("list_order (%f) should be greater than previous last (%f)",
+			card.Metadata.ListOrder, prev.Metadata.ListOrder)
+	}
+}
+
+// CreateCard with a numeric position in an empty list should default to list_order 0.
+func TestCreateCard_NumericEmptyList(t *testing.T) {
+	app, _ := setupTestBoardMulti(t)
+
+	card, err := app.CreateCard("10___done", "Empty List Card", "body", "5")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if card.Metadata.ListOrder != 0 {
+		t.Errorf("ListOrder: got %f, want 0", card.Metadata.ListOrder)
+	}
+
+	cards := app.board.Lists["10___done"]
+	if len(cards) != 1 {
+		t.Fatalf("expected 1 card, got %d", len(cards))
+	}
+}
+
 // MoveCard should reorder a card within the same list by updating list_order.
 func TestMoveCard_SameList(t *testing.T) {
 	app, _ := setupTestBoardMulti(t)

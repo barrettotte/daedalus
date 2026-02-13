@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
+  import { SvelteSet } from "svelte/reactivity";
   import { LoadBoard, SaveListConfig, SaveLabelsExpanded, SaveCollapsedLists, MoveCard, DeleteCard } from "../wailsjs/go/main/App";
   import { boardData, boardConfig, sortedListKeys, isLoaded, selectedCard, draftListKey, draftPosition, showMetrics, labelsExpanded, dragState, dropTarget, focusedCard, openInEditMode, moveCardInBoard, removeCardFromBoard, computeListOrder, addToast } from "./stores/board";
   import type { BoardLists, BoardConfigMap } from "./stores/board";
@@ -17,7 +18,7 @@
   let editingLimit: string | null = $state(null);
   let editTitleValue = $state("");
   let editLimitValue = $state(0);
-  let collapsedLists: Set<string> = $state(new Set());
+  let collapsedLists = $state(new SvelteSet<string>());
   let showKeyboardHelp = $state(false);
   let confirmingFocusDelete = $state(false);
   let boardContainerEl: HTMLDivElement | undefined = $state(undefined);
@@ -321,7 +322,7 @@
         labelsExpanded.set(response.config.labelsExpanded);
       }
       if (response.config?.collapsedLists) {
-        collapsedLists = new Set(response.config.collapsedLists);
+        collapsedLists = new SvelteSet(response.config.collapsedLists);
       }
       isLoaded.set(true);
     } catch (e) {

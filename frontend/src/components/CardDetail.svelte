@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { selectedCard, draftListKey, draftPosition, updateCardInBoard, addCardToBoard, removeCardFromBoard, boardConfig, boardData, sortedListKeys, focusedCard, openInEditMode, addToast, isAtLimit } from "../stores/board";
-  import { GetCardContent, SaveCard, OpenFileExternal, CreateCard, DeleteCard } from "../../wailsjs/go/main/App";
+  import { selectedCard, draftListKey, draftPosition, updateCardInBoard, addCardToBoard, removeCardFromBoard, moveCardInBoard, computeListOrder, boardConfig, boardData, sortedListKeys, focusedCard, openInEditMode, addToast, isAtLimit } from "../stores/board";
+  import { GetCardContent, SaveCard, OpenFileExternal, CreateCard, DeleteCard, MoveCard, LoadBoard } from "../../wailsjs/go/main/App";
   import { marked } from "marked";
   import { labelColor, formatDate, formatDateTime, formatListName, autoFocus } from "../lib/utils";
   import type { daedalus } from "../../wailsjs/go/models";
@@ -19,6 +19,9 @@
 
   // Delete confirmation state
   let confirmingDelete = $state(false);
+
+  // Move-to-list dropdown state
+  let moveDropdownOpen = $state(false);
 
   // Guards against stale async responses when rapidly switching cards.
   let loadGeneration = 0;
@@ -253,7 +256,9 @@
     }
 
     if (e.key === "Escape") {
-      if (editingTitle) {
+      if (moveDropdownOpen) {
+        moveDropdownOpen = false;
+      } else if (editingTitle) {
         editingTitle = false;
       } else if (editingBody) {
         editingBody = false;
@@ -304,6 +309,7 @@
       editingTitle = false;
       editingBody = false;
       confirmingDelete = false;
+      moveDropdownOpen = false;
 
       const shouldEdit = $openInEditMode;
       if (shouldEdit) {
@@ -426,31 +432,66 @@
     return formatListName($draftListKey);
   });
 
-  // Derives the list display name from the config title or formatted directory name.
-  let listDisplayName = $derived.by(() => {
+  // Extracts the raw directory name from the selected card's file path.
+  let cardListKey = $derived.by(() => {
     if (!$selectedCard) {
       return "";
     }
-
     const parts = $selectedCard.filePath.split("/");
-    const dirName = parts[parts.length - 2] || "";
-    const cfg = $boardConfig[dirName];
+    return parts[parts.length - 2] || "";
+  });
 
+  // Derives the list display name from the config title or formatted directory name.
+  let listDisplayName = $derived.by(() => {
+    if (!cardListKey) {
+      return "";
+    }
+    return getListDisplayName(cardListKey);
+  });
+
+  // Resolves a list key to its display name via config title or formatted directory name.
+  function getListDisplayName(listKey: string): string {
+    const cfg = $boardConfig[listKey];
     if (cfg && cfg.title) {
       return cfg.title;
     }
-    return formatListName(dirName);
-  });
+    return formatListName(listKey);
+  }
+
+  // Moves the current card to a different list, placing it at the top.
+  async function moveToList(targetListKey: string): Promise<void> {
+    if (!$selectedCard || targetListKey === cardListKey) {
+      return;
+    }
+    if (isAtLimit(targetListKey, $boardData, $boardConfig)) {
+      addToast("List is at its card limit");
+      return;
+    }
+
+    const targetCards = $boardData[targetListKey] || [];
+    const targetIndex = 0;
+    const newListOrder = computeListOrder(targetCards, targetIndex);
+    const originalPath = $selectedCard.filePath;
+
+    moveCardInBoard(originalPath, cardListKey, targetListKey, targetIndex, newListOrder);
+
+    try {
+      const result = await MoveCard(originalPath, targetListKey, newListOrder);
+      selectedCard.set(result);
+    } catch (err) {
+      addToast(`Failed to move card: ${err}`);
+      const response = await LoadBoard("");
+      boardData.set(response.lists);
+    }
+  }
 
   // Derives the card's 1-based position and list size from boardData.
   let cardPosition = $derived.by(() => {
-    if (!$selectedCard) {
+    if (!$selectedCard || !cardListKey) {
       return "";
     }
 
-    const parts = $selectedCard.filePath.split("/");
-    const dirName = parts[parts.length - 2] || "";
-    const cards = $boardData[dirName];
+    const cards = $boardData[cardListKey];
     if (!cards) {
       return "";
     }
@@ -650,7 +691,31 @@
 
           <div class="sidebar-section">
             <h4 class="sidebar-title">List</h4>
-            <div class="sidebar-value">{listDisplayName}</div>
+            <div class="move-dropdown">
+              <button class="move-trigger" onclick={() => moveDropdownOpen = !moveDropdownOpen}>
+                <span>{listDisplayName}</span>
+                <svg class="move-chevron" class:open={moveDropdownOpen} viewBox="0 0 16 16" width="12" height="12">
+                  <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              {#if moveDropdownOpen}
+                <div class="move-menu">
+                  {#each sortedListKeys($boardData) as key}
+                    {@const full = key !== cardListKey && isAtLimit(key, $boardData, $boardConfig)}
+                    <button
+                      class="move-option"
+                      class:active={key === cardListKey}
+                      class:disabled={full}
+                      disabled={full}
+                      onclick={() => { moveDropdownOpen = false; moveToList(key); }}
+                    >
+                      {getListDisplayName(key)}
+                      {#if full} <span class="move-full">(full)</span>{/if}
+                    </button>
+                  {/each}
+                </div>
+              {/if}
+            </div>
           </div>
 
           {#if cardPosition}
@@ -1043,6 +1108,84 @@
   .sidebar-value {
     font-size: 0.8rem;
     color: #b6c2d1;
+  }
+
+  .move-dropdown {
+    position: relative;
+  }
+
+  .move-trigger {
+    all: unset;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    background: var(--color-bg-base);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-primary);
+    font-size: 0.8rem;
+    padding: 4px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    box-sizing: border-box;
+
+    &:hover {
+      border-color: var(--color-text-tertiary);
+    }
+  }
+
+  .move-chevron {
+    color: var(--color-text-tertiary);
+    transition: transform 0.15s;
+    flex-shrink: 0;
+
+    &.open {
+      transform: rotate(180deg);
+    }
+  }
+
+  .move-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 4px 0;
+    z-index: 10;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .move-option {
+    all: unset;
+    display: block;
+    width: 100%;
+    padding: 5px 8px;
+    font-size: 0.8rem;
+    color: var(--color-text-primary);
+    cursor: pointer;
+    box-sizing: border-box;
+
+    &:hover:not(:disabled) {
+      background: var(--overlay-hover);
+    }
+
+    &.active {
+      color: var(--color-accent);
+    }
+
+    &.disabled {
+      color: var(--color-text-muted);
+      cursor: not-allowed;
+    }
+  }
+
+  .move-full {
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
   }
 
   .sidebar-badge {

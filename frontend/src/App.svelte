@@ -11,6 +11,7 @@
     selectedCard, draftListKey, draftPosition, showMetrics,
     labelsExpanded, dragState, dropTarget, focusedCard, openInEditMode,
     removeCardFromBoard, addToast, isAtLimit,
+    searchQuery, filteredBoardData,
   } from "./stores/board";
   import { labelColor, getDisplayTitle, getCountDisplay } from "./lib/utils";
   import {
@@ -32,6 +33,41 @@
   let showKeyboardHelp = $state(false);
   let confirmingFocusDelete = $state(false);
   let boardContainerEl: HTMLDivElement | undefined = $state(undefined);
+  let searchInputEl: HTMLInputElement | undefined = $state(undefined);
+  let searchOpen = $state(false);
+
+  // Counts total matched cards across all lists for the search badge.
+  function matchedCardCount(filtered: Record<string, any[]>, raw: Record<string, any[]>): { matched: number; total: number } {
+    let matched = 0;
+    let total = 0;
+    for (const key of Object.keys(raw)) {
+      total += (raw[key] || []).length;
+      matched += (filtered[key] || []).length;
+    }
+    return { matched, total };
+  }
+
+  // Expands the search bar and focuses the input on next tick.
+  function openSearch(): void {
+    searchOpen = true;
+    requestAnimationFrame(() => searchInputEl?.focus());
+  }
+
+  // Collapses the search bar, clears the query, and blurs the input.
+  function closeSearch(): void {
+    searchQuery.set("");
+    searchOpen = false;
+    searchInputEl?.blur();
+  }
+
+  // Handles keydown events inside the search input.
+  function handleSearchKeydown(e: KeyboardEvent): void {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      closeSearch();
+    }
+  }
 
   // Toggles a list between collapsed and expanded, persisting to board.yaml.
   function toggleCollapse(listKey: string): void {
@@ -181,6 +217,13 @@
       return;
     }
 
+    // / - Open and focus search bar
+    if (e.key === "/") {
+      e.preventDefault();
+      openSearch();
+      return;
+    }
+
     // N - Create new card
     if (e.key === "n" && !e.metaKey && !e.ctrlKey && !e.altKey) {
       e.preventDefault();
@@ -307,11 +350,49 @@
 </script>
 
 <svelte:window onkeydown={handleGlobalKeydown} />
+<svelte:document onselectstart={(e) => {
+  const tag = (e.target as HTMLElement).tagName;
+  if (tag !== "INPUT" && tag !== "TEXTAREA" && !(e.target as HTMLElement).isContentEditable) {
+    e.preventDefault();
+  }
+}} />
 
 <main>
   <div class="top-bar">
     <h1>Daedalus</h1>
     <div class="top-bar-actions">
+      {#if searchOpen}
+        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+        <div class="search-bar" role="search" onmousedown={(e) => {
+          if ((e.target as HTMLElement).tagName !== "INPUT") { e.preventDefault(); }
+        }}>
+          <svg class="search-icon" viewBox="0 0 24 24" width="14" height="14">
+            <circle cx="11" cy="11" r="8" fill="none" stroke="currentColor" stroke-width="2"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <input type="text" class="search-input" placeholder="Search cards..."
+            bind:this={searchInputEl} bind:value={$searchQuery}
+            onkeydown={handleSearchKeydown} onblur={closeSearch}
+          />
+          {#if $searchQuery.trim()}
+            {@const counts = matchedCardCount($filteredBoardData, $boardData)}
+            <span class="search-count">{counts.matched}/{counts.total}</span>
+            <button class="search-clear" onmousedown={() => searchQuery.set("")} title="Clear search">
+              <svg viewBox="0 0 24 24" width="12" height="12">
+                <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+          {/if}
+        </div>
+      {:else}
+        <button class="top-btn" onclick={openSearch} title="Search (/)">
+          <svg viewBox="0 0 24 24" width="14" height="14">
+            <circle cx="11" cy="11" r="8" fill="none" stroke="currentColor" stroke-width="2"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      {/if}
       <button class="top-btn" onclick={initBoard} title="Reload board">
         <svg viewBox="0 0 24 24" width="14" height="14">
           <path d="M23 4v6h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -334,13 +415,19 @@
     <div class="board-container" class:modal-open={$selectedCard || $draftListKey} bind:this={boardContainerEl}>
       {#each sortedListKeys($boardData) as listKey}
         {#if collapsedLists.has(listKey)}
-          <div class="list-column collapsed" role="button" tabindex="0" onclick={() => toggleCollapse(listKey)} onkeydown={e => e.key === 'Enter' && toggleCollapse(listKey)}>
-            <span class="collapsed-count">{getCountDisplay(listKey, $boardData, $boardConfig)}</span>
-            <span class="collapsed-title">{getDisplayTitle(listKey, $boardConfig)}</span>
+          <div class="list-column collapsed" role="button" tabindex="0" onclick={() => toggleCollapse(listKey)}
+            onkeydown={e => e.key === 'Enter' && toggleCollapse(listKey)}
+          >
+            <span class="collapsed-count">
+              {getCountDisplay(listKey, $boardData, $boardConfig)}
+            </span>
+            <span class="collapsed-title">
+              {getDisplayTitle(listKey, $boardConfig)}
+            </span>
           </div>
         {:else}
           <div class="list-column" class:list-full={$dragState && $dragState.sourceListKey !== listKey && isAtLimit(listKey, $boardData, $boardConfig)}>
-            <ListHeader {listKey}
+            <ListHeader {listKey} 
               oncreatecard={() => createCard(listKey)}
               oncollapse={() => toggleCollapse(listKey)}
               onreload={initBoard}
@@ -351,17 +438,15 @@
               ondragleave={handleDragLeave}
               ondrop={(e) => handleDrop(e, listKey, initBoard)}
             >
-              <VirtualList items={$boardData[listKey]} component={Card} estimatedHeight={90}
-                listKey={listKey} focusIndex={$focusedCard?.listKey === listKey ? $focusedCard.cardIndex : -1}
+              <VirtualList items={$filteredBoardData[listKey]} component={Card} estimatedHeight={90} listKey={listKey} 
+                focusIndex={$focusedCard?.listKey === listKey ? $focusedCard.cardIndex : -1}
               />
             </div>
-            <button
-              class="list-footer-add"
+            <button class="list-footer-add" title="Add card to bottom"
               onclick={() => createCardBottom(listKey)}
               ondragenter={handleDragEnter}
               ondragover={(e) => handleFooterDragOver(e, listKey)}
               ondrop={(e) => handleDrop(e, listKey, initBoard)}
-              title="Add card to bottom"
             >
               <svg viewBox="0 0 24 24" width="12" height="12">
                 <line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -400,12 +485,20 @@
 </main>
 
 <style lang="scss">
+
   :global(body) {
     margin: 0;
     background-color: var(--color-bg-base);
     color: white;
     font-family: sans-serif;
     overflow: hidden;
+    user-select: none;
+  }
+
+  :global(textarea),
+  :global(input),
+  :global([contenteditable]) {
+    user-select: text;
   }
 
   main {
@@ -421,6 +514,68 @@
     align-items: center;
     padding: 0 20px;
     border-bottom: 1px solid #000;
+  }
+
+  .search-bar {
+    display: flex;
+    align-items: center;
+    width: 280px;
+    background: var(--overlay-hover-light);
+    border: 1px solid var(--color-border-medium);
+    border-radius: 4px;
+    padding: 0 8px;
+    height: 30px;
+    gap: 6px;
+    transition: border-color 0.15s;
+
+    &:focus-within {
+      border-color: var(--color-accent);
+    }
+  }
+
+  .search-icon {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+  }
+
+  .search-input {
+    all: unset;
+    flex: 1;
+    font-size: 0.8rem;
+    color: var(--color-text-primary);
+    min-width: 0;
+    text-align: left;
+
+    &::placeholder {
+      color: var(--color-text-muted);
+    }
+  }
+
+  .search-count {
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    padding: 1px 6px;
+    background: var(--overlay-hover-medium);
+    border-radius: 3px;
+  }
+
+  .search-clear {
+    all: unset;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    border-radius: 3px;
+
+    &:hover {
+      color: var(--color-text-primary);
+      background: var(--overlay-hover-medium);
+    }
   }
 
   .top-bar-actions {
@@ -642,4 +797,5 @@
       -webkit-box-orient: vertical;
     }
   }
+
 </style>

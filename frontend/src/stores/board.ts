@@ -1,5 +1,5 @@
-import { writable } from 'svelte/store';
-import type { Writable } from 'svelte/store';
+import { writable, derived } from 'svelte/store';
+import type { Writable, Readable } from 'svelte/store';
 import type { daedalus } from '../../wailsjs/go/models';
 
 // Map of list directory names to their sorted card arrays.
@@ -151,6 +151,92 @@ export function isAtLimit(listKey: string, lists: BoardLists, config: BoardConfi
 export const sortedListKeys = (lists: BoardLists): string[] => {
     return Object.keys(lists).sort();
 };
+
+export const searchQuery: Writable<string> = writable("");
+
+// Parsed search token: plain text, #label prefix, or @date prefix.
+interface SearchToken {
+  type: "text" | "label" | "date";
+  value: string;
+}
+
+// Parses a query string into typed search tokens.
+function parseSearchTokens(query: string): SearchToken[] {
+  const tokens: SearchToken[] = [];
+  const parts = query.trim().split(/\s+/);
+  for (const part of parts) {
+    if (!part) {
+      continue;
+    }
+    if (part.startsWith("#")) {
+      const val = part.slice(1);
+      if (val) {
+        tokens.push({ type: "label", value: val.toLowerCase() });
+      }
+    } else if (part.startsWith("@")) {
+      const val = part.slice(1);
+      if (val) {
+        tokens.push({ type: "date", value: val });
+      }
+    } else {
+      tokens.push({ type: "text", value: part.toLowerCase() });
+    }
+  }
+  return tokens;
+}
+
+// Returns true when a card matches a single search token.
+function cardMatchesToken(card: daedalus.KanbanCard, token: SearchToken): boolean {
+  if (token.type === "text") {
+    const title = (card.metadata.title || "").toLowerCase();
+    const preview = (card.previewText || "").toLowerCase();
+    return title.includes(token.value) || preview.includes(token.value);
+  }
+
+  if (token.type === "label") {
+    const labels = card.metadata.labels || [];
+    return labels.some(l => l.toLowerCase().includes(token.value));
+  }
+
+  if (token.type === "date") {
+    if (!card.metadata.created) {
+      return false;
+    }
+    const created = new Date(card.metadata.created);
+    const y = created.getFullYear();
+    const m = String(created.getMonth() + 1).padStart(2, "0");
+    const d = String(created.getDate()).padStart(2, "0");
+    const dateStr = `${y}-${m}-${d}`;
+    return dateStr.startsWith(token.value);
+  }
+  return false;
+}
+
+// Filters board data by the search query. All tokens must match (AND logic).
+function filterBoard(lists: BoardLists, query: string): BoardLists {
+  const tokens = parseSearchTokens(query);
+  if (tokens.length === 0) {
+    return lists;
+  }
+  const result: BoardLists = {};
+  for (const key of Object.keys(lists)) {
+    result[key] = lists[key].filter(
+      card => tokens.every(t => cardMatchesToken(card, t))
+    );
+  }
+  return result;
+}
+
+// Filters boardData by the current search query, returning matching cards per list.
+export const filteredBoardData: Readable<BoardLists> = derived(
+  [boardData, searchQuery],
+  ([$boardData, $searchQuery]) => {
+    if (!$searchQuery.trim()) {
+      return $boardData;
+    }
+    return filterBoard($boardData, $searchQuery);
+  },
+);
 
 export const toasts: Writable<Toast[]> = writable([]);
 let toastId = 0;

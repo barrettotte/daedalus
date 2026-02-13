@@ -26,6 +26,7 @@
       { key: "Escape", desc: "Close modal / cancel edit" },
     ]},
     { title: "General", items: [
+      { key: "/", desc: "Focus search bar" },
       { key: "N", desc: "Create new card" },
       { key: "?", desc: "Toggle this help overlay" },
     ]},

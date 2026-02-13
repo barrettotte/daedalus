@@ -4,7 +4,7 @@
   import { labelColor } from "../lib/utils";
   import type { daedalus } from "../../wailsjs/go/models";
 
-  let { card, listKey = "" }: { card: daedalus.KanbanCard; listKey?: string } = $props();
+  let { card, listKey = "", focused = false }: { card: daedalus.KanbanCard; listKey?: string; focused?: boolean } = $props();
 
   let meta = $derived(card.metadata);
   let isDragging = $derived($dragState?.card?.filePath === card.filePath);
@@ -52,11 +52,17 @@
   }
 </script>
 
-<div class="card" class:dragging={isDragging} draggable="true" role="button" tabindex="0" ondragstart={handleDragStart} ondragend={handleDragEnd} onclick={openDetail} onkeydown={e => e.key === 'Enter' && openDetail()}>
+<div class="card" class:dragging={isDragging} class:focused={focused} draggable="true" role="button" 
+  tabindex="0" ondragstart={handleDragStart} ondragend={handleDragEnd} onclick={openDetail} 
+  onkeydown={e => e.key === 'Enter' && openDetail()}
+>
   {#if meta.labels && meta.labels.length > 0}
     <div class="labels">
       {#each meta.labels as label}
-        <span class="label" class:collapsed={!$labelsExpanded} style="background: {labelColor(label)}" title={$labelsExpanded ? '' : label} role="button" tabindex="0" onclick={(e: MouseEvent) => { e.stopPropagation(); toggleLabels(); }} onkeydown={(e: KeyboardEvent) => { e.stopPropagation(); e.key === 'Enter' && toggleLabels(); }}>{#if $labelsExpanded}{label}{/if}</span>
+        <span class="label" class:collapsed={!$labelsExpanded} style="background: {labelColor(label)}" title={$labelsExpanded ? '' : label} 
+          role="button" tabindex="0" onclick={(e: MouseEvent) => { e.stopPropagation(); toggleLabels(); }} 
+          onkeydown={(e: KeyboardEvent) => { e.stopPropagation(); e.key === 'Enter' && toggleLabels(); }}
+        >{#if $labelsExpanded}{label}{/if}</span>
       {/each}
     </div>
   {/if}
@@ -94,23 +100,28 @@
 
 <style lang="scss">
   .card {
-    background: #2b303b;
+    background: var(--color-bg-surface);
     border-radius: 4px;
     padding: 8px 10px;
     margin: 0 6px;
     border-bottom: 1px solid rgba(0, 0, 0, 0.25);
-    color: #c7d1db;
+    color: var(--color-text-primary);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
     cursor: pointer;
     text-align: left;
     contain: content;
 
     &:hover {
-      background: #333846;
+      background: var(--color-bg-surface-hover);
     }
 
     &.dragging {
       opacity: 0.4;
+    }
+
+    &.focused {
+      outline: 2px solid var(--color-accent);
+      outline-offset: -2px;
     }
   }
 
@@ -157,18 +168,18 @@
     align-items: center;
     gap: 3px;
     font-size: 0.7rem;
-    color: #8c9bab;
+    color: var(--color-text-tertiary);
     border-radius: 3px;
     padding: 1px 4px;
 
     &.on-time {
-      background: rgba(75, 206, 151, 0.15);
-      color: #4bce97;
+      background: var(--overlay-success);
+      color: var(--color-success);
     }
 
     &.overdue {
-      background: rgba(247, 68, 68, 0.15);
-      color: #f87168;
+      background: var(--overlay-error);
+      color: var(--color-error);
     }
   }
 
@@ -179,7 +190,7 @@
   }
 
   .desc-icon {
-    color: #6b7a8d;
+    color: var(--color-text-muted);
     opacity: 0.6;
   }
 </style>

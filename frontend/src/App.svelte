@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { LoadBoard, SaveListConfig, SaveLabelsExpanded, SaveCollapsedLists, MoveCard } from "../wailsjs/go/main/App";
-  import { boardData, boardConfig, sortedListKeys, isLoaded, selectedCard, draftListKey, draftPosition, showMetrics, labelsExpanded, dragState, dropTarget, moveCardInBoard, computeListOrder, addToast } from "./stores/board";
+  import { LoadBoard, SaveListConfig, SaveLabelsExpanded, SaveCollapsedLists, MoveCard, DeleteCard } from "../wailsjs/go/main/App";
+  import { boardData, boardConfig, sortedListKeys, isLoaded, selectedCard, draftListKey, draftPosition, showMetrics, labelsExpanded, dragState, dropTarget, focusedCard, openInEditMode, moveCardInBoard, removeCardFromBoard, computeListOrder, addToast } from "./stores/board";
   import type { BoardLists, BoardConfigMap } from "./stores/board";
   import type { daedalus } from "../wailsjs/go/models";
   import { formatListName, autoFocus, labelColor } from "./lib/utils";
@@ -10,6 +10,7 @@
   import CardDetail from "./components/CardDetail.svelte";
   import Metrics from "./components/Metrics.svelte";
   import Toast from "./components/Toast.svelte";
+  import KeyboardHelp from "./components/KeyboardHelp.svelte";
 
   let error = $state("");
   let editingTitle: string | null = $state(null);
@@ -17,6 +18,8 @@
   let editTitleValue = $state("");
   let editLimitValue = $state(0);
   let collapsedLists: Set<string> = $state(new Set());
+  let showKeyboardHelp = $state(false);
+  let confirmingFocusDelete = $state(false);
   let boardContainerEl: HTMLDivElement | undefined = $state(undefined);
   let dragX = $state(0);
   let dragY = $state(0);
@@ -443,25 +446,200 @@
     draftListKey.set(listKey);
   }
 
-  // Handles global keydown: "n" creates a card in the first list (unless typing or modal is open).
+  // Scrolls the board container to make the focused list column visible.
+  function scrollListIntoView(listKey: string): void {
+    if (!boardContainerEl) {
+      return;
+    }
+    const columns = boardContainerEl.querySelectorAll('.list-column');
+    const keys = sortedListKeys($boardData);
+    const idx = keys.indexOf(listKey);
+    if (idx >= 0 && columns[idx]) {
+      columns[idx].scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+  }
+
+  // Deletes the currently focused card after confirmation.
+  async function deleteFocusedCard(): Promise<void> {
+    const focus = $focusedCard;
+    if (!focus) {
+      return;
+    }
+
+    const cards = $boardData[focus.listKey] || [];
+    const card = cards[focus.cardIndex];
+    if (!card) {
+      return;
+    }
+
+    try {
+      await DeleteCard(card.filePath);
+      removeCardFromBoard(card.filePath);
+
+      // Move focus to next card, or previous, or clear
+      const remaining = ($boardData[focus.listKey] || []).length;
+      if (remaining === 0) {
+        focusedCard.set(null);
+      } else {
+        focusedCard.set({ listKey: focus.listKey, cardIndex: Math.min(focus.cardIndex, remaining - 1) });
+      }
+    } catch (err) {
+      addToast(`Failed to delete card: ${err}`);
+    }
+
+    confirmingFocusDelete = false;
+  }
+
+  // Handles all global keyboard shortcuts for board navigation and actions.
   function handleGlobalKeydown(e: KeyboardEvent): void {
-    if (e.key !== "n" || e.metaKey || e.ctrlKey || e.altKey) {
-      return;
-    }
-
     const tag = (e.target as HTMLElement).tagName;
-    if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement).isContentEditable) {
+    const isTyping = tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement).isContentEditable;
+
+    // Escape closes help overlay first; all other keys ignored while it's open.
+    if (showKeyboardHelp) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        showKeyboardHelp = false;
+      }
       return;
     }
 
+    // Escape cancels delete confirmation
+    if (e.key === "Escape" && confirmingFocusDelete) {
+      e.preventDefault();
+      confirmingFocusDelete = false;
+      return;
+    }
+
+    // Confirm delete with Enter when confirming
+    if (e.key === "Enter" && confirmingFocusDelete) {
+      e.preventDefault();
+      deleteFocusedCard();
+      return;
+    }
+
+    // Skip all shortcuts when typing in inputs
+    if (isTyping) {
+      return;
+    }
+
+    // Skip when modal is open (CardDetail handles its own keys)
     if ($selectedCard || $draftListKey) {
       return;
     }
 
     const keys = sortedListKeys($boardData);
-    if (keys.length > 0) {
+    if (keys.length === 0) {
+      return;
+    }
+
+    // ? - Toggle keyboard help
+    if (e.key === "?") {
+      e.preventDefault();
+      showKeyboardHelp = !showKeyboardHelp;
+      return;
+    }
+
+    // N - Create new card
+    if (e.key === "n" && !e.metaKey && !e.ctrlKey && !e.altKey) {
       e.preventDefault();
       createCard(keys[0]);
+      return;
+    }
+
+    // Arrow keys - navigate focus (skip if Ctrl/Cmd held)
+    if ((e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight") && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      confirmingFocusDelete = false;
+
+      const focus = $focusedCard;
+
+      if (!focus) {
+        // No current focus - start at first card of first non-collapsed list
+        for (const key of keys) {
+          if (!collapsedLists.has(key) && ($boardData[key] || []).length > 0) {
+            focusedCard.set({ listKey: key, cardIndex: 0 });
+            scrollListIntoView(key);
+            break;
+          }
+        }
+        return;
+      }
+
+      if (e.key === "ArrowUp") {
+        if (focus.cardIndex > 0) {
+          focusedCard.set({ listKey: focus.listKey, cardIndex: focus.cardIndex - 1 });
+        }
+      } else if (e.key === "ArrowDown") {
+        const cards = $boardData[focus.listKey] || [];
+        if (focus.cardIndex < cards.length - 1) {
+          focusedCard.set({ listKey: focus.listKey, cardIndex: focus.cardIndex + 1 });
+        }
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        const listIdx = keys.indexOf(focus.listKey);
+        const delta = e.key === "ArrowLeft" ? -1 : 1;
+        let targetIdx = listIdx + delta;
+
+        // Skip collapsed or empty lists
+        while (targetIdx >= 0 && targetIdx < keys.length) {
+          const targetKey = keys[targetIdx];
+          if (!collapsedLists.has(targetKey) && ($boardData[targetKey] || []).length > 0) {
+            break;
+          }
+          targetIdx += delta;
+        }
+
+        if (targetIdx >= 0 && targetIdx < keys.length) {
+          const targetKey = keys[targetIdx];
+          const targetCards = $boardData[targetKey] || [];
+          const clampedIndex = Math.min(focus.cardIndex, targetCards.length - 1);
+          focusedCard.set({ listKey: targetKey, cardIndex: clampedIndex });
+          scrollListIntoView(targetKey);
+        }
+      }
+      return;
+    }
+
+    // Enter - open focused card
+    if (e.key === "Enter" && $focusedCard) {
+      e.preventDefault();
+      const cards = $boardData[$focusedCard.listKey] || [];
+      const card = cards[$focusedCard.cardIndex];
+      if (card) {
+        selectedCard.set(card);
+      }
+      return;
+    }
+
+    // Escape - clear focus
+    if (e.key === "Escape" && $focusedCard) {
+      e.preventDefault();
+      focusedCard.set(null);
+      confirmingFocusDelete = false;
+      return;
+    }
+
+    // E - open focused card in edit mode
+    if (e.key === "e" && !e.ctrlKey && !e.metaKey && $focusedCard) {
+      e.preventDefault();
+      const cards = $boardData[$focusedCard.listKey] || [];
+      const card = cards[$focusedCard.cardIndex];
+      if (card) {
+        openInEditMode.set(true);
+        selectedCard.set(card);
+      }
+      return;
+    }
+
+    // Delete - delete focused card with confirmation
+    if (e.key === "Delete" && $focusedCard) {
+      e.preventDefault();
+      if (confirmingFocusDelete) {
+        deleteFocusedCard();
+      } else {
+        confirmingFocusDelete = true;
+      }
+      return;
     }
   }
 
@@ -561,7 +739,7 @@
               </div>
             </div>
             <div class="list-body" role="list" ondragenter={handleDragEnter} ondragover={(e) => handleDragOver(e, listKey)} ondragleave={handleDragLeave} ondrop={(e) => handleDrop(e, listKey)}>
-              <VirtualList items={$boardData[listKey]} component={Card} estimatedHeight={90} listKey={listKey} />
+              <VirtualList items={$boardData[listKey]} component={Card} estimatedHeight={90} listKey={listKey} focusIndex={$focusedCard?.listKey === listKey ? $focusedCard.cardIndex : -1} />
             </div>
             <button class="list-footer-add" onclick={() => createCardBottom(listKey)} ondragenter={handleDragEnter} ondragover={(e) => handleFooterDragOver(e, listKey)} ondrop={(e) => handleDrop(e, listKey)} title="Add card to bottom">
               <svg viewBox="0 0 24 24" width="12" height="12">
@@ -588,15 +766,21 @@
       <div class="ghost-title">{$dragState.card.metadata.title}</div>
     </div>
   {/if}
+  {#if confirmingFocusDelete}
+    <div class="focus-delete-confirm">Press Delete again to confirm, Escape to cancel</div>
+  {/if}
   <CardDetail />
   <Metrics />
   <Toast />
+  {#if showKeyboardHelp}
+    <KeyboardHelp onclose={() => showKeyboardHelp = false} />
+  {/if}
 </main>
 
 <style lang="scss">
   :global(body) {
     margin: 0;
-    background-color: #1e2128;
+    background-color: var(--color-bg-base);
     color: white;
     font-family: sans-serif;
     overflow: hidden;
@@ -610,7 +794,7 @@
 
   .top-bar {
     height: 50px;
-    background: #181a1f;
+    background: var(--color-bg-inset);
     display: flex;
     align-items: center;
     padding: 0 20px;
@@ -627,9 +811,9 @@
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--overlay-hover-light);
     border: 1px solid transparent;
-    color: #9fadbc;
+    color: var(--color-text-secondary);
     font-size: 0.78rem;
     font-weight: 500;
     padding: 5px 10px;
@@ -638,17 +822,17 @@
     transition: background 0.15s, color 0.15s;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.12);
-      color: #c7d1db;
+      background: var(--overlay-hover-medium);
+      color: var(--color-text-primary);
     }
 
     &.active {
-      background: rgba(87, 157, 255, 0.15);
-      color: #579dff;
-      border-color: rgba(87, 157, 255, 0.3);
+      background: var(--overlay-accent);
+      color: var(--color-accent);
+      border-color: var(--overlay-accent-border);
 
       &:hover {
-        background: rgba(87, 157, 255, 0.22);
+        background: var(--overlay-accent-medium);
       }
     }
   }
@@ -666,10 +850,10 @@
     flex: 0 0 280px;
     display: flex;
     flex-direction: column;
-    background: #22252b;
+    background: var(--color-bg-list);
     border-radius: 8px;
     max-height: 100%;
-    border: 1px solid #333;
+    border: 1px solid var(--color-border-medium);
     contain: layout style paint;
 
     &.collapsed {
@@ -681,7 +865,7 @@
       transition: background 0.1s;
 
       &:hover {
-        background: #2a2d34;
+        background: var(--color-bg-surface-alt);
       }
     }
   }
@@ -691,7 +875,7 @@
     text-orientation: mixed;
     font-size: 0.8rem;
     font-weight: 600;
-    color: #9fadbc;
+    color: var(--color-text-secondary);
     white-space: nowrap;
     flex: 1;
     overflow: hidden;
@@ -701,13 +885,13 @@
   .collapsed-count {
     writing-mode: vertical-rl;
     font-size: 0.7rem;
-    color: #6b7a8d;
+    color: var(--color-text-muted);
     flex-shrink: 0;
   }
 
   .list-header {
     padding: 8px 10px;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--color-border-medium);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -723,7 +907,7 @@
   .collapse-btn {
     all: unset;
     cursor: pointer;
-    color: #6b7a8d;
+    color: var(--color-text-muted);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -732,8 +916,8 @@
     border-radius: 4px;
 
     &:hover {
-      color: #9fadbc;
-      background: rgba(255, 255, 255, 0.08);
+      color: var(--color-text-secondary);
+      background: var(--overlay-hover);
     }
   }
 
@@ -761,19 +945,19 @@
     width: 100%;
     padding: 6px 0;
     cursor: pointer;
-    color: #6b7a8d;
-    border-top: 1px solid #333;
+    color: var(--color-text-muted);
+    border-top: 1px solid var(--color-border-medium);
     box-sizing: border-box;
 
     &:hover {
-      color: #9fadbc;
-      background: rgba(255, 255, 255, 0.04);
+      color: var(--color-text-secondary);
+      background: var(--overlay-hover-faint);
     }
   }
 
   .count-btn {
     all: unset;
-    background: #333;
+    background: var(--color-border-medium);
     padding: 2px 8px;
     border-radius: 10px;
     font-size: 0.8rem;
@@ -782,14 +966,14 @@
     color: inherit;
 
     &.over-limit {
-      background: rgba(220, 50, 50, 0.3);
+      background: var(--overlay-error-limit);
       color: #ff6b6b;
     }
   }
 
   .edit-title-input {
-    background: #181a1f;
-    border: 1px solid #579dff;
+    background: var(--color-bg-inset);
+    border: 1px solid var(--color-accent);
     color: white;
     font-size: 0.85rem;
     font-weight: 600;
@@ -802,8 +986,8 @@
   }
 
   .edit-limit-input {
-    background: #181a1f;
-    border: 1px solid #579dff;
+    background: var(--color-bg-inset);
+    border: 1px solid var(--color-accent);
     color: white;
     font-size: 0.8rem;
     padding: 2px 6px;
@@ -823,6 +1007,21 @@
     }
   }
 
+  .focus-delete-confirm {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(200, 55, 44, 0.9);
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    z-index: 900;
+    pointer-events: none;
+  }
+
   .board-container.modal-open :global(.virtual-scroll-container) {
     overflow-y: hidden;
   }
@@ -838,7 +1037,7 @@
     left: 6px;
     right: 6px;
     height: 3px;
-    background: #579dff;
+    background: var(--color-accent);
     z-index: 2;
   }
 
@@ -849,7 +1048,7 @@
     left: 6px;
     right: 6px;
     height: 3px;
-    background: #579dff;
+    background: var(--color-accent);
     z-index: 2;
   }
 
@@ -860,7 +1059,7 @@
     left: 6px;
     right: 6px;
     height: 3px;
-    background: #579dff;
+    background: var(--color-accent);
     z-index: 2;
   }
 
@@ -874,17 +1073,17 @@
   .drag-ghost {
     position: fixed;
     width: 250px;
-    background: #2b303b;
+    background: var(--color-bg-surface);
     border-radius: 4px;
     padding: 8px 10px;
-    color: #c7d1db;
+    color: var(--color-text-primary);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
     pointer-events: none;
     z-index: 10000;
     opacity: 0.9;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
     transform: rotate(3deg);
-    border: 1px solid rgba(87, 157, 255, 0.4);
+    border: 1px solid var(--overlay-accent-strong);
 
     .ghost-labels {
       display: flex;

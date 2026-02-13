@@ -41,11 +41,12 @@
   import type { Component } from "svelte";
   import type { daedalus } from "../../wailsjs/go/models";
 
-  let { items = [], estimatedHeight = 90, component, listKey = "" }: {
+  let { items = [], estimatedHeight = 90, component, listKey = "", focusIndex = -1 }: {
     items: daedalus.KanbanCard[];
     estimatedHeight?: number;
     component: Component<any>;
     listKey?: string;
+    focusIndex?: number;
   } = $props();
 
   let container: HTMLDivElement | undefined = $state(undefined);
@@ -183,14 +184,29 @@
     void visibleItems;
     measureItems();
   });
+
+  // Scrolls the container so the focused item is visible.
+  $effect(() => {
+    if (focusIndex >= 0 && focusIndex < items.length && container) {
+      const top = prefixSums[focusIndex];
+      const bottom = prefixSums[focusIndex + 1];
+
+      if (top < container.scrollTop) {
+        container.scrollTop = top;
+      } else if (bottom > container.scrollTop + containerHeight) {
+        container.scrollTop = bottom - containerHeight;
+      }
+    }
+  });
 </script>
 
 <div class="virtual-scroll-container" bind:this={container} onscroll={handleScroll}>
   <div class="scroll-wrapper" style="height: {totalHeight}px; padding-top: {topPadding}px">
-    {#each visibleItems as item (item.metadata.id)}
+    {#each visibleItems as item, i (item.metadata.id)}
       {@const CardComponent = component}
+      {@const globalIndex = range.start + i}
       <div class="item-slot" data-card-id={item.metadata.id} bind:this={itemElements[item.metadata.id]}>
-        <CardComponent card={item} {listKey} />
+        <CardComponent card={item} {listKey} focused={focusIndex === globalIndex} />
       </div>
     {/each}
   </div>

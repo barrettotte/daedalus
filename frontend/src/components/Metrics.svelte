@@ -79,8 +79,8 @@
     position: fixed;
     bottom: 12px;
     right: 12px;
-    background: #181a1f;
-    border: 1px solid #333;
+    background: var(--color-bg-inset);
+    border: 1px solid var(--color-border-medium);
     border-radius: 6px;
     padding: 8px 12px;
     font-size: 0.75rem;
@@ -100,7 +100,7 @@
     }
 
     .metrics-divider {
-      border-top: 1px solid #333;
+      border-top: 1px solid var(--color-border-medium);
       margin: 3px 0;
     }
   }

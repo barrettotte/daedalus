@@ -24,7 +24,7 @@
   .toast {
     background: #3b1c1c;
     border: 1px solid rgba(248, 113, 104, 0.3);
-    color: #f87168;
+    color: var(--color-error);
     font-size: 0.8rem;
     padding: 10px 16px;
     border-radius: 6px;

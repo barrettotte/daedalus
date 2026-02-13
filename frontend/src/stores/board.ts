@@ -8,6 +8,12 @@ export type BoardLists = Record<string, daedalus.KanbanCard[]>;
 // Map of list directory names to their config (title, limit).
 export type BoardConfigMap = Record<string, daedalus.ListConfig>;
 
+// Keyboard focus position on the board (list + index within that list).
+export interface FocusState {
+  listKey: string;
+  cardIndex: number;
+}
+
 // Active drag operation state.
 export interface DragInfo {
   card: daedalus.KanbanCard;
@@ -37,6 +43,8 @@ export const showMetrics: Writable<boolean> = writable(false);
 export const labelsExpanded: Writable<boolean> = writable(true);
 export const dragState: Writable<DragInfo | null> = writable(null);
 export const dropTarget: Writable<DropInfo | null> = writable(null);
+export const focusedCard: Writable<FocusState | null> = writable(null);
+export const openInEditMode: Writable<boolean> = writable(false);
 
 // Updates a single card in the boardData store by matching filePath.
 export function updateCardInBoard(updatedCard: daedalus.KanbanCard): void {

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { selectedCard, draftListKey, draftPosition, updateCardInBoard, addCardToBoard, removeCardFromBoard, boardConfig, boardData, addToast } from "../stores/board";
+  import { selectedCard, draftListKey, draftPosition, updateCardInBoard, addCardToBoard, removeCardFromBoard, boardConfig, boardData, sortedListKeys, focusedCard, openInEditMode, addToast } from "../stores/board";
   import { GetCardContent, SaveCard, OpenFileExternal, CreateCard, DeleteCard } from "../../wailsjs/go/main/App";
   import { marked } from "marked";
   import { labelColor, formatDate, formatDateTime, formatListName, autoFocus } from "../lib/utils";
@@ -156,8 +156,61 @@
     }
   }
 
-  // Handles keyboard shortcuts: Ctrl/Cmd+Enter saves draft, Escape closes/cancels.
+  // Navigates to prev/next card in the same list while the detail modal is open.
+  function navigateCard(delta: number): void {
+    const focus = $focusedCard;
+    if (!focus) {
+      return;
+    }
+
+    const cards = $boardData[focus.listKey] || [];
+    const newIndex = focus.cardIndex + delta;
+    if (newIndex < 0 || newIndex >= cards.length) {
+      return;
+    }
+
+    focusedCard.set({ listKey: focus.listKey, cardIndex: newIndex });
+    selectedCard.set(cards[newIndex]);
+  }
+
+  // Navigates to the same-index card in an adjacent list, skipping empty lists.
+  function navigateList(delta: number): void {
+    const focus = $focusedCard;
+    if (!focus) {
+      return;
+    }
+
+    const keys = sortedListKeys($boardData);
+    const listIdx = keys.indexOf(focus.listKey);
+    let targetIdx = listIdx + delta;
+
+    // Skip empty lists
+    while (targetIdx >= 0 && targetIdx < keys.length) {
+      if (($boardData[keys[targetIdx]] || []).length > 0) {
+        break;
+      }
+      targetIdx += delta;
+    }
+
+    if (targetIdx < 0 || targetIdx >= keys.length) {
+      return;
+    }
+
+    const targetKey = keys[targetIdx];
+    const targetCards = $boardData[targetKey] || [];
+    const clampedIndex = Math.min(focus.cardIndex, targetCards.length - 1);
+
+    focusedCard.set({ listKey: targetKey, cardIndex: clampedIndex });
+    selectedCard.set(targetCards[clampedIndex]);
+  }
+
+  // Handles keyboard shortcuts: Ctrl/Cmd+Enter saves draft, Escape closes/cancels, arrows navigate.
   function handleKeydown(e: KeyboardEvent): void {
+    // Only handle keys when the modal is actually open.
+    if (!$selectedCard) {
+      return;
+    }
+
     if ($draftListKey) {
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
         e.preventDefault();
@@ -167,6 +220,31 @@
       }
       return;
     }
+
+    // Arrow navigation only when not editing
+    if (!editingTitle && !editingBody && !confirmingDelete) {
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        navigateCard(-1);
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        navigateCard(1);
+        return;
+      }
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        navigateList(-1);
+        return;
+      }
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        navigateList(1);
+        return;
+      }
+    }
+
     if (e.key === "Escape") {
       if (editingTitle) {
         editingTitle = false;
@@ -210,6 +288,11 @@
       editingBody = false;
       confirmingDelete = false;
 
+      const shouldEdit = $openInEditMode;
+      if (shouldEdit) {
+        openInEditMode.set(false);
+      }
+
       GetCardContent($selectedCard.filePath).then(content => {
         if (gen !== loadGeneration) { return; }
         // Strip leading h1 since title is already in the modal header
@@ -217,6 +300,14 @@
         rawBody = body;
         bodyHtml = marked.parse(body, { async: false });
         loading = false;
+
+        // If opened via E shortcut, start in edit mode
+        if (shouldEdit) {
+          editTitle = meta!.title;
+          editBody = body;
+          editingTitle = true;
+          editingBody = true;
+        }
       }).catch(() => {
         if (gen !== loadGeneration) { return; }
         bodyHtml = "<p><em>Could not load card content.</em></p>";
@@ -543,7 +634,7 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.6);
+    background: var(--overlay-backdrop);
     display: flex;
     align-items: flex-start;
     justify-content: center;
@@ -553,7 +644,7 @@
   }
 
   .modal {
-    background: #282c34;
+    background: var(--color-bg-elevated);
     border-radius: 8px;
     max-width: 720px;
     width: 95%;
@@ -576,7 +667,7 @@
     all: unset;
     font-size: 1.25rem;
     font-weight: 600;
-    color: #c7d1db;
+    color: var(--color-text-primary);
     line-height: 1.3;
     word-break: break-word;
     flex: 1;
@@ -592,9 +683,9 @@
   }
 
   .header-btn {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--overlay-hover);
     border: none;
-    color: #9fadbc;
+    color: var(--color-text-secondary);
     cursor: pointer;
     width: 32px;
     height: 32px;
@@ -604,7 +695,7 @@
     justify-content: center;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.15);
+      background: var(--overlay-hover-strong);
       color: #fff;
     }
   }
@@ -622,9 +713,9 @@
   .edit-title-input {
     flex: 1;
     min-width: 0;
-    background: #1e2128;
-    border: 1px solid #579dff;
-    color: #c7d1db;
+    background: var(--color-bg-base);
+    border: 1px solid var(--color-accent);
+    color: var(--color-text-primary);
     font-size: 1.25rem;
     font-weight: 600;
     padding: 2px 10px;
@@ -665,21 +756,21 @@
   .section-icon {
     width: 20px;
     height: 20px;
-    color: #9fadbc;
+    color: var(--color-text-secondary);
     flex-shrink: 0;
   }
 
   .section-title {
     font-size: 0.9rem;
     font-weight: 600;
-    color: #c7d1db;
+    color: var(--color-text-primary);
     margin: 0;
   }
 
   .checklist-bar {
     flex: 1;
     height: 6px;
-    background: #3b4048;
+    background: var(--color-border);
     border-radius: 3px;
     overflow: hidden;
     margin: 0 8px;
@@ -687,7 +778,7 @@
 
   .checklist-count {
     font-size: 0.75rem;
-    color: #8c9bab;
+    color: var(--color-text-tertiary);
     flex-shrink: 0;
   }
 
@@ -695,8 +786,8 @@
   .edit-body-textarea {
     width: 100%;
     min-height: 200px;
-    background: #1e2128;
-    border: 1px solid #3b4048;
+    background: var(--color-bg-base);
+    border: 1px solid var(--color-border);
     color: #b6c2d1;
     font-size: 0.9rem;
     font-family: monospace;
@@ -708,7 +799,7 @@
     line-height: 1.5;
 
     &:focus {
-      border-color: #579dff;
+      border-color: var(--color-accent);
     }
   }
 
@@ -732,7 +823,7 @@
   /* Progress bars */
   .progress-bar {
     height: 6px;
-    background: #3b4048;
+    background: var(--color-border);
     border-radius: 3px;
     overflow: hidden;
     margin-bottom: 8px;
@@ -742,12 +833,12 @@
 
   .progress-fill {
     height: 100%;
-    background: #579dff;
+    background: var(--color-accent);
     border-radius: 4px;
     transition: width 0.3s;
 
     &.complete {
-      background: #4bce97;
+      background: var(--color-success);
     }
   }
 
@@ -768,12 +859,12 @@
       border-radius: 4px;
 
       &:hover {
-        background: rgba(255, 255, 255, 0.04);
+        background: var(--overlay-hover-faint);
       }
 
       &.done .check-text {
         text-decoration: line-through;
-        color: #6b7a8d;
+        color: var(--color-text-muted);
       }
     }
   }
@@ -791,10 +882,10 @@
     width: 16px;
     height: 16px;
     margin-top: 1px;
-    color: #9fadbc;
+    color: var(--color-text-secondary);
 
     &.checked {
-      color: #579dff;
+      color: var(--color-accent);
     }
 
     svg {
@@ -810,7 +901,7 @@
     text-overflow: ellipsis;
 
     a {
-      color: #579dff;
+      color: var(--color-accent);
       text-decoration: none;
       line-height: inherit;
       display: inline;
@@ -823,7 +914,7 @@
 
   /* Sidebar */
   .sidebar-section {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--overlay-hover-light);
     border-radius: 6px;
     padding: 10px 12px;
     margin-bottom: 8px;
@@ -834,7 +925,7 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #8c9bab;
+    color: var(--color-text-tertiary);
     margin: 0 0 6px 0;
   }
 
@@ -853,13 +944,13 @@
     gap: 6px;
 
     &.on-time {
-      background: rgba(75, 206, 151, 0.2);
-      color: #4bce97;
+      background: var(--overlay-success-strong);
+      color: var(--color-success);
     }
 
     &.overdue {
-      background: rgba(247, 68, 68, 0.2);
-      color: #f87168;
+      background: var(--overlay-error-strong);
+      color: var(--color-error);
     }
   }
 
@@ -871,7 +962,7 @@
   .counter-value {
     font-size: 0.85rem;
     font-weight: 600;
-    color: #c7d1db;
+    color: var(--color-text-primary);
     margin-bottom: 6px;
   }
 
@@ -881,13 +972,13 @@
 
   /* Markdown body */
   .loading-text {
-    color: #6b7a8d;
+    color: var(--color-text-muted);
     font-size: 0.85rem;
   }
 
   .empty-desc {
     all: unset;
-    color: #6b7a8d;
+    color: var(--color-text-muted);
     font-size: 0.85rem;
     font-style: italic;
     text-align: left;
@@ -897,7 +988,7 @@
     line-height: 1.6;
     font-size: 0.9rem;
     color: #b6c2d1;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--overlay-subtle);
     border-radius: 6px;
     padding: 12px 16px;
     overflow-x: auto;
@@ -905,7 +996,7 @@
     :global(h1),
     :global(h2),
     :global(h3) {
-      color: #c7d1db;
+      color: var(--color-text-primary);
       margin-top: 16px;
       margin-bottom: 8px;
     }
@@ -915,7 +1006,7 @@
     :global(h3) { font-size: 0.95rem; }
 
     :global(a) {
-      color: #579dff;
+      color: var(--color-accent);
     }
 
     :global(a:hover) {
@@ -923,14 +1014,14 @@
     }
 
     :global(code) {
-      background: #1e2128;
+      background: var(--color-bg-base);
       padding: 2px 6px;
       border-radius: 3px;
       font-size: 0.85em;
     }
 
     :global(pre) {
-      background: #1e2128;
+      background: var(--color-bg-base);
       padding: 12px;
       border-radius: 6px;
       overflow-x: auto;
@@ -942,10 +1033,10 @@
     }
 
     :global(blockquote) {
-      border-left: 3px solid #579dff;
+      border-left: 3px solid var(--color-accent);
       margin: 8px 0;
       padding: 4px 12px;
-      color: #8c9bab;
+      color: var(--color-text-tertiary);
     }
 
     :global(ul),
@@ -970,18 +1061,18 @@
 
     :global(th),
     :global(td) {
-      border: 1px solid #3b4048;
+      border: 1px solid var(--color-border);
       padding: 6px 10px;
       text-align: left;
     }
 
     :global(th) {
-      background: #1e2128;
+      background: var(--color-bg-base);
     }
 
     :global(hr) {
       border: none;
-      border-top: 1px solid #3b4048;
+      border-top: 1px solid var(--color-border);
       margin: 16px 0;
     }
   }
@@ -998,7 +1089,7 @@
     display: flex;
     border-radius: 4px;
     overflow: hidden;
-    border: 1px solid #3b4048;
+    border: 1px solid var(--color-border);
     margin-right: auto;
   }
 
@@ -1008,22 +1099,22 @@
     font-size: 0.78rem;
     font-weight: 500;
     cursor: pointer;
-    color: #9fadbc;
+    color: var(--color-text-secondary);
     background: transparent;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.06);
+      background: var(--overlay-hover-light);
     }
 
     &.active {
-      background: rgba(87, 157, 255, 0.15);
-      color: #579dff;
+      background: var(--overlay-accent);
+      color: var(--color-accent);
     }
   }
 
   .save-btn {
-    background: #579dff;
-    color: #1e2128;
+    background: var(--color-accent);
+    color: var(--color-bg-base);
     border: none;
     padding: 8px 20px;
     border-radius: 4px;
@@ -1032,7 +1123,7 @@
     cursor: pointer;
 
     &:hover:not(:disabled) {
-      background: #85b8ff;
+      background: var(--color-accent-hover);
     }
 
     &:disabled {
@@ -1042,8 +1133,8 @@
   }
 
   .cancel-btn {
-    background: rgba(255, 255, 255, 0.08);
-    color: #9fadbc;
+    background: var(--overlay-hover);
+    color: var(--color-text-secondary);
     border: none;
     padding: 8px 16px;
     border-radius: 4px;
@@ -1051,14 +1142,14 @@
     cursor: pointer;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.15);
+      background: var(--overlay-hover-strong);
       color: #fff;
     }
   }
 
   /* Delete confirmation */
   .delete-icon:hover {
-    color: #f87168;
+    color: var(--color-error);
   }
 
   .confirm-delete {
@@ -1071,7 +1162,7 @@
 
   .confirm-delete-text {
     font-size: 0.95rem;
-    color: #c7d1db;
+    color: var(--color-text-primary);
     font-weight: 600;
   }
 
@@ -1081,7 +1172,7 @@
   }
 
   .delete-btn {
-    background: #c9372c;
+    background: var(--color-error-dark);
     color: #fff;
     border: none;
     padding: 8px 20px;
@@ -1091,7 +1182,7 @@
     cursor: pointer;
 
     &:hover {
-      background: #f87168;
+      background: var(--color-error);
     }
   }
 </style>

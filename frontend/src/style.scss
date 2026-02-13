@@ -1,3 +1,53 @@
+:root {
+    /* Accent */
+    --color-accent: #579dff;
+    --color-accent-hover: #85b8ff;
+
+    /* Status */
+    --color-success: #4bce97;
+    --color-error: #f87168;
+    --color-error-dark: #c9372c;
+
+    /* Text hierarchy */
+    --color-text-primary: #c7d1db;
+    --color-text-secondary: #9fadbc;
+    --color-text-tertiary: #8c9bab;
+    --color-text-muted: #6b7a8d;
+
+    /* Backgrounds (darkest to lightest) */
+    --color-bg-base: #1e2128;
+    --color-bg-inset: #181a1f;
+    --color-bg-list: #22252b;
+    --color-bg-elevated: #282c34;
+    --color-bg-surface: #2b303b;
+    --color-bg-surface-hover: #333846;
+    --color-bg-surface-alt: #2a2d34;
+
+    /* Borders */
+    --color-border: #3b4048;
+    --color-border-medium: #333;
+
+    /* Overlays */
+    --overlay-backdrop: rgba(0, 0, 0, 0.6);
+    --overlay-subtle: rgba(255, 255, 255, 0.03);
+    --overlay-hover-faint: rgba(255, 255, 255, 0.04);
+    --overlay-hover-light: rgba(255, 255, 255, 0.06);
+    --overlay-hover: rgba(255, 255, 255, 0.08);
+    --overlay-hover-medium: rgba(255, 255, 255, 0.12);
+    --overlay-hover-strong: rgba(255, 255, 255, 0.15);
+    --overlay-accent: rgba(87, 157, 255, 0.15);
+    --overlay-accent-medium: rgba(87, 157, 255, 0.22);
+    --overlay-accent-border: rgba(87, 157, 255, 0.3);
+    --overlay-accent-strong: rgba(87, 157, 255, 0.4);
+
+    /* Status overlays */
+    --overlay-success: rgba(75, 206, 151, 0.15);
+    --overlay-success-strong: rgba(75, 206, 151, 0.2);
+    --overlay-error: rgba(247, 68, 68, 0.15);
+    --overlay-error-strong: rgba(247, 68, 68, 0.2);
+    --overlay-error-limit: rgba(220, 50, 50, 0.3);
+}
+
 html {
     background-color: rgba(27, 38, 54, 1);
     text-align: center;

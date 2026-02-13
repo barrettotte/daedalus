@@ -1,4 +1,5 @@
 import type { ActionReturn } from "svelte/action";
+import type { BoardLists, BoardConfigMap } from "../stores/board";
 
 // Hashes a label string into a deterministic HSL color for consistent badge coloring.
 export function labelColor(label: string): string {
@@ -43,6 +44,35 @@ export function formatDateTime(d: string | null | undefined): string {
   h = h % 12 || 12;
 
   return `${date} ${h}:${min} ${ampm}`;
+}
+
+// Returns the config title override if set, otherwise the formatted directory name.
+export function getDisplayTitle(listKey: string, config: BoardConfigMap): string {
+  const cfg = config[listKey];
+  if (cfg && cfg.title) {
+    return cfg.title;
+  }
+  return formatListName(listKey);
+}
+
+// Returns "count/limit" when a limit is set, otherwise just the count.
+export function getCountDisplay(listKey: string, lists: BoardLists, config: BoardConfigMap): string {
+  const count = lists[listKey]?.length || 0;
+  const cfg = config[listKey];
+
+  if (cfg && cfg.limit > 0) {
+    return `${count}/${cfg.limit}`;
+  }
+  return `${count}`;
+}
+
+// Returns true when the card count exceeds the configured limit.
+export function isOverLimit(listKey: string, lists: BoardLists, config: BoardConfigMap): boolean {
+  const cfg = config[listKey];
+  if (!cfg || cfg.limit <= 0) {
+    return false;
+  }
+  return (lists[listKey]?.length || 0) > cfg.limit;
 }
 
 // Svelte action that focuses and selects the content of an input on mount.

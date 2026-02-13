@@ -1,334 +1,36 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
-  import { LoadBoard, SaveListConfig, SaveLabelsExpanded, SaveCollapsedLists, MoveCard, DeleteCard } from "../wailsjs/go/main/App";
-  import { boardData, boardConfig, sortedListKeys, isLoaded, selectedCard, draftListKey, draftPosition, showMetrics, labelsExpanded, dragState, dropTarget, focusedCard, openInEditMode, moveCardInBoard, removeCardFromBoard, computeListOrder, addToast, isAtLimit } from "./stores/board";
-  import type { BoardLists, BoardConfigMap } from "./stores/board";
-  import type { daedalus } from "../wailsjs/go/models";
-  import { formatListName, autoFocus, labelColor } from "./lib/utils";
+  import {
+    LoadBoard, SaveLabelsExpanded,
+    SaveCollapsedLists, DeleteCard,
+  } from "../wailsjs/go/main/App";
+  import {
+    boardData, boardConfig, sortedListKeys, isLoaded, selectedCard,
+    draftListKey, draftPosition, showMetrics, labelsExpanded,
+    dragState, dropTarget, focusedCard, openInEditMode,
+    removeCardFromBoard, addToast, isAtLimit,
+  } from "./stores/board";
+  import { labelColor, getDisplayTitle, getCountDisplay } from "./lib/utils";
+  import {
+    dragPos, setBoardContainer, clearDropIndicators,
+    handleDragEnter, handleDragOver, handleDragLeave, handleDrop,
+    handleFooterDragOver, stopAutoScroll,
+  } from "./lib/drag";
   import VirtualList from "./components/VirtualList.svelte";
   import Card from "./components/Card.svelte";
   import CardDetail from "./components/CardDetail.svelte";
+  import DraftCard from "./components/DraftCard.svelte";
+  import ListHeader from "./components/ListHeader.svelte";
   import Metrics from "./components/Metrics.svelte";
   import Toast from "./components/Toast.svelte";
   import KeyboardHelp from "./components/KeyboardHelp.svelte";
 
   let error = $state("");
-  let editingTitle: string | null = $state(null);
-  let editingLimit: string | null = $state(null);
-  let editTitleValue = $state("");
-  let editLimitValue = $state(0);
   let collapsedLists = $state(new SvelteSet<string>());
   let showKeyboardHelp = $state(false);
   let confirmingFocusDelete = $state(false);
   let boardContainerEl: HTMLDivElement | undefined = $state(undefined);
-  let dragX = $state(0);
-  let dragY = $state(0);
-  let autoScrollRaf: number | null = null;
-  let autoScrollVContainer: Element | null = null;
-  let autoScrollVSpeed = 0;
-  let autoScrollHSpeed = 0;
-  let activeIndicators: Set<Element> = new Set();
-
-  // Clears drop indicator classes from tracked elements (avoids querySelectorAll on every dragover).
-  function clearDropIndicators(): void {
-    for (const el of activeIndicators) {
-      el.classList.remove('drop-above', 'drop-below', 'drop-top', 'drop-bottom');
-    }
-    activeIndicators.clear();
-  }
-
-  // Adds a drop indicator class to an element and tracks it for efficient cleanup.
-  function addIndicator(el: Element, cls: string): void {
-    el.classList.add(cls);
-    activeIndicators.add(el);
-  }
-
-  // Allows the element to be a valid drop target
-  function handleDragEnter(e: DragEvent): void {
-    e.preventDefault();
-    e.dataTransfer!.dropEffect = "move";
-  }
-
-  // Handles dragover on a list body - positions the drop indicator and triggers auto-scroll.
-  function handleDragOver(e: DragEvent, listKey: string): void {
-    e.preventDefault();
-    dragX = e.clientX;
-    dragY = e.clientY;
-    if (!$dragState) {
-      e.dataTransfer!.dropEffect = "move";
-      return;
-    }
-
-    // Block cross-list drops into lists that are at their card limit.
-    if ($dragState.sourceListKey !== listKey && isAtLimit(listKey, $boardData, $boardConfig)) {
-      e.dataTransfer!.dropEffect = "none";
-      clearDropIndicators();
-      return;
-    }
-
-    e.dataTransfer!.dropEffect = "move";
-    clearDropIndicators();
-
-    // Find the closest item-slot under the cursor
-    const slot = (e.target as HTMLElement).closest('[data-card-id]');
-    if (slot) {
-      const rect = slot.getBoundingClientRect();
-      const midY = rect.top + rect.height / 2;
-
-      if (e.clientY < midY) {
-        // Top half - insert before this card
-        addIndicator(slot, 'drop-above');
-        dropTarget.set({ listKey, cardId: Number((slot as HTMLElement).dataset.cardId), position: "above" });
-      } else {
-        // Bottom half - insert after this card
-        const next = slot.nextElementSibling;
-
-        if (next && next.hasAttribute('data-card-id')) {
-          addIndicator(next, 'drop-above');
-          dropTarget.set({ listKey, cardId: Number((next as HTMLElement).dataset.cardId), position: "above" });
-        } else {
-          // Last card - show indicator below
-          addIndicator(slot, 'drop-below');
-          dropTarget.set({ listKey, cardId: Number((slot as HTMLElement).dataset.cardId), position: "below" });
-        }
-      }
-
-    } else {
-      // No card under cursor. Determine if near top or bottom of the list
-      const listBody = e.currentTarget as HTMLElement;
-      const rect = listBody.getBoundingClientRect();
-      const cards = $boardData[listKey] || [];
-
-      if (cards.length > 0 && e.clientY < rect.top + rect.height / 3) {
-        dropTarget.set({ listKey, cardId: cards[0].metadata.id, position: "above" });
-        addIndicator(listBody, 'drop-top');
-      } else {
-        dropTarget.set({ listKey, cardId: null, position: "below" });
-      }
-    }
-
-    // Auto-scroll: vertical (inside the list's scroll container) and horizontal (board)
-    handleAutoScroll(e);
-  }
-
-  // Handles dragleave
-  function handleDragLeave(e: DragEvent): void {
-    const related = e.relatedTarget as Node | null;
-    if (related && !(e.currentTarget as HTMLElement).contains(related)) {
-      clearDropIndicators();
-    }
-  }
-
-  // Handles drop on a list body
-  async function handleDrop(e: DragEvent, listKey: string): Promise<void> {
-    e.preventDefault();
-    clearDropIndicators();
-
-    const drag = $dragState;
-    const drop = $dropTarget;
-    dragState.set(null);
-    dropTarget.set(null);
-
-    if (!drag || !drop) {
-      return;
-    }
-
-    // Block cross-list moves into lists at their card limit.
-    if (drag.sourceListKey !== listKey && isAtLimit(listKey, $boardData, $boardConfig)) {
-      addToast("List is at its card limit");
-      return;
-    }
-
-    const cards = $boardData[listKey] || [];
-    let targetIndex: number;
-
-    if (drop.cardId == null) {
-      // Drop on empty list or empty area
-      targetIndex = cards.length;
-    } else {
-      const cardIdx = cards.findIndex(c => c.metadata.id === drop.cardId);
-      if (cardIdx === -1) {
-        targetIndex = cards.length;
-      } else {
-        targetIndex = drop.position === "above" ? cardIdx : cardIdx + 1;
-      }
-    }
-
-    // Adjust targetIndex if dragging within the same list and the source is before the target
-    const sourceCards = $boardData[drag.sourceListKey] || [];
-    const sourceIdx = sourceCards.findIndex(c => c.filePath === drag.card.filePath);
-
-    if (drag.sourceListKey === listKey && sourceIdx !== -1) {
-      // No-op if dropping at the same position
-      if (targetIndex === sourceIdx || targetIndex === sourceIdx + 1) {
-        return;
-      }
-      // Adjust for removal of source card
-      if (sourceIdx < targetIndex) {
-        targetIndex--;
-      }
-    }
-
-    // Build the target cards array without the dragged card for computing list_order
-    const targetCards = (drag.sourceListKey === listKey)
-      ? cards.filter(c => c.filePath !== drag.card.filePath)
-      : cards;
-
-    const newListOrder = computeListOrder(targetCards, targetIndex);
-
-    // Capture original path before optimistic update (needed for the API call)
-    const originalPath = drag.card.filePath;
-    moveCardInBoard(originalPath, drag.sourceListKey, listKey, targetIndex, newListOrder);
-
-    try {
-      const result = await MoveCard(originalPath, listKey, newListOrder);
-      // Cross-list moves change the filePath on disk. Sync the store with the backend response
-      if (result.filePath !== originalPath) {
-        boardData.update(lists => {
-          const listCards = lists[listKey];
-          if (listCards) {
-            const idx = listCards.findIndex(c => c.metadata.id === drag.card.metadata.id);
-            if (idx !== -1) {
-              listCards[idx] = { ...listCards[idx], filePath: result.filePath, listName: result.listName } as daedalus.KanbanCard;
-            }
-          }
-          return lists;
-        });
-      }
-    } catch (err) {
-      addToast(`Failed to move card: ${err}`);
-      initBoard(); // Reload board to recover consistent state
-    }
-  }
-
-  // Handles drag over the list header
-  function handleHeaderDragOver(e: DragEvent, listKey: string): void {
-    e.preventDefault();
-    dragX = e.clientX;
-    dragY = e.clientY;
-
-    if (!$dragState) {
-      e.dataTransfer!.dropEffect = "move";
-      return;
-    }
-
-    // Block cross-list drops into lists that are at their card limit.
-    if ($dragState.sourceListKey !== listKey && isAtLimit(listKey, $boardData, $boardConfig)) {
-      e.dataTransfer!.dropEffect = "none";
-      clearDropIndicators();
-      return;
-    }
-
-    e.dataTransfer!.dropEffect = "move";
-    clearDropIndicators();
-    const cards = $boardData[listKey] || [];
-    if (cards.length > 0) {
-      dropTarget.set({ listKey, cardId: cards[0].metadata.id, position: "above" });
-    } else {
-      dropTarget.set({ listKey, cardId: null, position: "below" });
-    }
-
-    // Show indicator at the top of the list body
-    const listCol = (e.currentTarget as HTMLElement).closest('.list-column');
-    if (listCol) {
-      const listBody = listCol.querySelector('.list-body');
-      if (listBody) {
-        addIndicator(listBody, 'drop-top');
-      }
-    }
-  }
-
-  // Handles drop on the footer add-button area
-  function handleFooterDragOver(e: DragEvent, listKey: string): void {
-    e.preventDefault();
-    dragX = e.clientX;
-    dragY = e.clientY;
-    if (!$dragState) {
-      e.dataTransfer!.dropEffect = "move";
-      return;
-    }
-
-    // Block cross-list drops into lists that are at their card limit.
-    if ($dragState.sourceListKey !== listKey && isAtLimit(listKey, $boardData, $boardConfig)) {
-      e.dataTransfer!.dropEffect = "none";
-      clearDropIndicators();
-      return;
-    }
-
-    e.dataTransfer!.dropEffect = "move";
-    clearDropIndicators();
-    dropTarget.set({ listKey, cardId: null, position: "below" });
-    handleAutoScroll(e);
-  }
-
-  // Updates auto-scroll speeds based on cursor position
-  function handleAutoScroll(e: DragEvent): void {
-    const edgeSize = 40;
-    const speed = 10;
-
-    let hSpeed = 0;
-    let vSpeed = 0;
-    let vContainer: Element | null = null;
-
-    // Horizontal scroll
-    if (boardContainerEl) {
-      const rect = boardContainerEl.getBoundingClientRect();
-      if (e.clientX < rect.left + edgeSize) {
-        hSpeed = -speed;
-      } else if (e.clientX > rect.right - edgeSize) {
-        hSpeed = speed;
-      }
-    }
-
-    // Vertical scroll
-    const target = e.target as HTMLElement;
-    vContainer = target.closest('.virtual-scroll-container')
-      || (e.currentTarget as HTMLElement).querySelector('.virtual-scroll-container');
-    if (vContainer) {
-      const rect = vContainer.getBoundingClientRect();
-      if (e.clientY < rect.top + edgeSize) {
-        vSpeed = -speed;
-      } else if (e.clientY > rect.bottom - edgeSize) {
-        vSpeed = speed;
-      }
-    }
-
-    autoScrollHSpeed = hSpeed;
-    autoScrollVSpeed = vSpeed;
-    autoScrollVContainer = vContainer;
-
-    // Start the loop if scrolling is needed and not already running
-    if ((hSpeed !== 0 || vSpeed !== 0) && !autoScrollRaf) {
-      autoScrollTick();
-    }
-  }
-
-  // Continuous scroll loop
-  function autoScrollTick(): void {
-    if (autoScrollHSpeed === 0 && autoScrollVSpeed === 0) {
-      autoScrollRaf = null;
-      return;
-    }
-    if (autoScrollHSpeed !== 0 && boardContainerEl) {
-      boardContainerEl.scrollLeft += autoScrollHSpeed;
-    }
-    if (autoScrollVSpeed !== 0 && autoScrollVContainer) {
-      autoScrollVContainer.scrollTop += autoScrollVSpeed;
-    }
-    autoScrollRaf = requestAnimationFrame(autoScrollTick);
-  }
-
-  // Stops the auto-scroll loop.
-  function stopAutoScroll(): void {
-    autoScrollHSpeed = 0;
-    autoScrollVSpeed = 0;
-    autoScrollVContainer = null;
-    if (autoScrollRaf) {
-      cancelAnimationFrame(autoScrollRaf);
-      autoScrollRaf = null;
-    }
-  }
 
   // Toggles a list between collapsed and expanded, persisting to board.yaml.
   function toggleCollapse(listKey: string): void {
@@ -357,111 +59,6 @@
       isLoaded.set(true);
     } catch (e) {
       error = (e as Error).toString();
-    }
-  }
-
-  // Returns the config title override if set, otherwise the formatted directory name.
-  function getDisplayTitle(listKey: string, config: BoardConfigMap): string {
-    const cfg = config[listKey];
-    if (cfg && cfg.title) {
-      return cfg.title;
-    }
-    return formatListName(listKey);
-  }
-
-  // Returns "count/limit" when a limit is set, otherwise just the count.
-  function getCountDisplay(listKey: string, lists: BoardLists, config: BoardConfigMap): string {
-    const count = lists[listKey]?.length || 0;
-    const cfg = config[listKey];
-    if (cfg && cfg.limit > 0) {
-      return `${count}/${cfg.limit}`;
-    }
-    return `${count}`;
-  }
-
-  // Returns true when the card count exceeds the configured limit.
-  function isOverLimit(listKey: string, lists: BoardLists, config: BoardConfigMap): boolean {
-    const cfg = config[listKey];
-    if (!cfg || cfg.limit <= 0) {
-      return false;
-    }
-    return (lists[listKey]?.length || 0) > cfg.limit;
-  }
-
-  // Starts inline editing of a list title.
-  function startEditTitle(listKey: string): void {
-    editingTitle = listKey;
-    editTitleValue = getDisplayTitle(listKey, $boardConfig);
-  }
-
-  // Saves the edited title via backend and updates the config store.
-  async function saveTitle(listKey: string): Promise<void> {
-    editingTitle = null;
-    const cfg = $boardConfig[listKey] || { title: "", limit: 0 };
-    const newTitle = editTitleValue.trim();
-    const formatted = formatListName(listKey);
-
-    // If the user typed the same as the formatted default, treat as empty (no override)
-    const titleToSave = newTitle === formatted ? "" : newTitle;
-
-    try {
-      await SaveListConfig(listKey, titleToSave, cfg.limit || 0);
-      boardConfig.update(c => {
-        if (titleToSave === "" && (cfg.limit || 0) === 0) {
-          delete c[listKey];
-        } else {
-          c[listKey] = { ...cfg, title: titleToSave };
-        }
-        return c;
-      });
-    } catch (e) {
-      addToast(`Failed to save list title: ${e}`);
-    }
-  }
-
-  // Starts inline editing of a list's card limit.
-  function startEditLimit(listKey: string): void {
-    editingLimit = listKey;
-    const cfg = $boardConfig[listKey];
-    editLimitValue = cfg?.limit || 0;
-  }
-
-  // Saves the edited limit via backend and updates the config store.
-  async function saveLimit(listKey: string): Promise<void> {
-    editingLimit = null;
-    const cfg = $boardConfig[listKey] || { title: "", limit: 0 };
-    const newLimit = Math.max(0, Math.floor(editLimitValue));
-
-    try {
-      await SaveListConfig(listKey, cfg.title || "", newLimit);
-      boardConfig.update(c => {
-        if ((cfg.title || "") === "" && newLimit === 0) {
-          delete c[listKey];
-        } else {
-          c[listKey] = { ...cfg, limit: newLimit };
-        }
-        return c;
-      });
-    } catch (e) {
-      addToast(`Failed to save list limit: ${e}`);
-    }
-  }
-
-  // Handles keydown events on the title input
-  function handleTitleKeydown(e: KeyboardEvent, listKey: string): void {
-    if (e.key === "Enter") {
-      saveTitle(listKey);
-    } else if (e.key === "Escape") {
-      editingTitle = null;
-    }
-  }
-
-  // Handles keydown events on the limit input
-  function handleLimitKeydown(e: KeyboardEvent, listKey: string): void {
-    if (e.key === "Enter") {
-      saveLimit(listKey);
-    } else if (e.key === "Escape") {
-      editingLimit = null;
     }
   }
 
@@ -691,6 +288,11 @@
     }
   });
 
+  // Sync the board container DOM ref to the drag module for horizontal auto-scroll.
+  $effect(() => {
+    setBoardContainer(boardContainerEl);
+  });
+
   onMount(initBoard);
 
   onDestroy(() => {
@@ -733,54 +335,29 @@
           </div>
         {:else}
           <div class="list-column" class:list-full={$dragState && $dragState.sourceListKey !== listKey && isAtLimit(listKey, $boardData, $boardConfig)}>
-            <div class="list-header" role="group" ondragenter={handleDragEnter} ondragover={(e) => handleHeaderDragOver(e, listKey)} ondrop={(e) => handleDrop(e, listKey)}>
-              {#if editingTitle === listKey}
-                <input
-                  class="edit-title-input"
-                  type="text"
-                  bind:value={editTitleValue}
-                  onblur={() => saveTitle(listKey)}
-                  onkeydown={(e) => handleTitleKeydown(e, listKey)}
-                  use:autoFocus
-                />
-              {:else}
-                <button class="list-title-btn" onclick={() => startEditTitle(listKey)}>{getDisplayTitle(listKey, $boardConfig)}</button>
-              {/if}
-              <div class="header-right">
-                <button class="collapse-btn" onclick={() => createCard(listKey)} title="Add card">
-                  <svg viewBox="0 0 24 24" width="12" height="12">
-                    <line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    <line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                  </svg>
-                </button>
-                <button class="collapse-btn" onclick={() => toggleCollapse(listKey)} title="Collapse list">
-                  <svg viewBox="0 0 24 24" width="12" height="12">
-                    <polyline points="6 9 12 15 18 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                </button>
-                {#if editingLimit === listKey}
-                  <input
-                    class="edit-limit-input"
-                    type="number"
-                    min="0"
-                    bind:value={editLimitValue}
-                    onblur={() => saveLimit(listKey)}
-                    onkeydown={(e) => handleLimitKeydown(e, listKey)}
-                    use:autoFocus
-                  />
-                {:else}
-                  <button
-                    class="count-btn"
-                    class:over-limit={isOverLimit(listKey, $boardData, $boardConfig)}
-                    onclick={() => startEditLimit(listKey)}
-                  >{getCountDisplay(listKey, $boardData, $boardConfig)}</button>
-                {/if}
-              </div>
+            <ListHeader {listKey}
+              oncreatecard={() => createCard(listKey)}
+              oncollapse={() => toggleCollapse(listKey)}
+              onreload={initBoard}
+            />
+            <div class="list-body" role="list"
+              ondragenter={handleDragEnter}
+              ondragover={(e) => handleDragOver(e, listKey)}
+              ondragleave={handleDragLeave}
+              ondrop={(e) => handleDrop(e, listKey, initBoard)}
+            >
+              <VirtualList items={$boardData[listKey]} component={Card} estimatedHeight={90}
+                listKey={listKey} focusIndex={$focusedCard?.listKey === listKey ? $focusedCard.cardIndex : -1}
+              />
             </div>
-            <div class="list-body" role="list" ondragenter={handleDragEnter} ondragover={(e) => handleDragOver(e, listKey)} ondragleave={handleDragLeave} ondrop={(e) => handleDrop(e, listKey)}>
-              <VirtualList items={$boardData[listKey]} component={Card} estimatedHeight={90} listKey={listKey} focusIndex={$focusedCard?.listKey === listKey ? $focusedCard.cardIndex : -1} />
-            </div>
-            <button class="list-footer-add" onclick={() => createCardBottom(listKey)} ondragenter={handleDragEnter} ondragover={(e) => handleFooterDragOver(e, listKey)} ondrop={(e) => handleDrop(e, listKey)} title="Add card to bottom">
+            <button
+              class="list-footer-add"
+              onclick={() => createCardBottom(listKey)}
+              ondragenter={handleDragEnter}
+              ondragover={(e) => handleFooterDragOver(e, listKey)}
+              ondrop={(e) => handleDrop(e, listKey, initBoard)}
+              title="Add card to bottom"
+            >
               <svg viewBox="0 0 24 24" width="12" height="12">
                 <line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 <line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -794,7 +371,7 @@
     <div class="loading">Loading cards...</div>
   {/if}
   {#if $dragState}
-    <div class="drag-ghost" style="left: {dragX + 10}px; top: {dragY - 20}px">
+    <div class="drag-ghost" style="left: {$dragPos.x + 10}px; top: {$dragPos.y - 20}px">
       {#if $dragState.card.metadata.labels?.length > 0}
         <div class="ghost-labels">
           {#each $dragState.card.metadata.labels as label}
@@ -808,6 +385,7 @@
   {#if confirmingFocusDelete}
     <div class="focus-delete-confirm">Press Delete again to confirm, Escape to cancel</div>
   {/if}
+  <DraftCard />
   <CardDetail />
   <Metrics />
   <Toast />
@@ -933,49 +511,6 @@
     flex-shrink: 0;
   }
 
-  .list-header {
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--color-border-medium);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .header-right {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-shrink: 0;
-  }
-
-  .collapse-btn {
-    all: unset;
-    cursor: pointer;
-    color: var(--color-text-muted);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 4px;
-
-    &:hover {
-      color: var(--color-text-secondary);
-      background: var(--overlay-hover);
-    }
-  }
-
-  .list-title-btn {
-    all: unset;
-    font-size: 0.85rem;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    cursor: pointer;
-    color: inherit;
-  }
-
   .list-body {
     flex: 1;
     overflow: hidden;
@@ -996,58 +531,6 @@
     &:hover {
       color: var(--color-text-secondary);
       background: var(--overlay-hover-faint);
-    }
-  }
-
-  .count-btn {
-    all: unset;
-    background: var(--color-border-medium);
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 0.8rem;
-    cursor: pointer;
-    flex-shrink: 0;
-    color: inherit;
-
-    &.over-limit {
-      background: var(--overlay-error-limit);
-      color: #ff6b6b;
-    }
-  }
-
-  .edit-title-input {
-    background: var(--color-bg-inset);
-    border: 1px solid var(--color-accent);
-    color: white;
-    font-size: 0.85rem;
-    font-weight: 600;
-    padding: 2px 6px;
-    border-radius: 4px;
-    outline: none;
-    width: 100%;
-    min-width: 0;
-    margin-right: 8px;
-  }
-
-  .edit-limit-input {
-    background: var(--color-bg-inset);
-    border: 1px solid var(--color-accent);
-    color: white;
-    font-size: 0.8rem;
-    padding: 2px 6px;
-    border-radius: 10px;
-    outline: none;
-    width: 60px;
-    text-align: center;
-    appearance: textfield;
-    -moz-appearance: textfield;
-    flex-shrink: 0;
-
-    &::-webkit-inner-spin-button,
-    &::-webkit-outer-spin-button {
-      appearance: none;
-      -webkit-appearance: none;
-      margin: 0;
     }
   }
 

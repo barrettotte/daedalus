@@ -1,9 +1,17 @@
 <script lang="ts">
-  import { selectedCard, draftListKey, draftPosition, updateCardInBoard, addCardToBoard, removeCardFromBoard, moveCardInBoard, computeListOrder, boardConfig, boardData, sortedListKeys, focusedCard, openInEditMode, addToast, isAtLimit } from "../stores/board";
-  import { GetCardContent, SaveCard, OpenFileExternal, CreateCard, DeleteCard, MoveCard, LoadBoard } from "../../wailsjs/go/main/App";
+  import {
+    selectedCard, draftListKey, updateCardInBoard,
+    removeCardFromBoard, boardData, sortedListKeys,
+    focusedCard, openInEditMode, addToast,
+  } from "../stores/board";
+  import {
+    GetCardContent, SaveCard, OpenFileExternal, DeleteCard,
+  } from "../../wailsjs/go/main/App";
   import { marked } from "marked";
-  import { labelColor, formatDate, formatDateTime, formatListName, autoFocus } from "../lib/utils";
+  import { autoFocus } from "../lib/utils";
   import type { daedalus } from "../../wailsjs/go/models";
+  import ChecklistSection from "./ChecklistSection.svelte";
+  import CardSidebar from "./CardSidebar.svelte";
 
   let bodyHtml = $state("");
   let rawBody = $state("");
@@ -26,11 +34,6 @@
   // Guards against stale async responses when rapidly switching cards.
   let loadGeneration = 0;
 
-  // Draft mode state for creating new cards before they exist on disk
-  let draftTitle = $state("");
-  let draftBody = $state("");
-  let saving = $state(false);
-
   // Scroll reset when selected card changes
   $effect(() => {
     const curId = $selectedCard ? $selectedCard.metadata.id : null;
@@ -43,46 +46,11 @@
     }
   });
 
-  // Closes whichever modal is active
+  // Closes the card detail modal.
   function close(): void {
-    if ($draftListKey) {
-      draftTitle = "";
-      draftBody = "";
-      saving = false;
-      draftListKey.set(null);
-    } else {
-      editingTitle = false;
-      editingBody = false;
-      selectedCard.set(null);
-    }
-  }
-
-  // Validates and saves the draft card to disk, then adds it to the board store.
-  async function saveDraft(): Promise<void> {
-    if (!draftTitle.trim()) {
-      return;
-    }
-
-    // Re-check limit in case the list filled while the modal was open.
-    if (isAtLimit($draftListKey!, $boardData, $boardConfig)) {
-      addToast("List is at its card limit");
-      return;
-    }
-
-    saving = true;
-
-    try {
-      const pos = $draftPosition;
-      const card = await CreateCard($draftListKey!, draftTitle.trim(), draftBody, pos);
-      addCardToBoard($draftListKey!, card, pos);
-
-      draftTitle = "";
-      draftBody = "";
-      draftListKey.set(null);
-    } catch (e) {
-      addToast(`Failed to create card: ${e}`);
-    }
-    saving = false;
+    editingTitle = false;
+    editingBody = false;
+    selectedCard.set(null);
   }
 
   // Opens both title and body for inline editing.
@@ -214,20 +182,10 @@
     selectedCard.set(targetCards[clampedIndex]);
   }
 
-  // Handles keyboard shortcuts: Ctrl/Cmd+Enter saves draft, Escape closes/cancels, arrows navigate.
+  // Handles keyboard shortcuts: Escape closes/cancels, arrows navigate.
   function handleKeydown(e: KeyboardEvent): void {
-    // Only handle keys when the modal is actually open.
-    if (!$selectedCard) {
-      return;
-    }
-
-    if ($draftListKey) {
-      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-        e.preventDefault();
-        saveDraft();
-      } else if (e.key === "Escape") {
-        close();
-      }
+    // Only handle keys when the card detail modal is open (not during draft).
+    if (!$selectedCard || $draftListKey) {
       return;
     }
 
@@ -286,18 +244,6 @@
     }
     mouseDownOnBackdrop = false;
   }
-
-  // Resets draft fields only on transition from null → non-null (new draft started).
-  let prevDraftListKey: string | null = null;
-  $effect(() => {
-    const current = $draftListKey;
-    if (current && current !== prevDraftListKey) {
-      draftTitle = "";
-      draftBody = "";
-      saving = false;
-    }
-    prevDraftListKey = current;
-  });
 
   // Loads card content when a card is selected.
   $effect(() => {
@@ -358,218 +304,11 @@
   }
 
   let meta = $derived($selectedCard ? $selectedCard.metadata : null);
-  let isOverdue = $derived(meta && meta.due ? new Date(meta.due) < new Date() : false);
-
-  // Number of cards in the draft target list.
-  let draftListCount = $derived.by(() => {
-    if (!$draftListKey) {
-      return 0;
-    }
-    return ($boardData[$draftListKey] || []).length;
-  });
-
-  // 1-based position number derived from the current draftPosition value.
-  let positionDisplayValue = $derived.by(() => {
-    const pos = $draftPosition;
-    if (pos === "top") {
-      return 1;
-    }
-    if (pos === "bottom") {
-      return draftListCount + 1;
-    }
-    const idx = parseInt(pos, 10);
-    if (!isNaN(idx)) {
-      return idx + 1;
-    }
-    return 1;
-  });
-
-  // Converts 1-based user input to the store's position value, clamping to valid range.
-  function handlePositionInput(e: Event): void {
-    const input = e.target as HTMLInputElement;
-    const raw = parseInt(input.value, 10);
-    if (isNaN(raw)) {
-      input.value = String(positionDisplayValue);
-      return;
-    }
-    const max = draftListCount + 1;
-    const val = Math.max(1, Math.min(raw, max));
-    if (val !== raw) {
-      input.value = String(val);
-    }
-    if (val === 1) {
-      draftPosition.set("top");
-    } else if (val === max) {
-      draftPosition.set("bottom");
-    } else {
-      draftPosition.set(String(val - 1));
-    }
-  }
-
-  let checkedCount = $derived(meta && meta.checklist
-    ? meta.checklist.filter(i => i.done).length : 0);
-
-  let counterPct = $derived(meta && meta.counter && meta.counter.max > 0
-    ? (meta.counter.current / meta.counter.max) * 100 : 0);
-
-  let checkPct = $derived(meta && meta.checklist && meta.checklist.length > 0
-    ? (checkedCount / meta.checklist.length) * 100 : 0);
-
-  // Returns true if the string is a URL.
-  function isUrl(str: string): boolean {
-    return /^https?:\/\/\S+$/.test(str);
-  }
-
-  // Derives the list display name for the draft modal from config or formatted directory name.
-  let draftListDisplayName = $derived.by(() => {
-    if (!$draftListKey) {
-      return "";
-    }
-    const cfg = $boardConfig[$draftListKey];
-    if (cfg && cfg.title) {
-      return cfg.title;
-    }
-    return formatListName($draftListKey);
-  });
-
-  // Extracts the raw directory name from the selected card's file path.
-  let cardListKey = $derived.by(() => {
-    if (!$selectedCard) {
-      return "";
-    }
-    const parts = $selectedCard.filePath.split("/");
-    return parts[parts.length - 2] || "";
-  });
-
-  // Derives the list display name from the config title or formatted directory name.
-  let listDisplayName = $derived.by(() => {
-    if (!cardListKey) {
-      return "";
-    }
-    return getListDisplayName(cardListKey);
-  });
-
-  // Resolves a list key to its display name via config title or formatted directory name.
-  function getListDisplayName(listKey: string): string {
-    const cfg = $boardConfig[listKey];
-    if (cfg && cfg.title) {
-      return cfg.title;
-    }
-    return formatListName(listKey);
-  }
-
-  // Moves the current card to a different list, placing it at the top.
-  async function moveToList(targetListKey: string): Promise<void> {
-    if (!$selectedCard || targetListKey === cardListKey) {
-      return;
-    }
-    if (isAtLimit(targetListKey, $boardData, $boardConfig)) {
-      addToast("List is at its card limit");
-      return;
-    }
-
-    const targetCards = $boardData[targetListKey] || [];
-    const targetIndex = 0;
-    const newListOrder = computeListOrder(targetCards, targetIndex);
-    const originalPath = $selectedCard.filePath;
-
-    moveCardInBoard(originalPath, cardListKey, targetListKey, targetIndex, newListOrder);
-
-    try {
-      const result = await MoveCard(originalPath, targetListKey, newListOrder);
-      selectedCard.set(result);
-    } catch (err) {
-      addToast(`Failed to move card: ${err}`);
-      const response = await LoadBoard("");
-      boardData.set(response.lists);
-    }
-  }
-
-  // Derives the card's 1-based position and list size from boardData.
-  let cardPosition = $derived.by(() => {
-    if (!$selectedCard || !cardListKey) {
-      return "";
-    }
-
-    const cards = $boardData[cardListKey];
-    if (!cards) {
-      return "";
-    }
-
-    const idx = cards.findIndex(c => c.filePath === $selectedCard!.filePath);
-    if (idx === -1) {
-      return "";
-    }
-    return `${idx + 1} / ${cards.length}`;
-  });
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
-{#if $draftListKey}
-  <div class="backdrop" role="presentation" onmousedown={handleBackdropMousedown} onmouseup={handleBackdropMouseup} onkeydown={handleKeydown}>
-    <div class="modal" role="dialog">
-      <div class="modal-header">
-        <div class="draft-header-col">
-          <div class="draft-list-name">Drafting a card in <strong>{draftListDisplayName}</strong></div>
-          <input
-            class="edit-title-input"
-            type="text"
-            bind:value={draftTitle}
-            placeholder="Card title"
-            onkeydown={e => e.key === 'Enter' && saveDraft()}
-            use:autoFocus
-          />
-        </div>
-        <div class="header-btns">
-          <button class="header-btn" onclick={close} title="Close">
-            <svg viewBox="0 0 24 24" width="16" height="16">
-              <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-      <div class="modal-body">
-        <div class="main-col">
-          <div class="section">
-            <textarea
-              class="edit-body-textarea"
-              bind:value={draftBody}
-              placeholder="Card description (markdown)"
-            ></textarea>
-          </div>
-          <div class="draft-actions">
-            <div class="position-section">
-              <span class="position-label">Position</span>
-              <div class="position-toggle">
-                <button class="pos-btn" class:active={$draftPosition === 'top'} onclick={() => draftPosition.set('top')}>Top</button>
-                <button class="pos-btn" class:active={$draftPosition === 'bottom'} onclick={() => draftPosition.set('bottom')}>Bottom</button>
-              </div>
-              <div class="position-specific-row">
-                <input
-                  class="position-input"
-                  type="number"
-                  min="1"
-                  max={draftListCount + 1}
-                  value={positionDisplayValue}
-                  oninput={handlePositionInput}
-                />
-                <span class="position-hint">of {draftListCount + 1}</span>
-              </div>
-            </div>
-            <div class="draft-btns">
-              <button class="save-btn" onclick={saveDraft} disabled={saving || !draftTitle.trim()}>
-                {saving ? "Saving..." : "Save"}
-              </button>
-              <button class="cancel-btn" onclick={close}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-{:else if $selectedCard && meta}
+{#if $selectedCard && meta}
   <div class="backdrop" bind:this={backdropEl} role="presentation" onmousedown={handleBackdropMousedown} onmouseup={handleBackdropMouseup} onkeydown={handleKeydown}>
     <div class="modal" role="dialog">
       <div class="modal-header">
@@ -604,7 +343,9 @@
           <button class="header-btn delete-icon" onclick={() => confirmingDelete = true} title="Delete card">
             <svg viewBox="0 0 24 24" width="16" height="16">
               <polyline points="3 6 5 6 21 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              />
             </svg>
           </button>
           <button class="header-btn" onclick={close} title="Close">
@@ -646,140 +387,12 @@
           <!-- Checklist -->
           {#if meta.checklist && meta.checklist.length > 0}
             <div class="section">
-              <div class="section-header">
-                <svg class="section-icon" viewBox="0 0 24 24">
-                  <polyline points="9 11 12 14 22 4" fill="none" stroke="currentColor" stroke-width="2"/>
-                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" fill="none" stroke="currentColor" stroke-width="2"/>
-                </svg>
-                <h3 class="section-title">Checklist</h3>
-                <div class="checklist-bar">
-                  <div class="progress-fill" class:complete={checkPct === 100} style="width: {checkPct}%"></div>
-                </div>
-                <span class="checklist-count">{checkedCount}/{meta.checklist.length}</span>
-              </div>
-              <ul class="checklist">
-                {#each meta.checklist as item, idx}
-                  <li class:done={item.done}>
-                    <button class="checkbox-btn" onclick={() => toggleCheckItem(idx)}>
-                      <span class="checkbox" class:checked={item.done}>
-                        {#if item.done}
-                          <svg viewBox="0 0 16 16">
-                            <rect x="1" y="1" width="14" height="14" rx="2" fill="currentColor"/>
-                            <polyline points="4 8 7 11 12 5" fill="none" stroke="#22252b" stroke-width="2"/>
-                          </svg>
-                        {:else}
-                          <svg viewBox="0 0 16 16">
-                            <rect x="1" y="1" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/>
-                          </svg>
-                        {/if}
-                      </span>
-                    </button>
-                    <span class="check-text">{#if isUrl(item.desc)}<a href={item.desc} target="_blank" rel="noopener noreferrer" onclick={(e: MouseEvent) => e.stopPropagation()}>{item.desc}</a>{:else}{item.desc}{/if}</span>
-                  </li>
-                {/each}
-              </ul>
+              <ChecklistSection checklist={meta.checklist} ontoggle={toggleCheckItem}/>
             </div>
           {/if}
         </div>
 
-        <!-- Sidebar -->
-        <div class="sidebar">
-          <div class="sidebar-section">
-            <h4 class="sidebar-title">Card</h4>
-            <div class="sidebar-value">#{meta.id}</div>
-          </div>
-
-          <div class="sidebar-section">
-            <h4 class="sidebar-title">List</h4>
-            <div class="move-dropdown">
-              <button class="move-trigger" onclick={() => moveDropdownOpen = !moveDropdownOpen}>
-                <span>{listDisplayName}</span>
-                <svg class="move-chevron" class:open={moveDropdownOpen} viewBox="0 0 16 16" width="12" height="12">
-                  <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
-              {#if moveDropdownOpen}
-                <div class="move-menu">
-                  {#each sortedListKeys($boardData) as key}
-                    {@const full = key !== cardListKey && isAtLimit(key, $boardData, $boardConfig)}
-                    <button
-                      class="move-option"
-                      class:active={key === cardListKey}
-                      class:disabled={full}
-                      disabled={full}
-                      onclick={() => { moveDropdownOpen = false; moveToList(key); }}
-                    >
-                      {getListDisplayName(key)}
-                      {#if full} <span class="move-full">(full)</span>{/if}
-                    </button>
-                  {/each}
-                </div>
-              {/if}
-            </div>
-          </div>
-
-          {#if cardPosition}
-            <div class="sidebar-section">
-              <h4 class="sidebar-title">Position</h4>
-              <div class="sidebar-value">{cardPosition}</div>
-            </div>
-          {/if}
-
-          {#if meta.labels && meta.labels.length > 0}
-            <div class="sidebar-section">
-              <h4 class="sidebar-title">Labels</h4>
-              <div class="sidebar-labels">
-                {#each meta.labels as label}
-                  <span class="label" style="background: {labelColor(label)}">{label}</span>
-                {/each}
-              </div>
-            </div>
-          {/if}
-
-          {#if meta.due}
-            <div class="sidebar-section">
-              <h4 class="sidebar-title">Due Date</h4>
-              <div class="sidebar-badge" class:overdue={isOverdue} class:on-time={!isOverdue}>
-                <svg class="badge-icon" viewBox="0 0 24 24">
-                  <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
-                  <polyline points="12 6 12 12 16 14" fill="none" stroke="currentColor" stroke-width="2"/>
-                </svg>
-                {formatDate(meta.due)}
-              </div>
-            </div>
-          {/if}
-
-          {#if meta.range}
-            <div class="sidebar-section">
-              <h4 class="sidebar-title">Date Range</h4>
-              <div class="sidebar-value">{formatDate(meta.range.start)} &ndash; {formatDate(meta.range.end)}</div>
-            </div>
-          {/if}
-
-          {#if meta.counter}
-            <div class="sidebar-section">
-              <h4 class="sidebar-title">{meta.counter.label || "Counter"}</h4>
-              <div class="counter-value">{meta.counter.current} / {meta.counter.max}</div>
-              <div class="progress-bar sidebar-progress">
-                <div class="progress-fill" class:complete={counterPct === 100} style="width: {counterPct}%"></div>
-              </div>
-            </div>
-          {/if}
-
-          {#if meta.created}
-            <div class="sidebar-section">
-              <h4 class="sidebar-title">Created</h4>
-              <div class="sidebar-value">{formatDateTime(meta.created)}</div>
-            </div>
-          {/if}
-
-          {#if meta.updated && meta.updated !== meta.created}
-            <div class="sidebar-section">
-              <h4 class="sidebar-title">Updated</h4>
-              <div class="sidebar-value">{formatDateTime(meta.updated)}</div>
-            </div>
-          {/if}
-        </div>
+        <CardSidebar {meta} bind:moveDropdownOpen />
       </div>
       {/if}
     </div>
@@ -869,23 +482,6 @@
     }
   }
 
-  .draft-header-col {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .draft-list-name {
-    font-size: 0.78rem;
-    color: var(--color-text-tertiary);
-
-    strong {
-      color: var(--color-text-secondary);
-    }
-  }
-
   .edit-title-input {
     flex: 1;
     min-width: 0;
@@ -913,49 +509,9 @@
     min-width: 0;
   }
 
-  .sidebar {
-    flex: 0 0 168px;
-  }
-
   /* Sections */
   .section {
     margin-bottom: 20px;
-  }
-
-  .section-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
-  }
-
-  .section-icon {
-    width: 20px;
-    height: 20px;
-    color: var(--color-text-secondary);
-    flex-shrink: 0;
-  }
-
-  .section-title {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: var(--color-text-primary);
-    margin: 0;
-  }
-
-  .checklist-bar {
-    flex: 1;
-    height: 6px;
-    background: var(--color-border);
-    border-radius: 3px;
-    overflow: hidden;
-    margin: 0 8px;
-  }
-
-  .checklist-count {
-    font-size: 0.75rem;
-    color: var(--color-text-tertiary);
-    flex-shrink: 0;
   }
 
   /* Edit textarea */
@@ -977,251 +533,6 @@
     &:focus {
       border-color: var(--color-accent);
     }
-  }
-
-  /* Labels */
-  .sidebar-labels {
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
-  }
-
-  .label {
-    font-size: 0.7rem;
-    font-weight: 600;
-    padding: 4px 0;
-    border-radius: 3px;
-    color: #fff;
-    text-align: center;
-    flex: 0 0 calc(50% - 2px);
-  }
-
-  /* Progress bars */
-  .progress-bar {
-    height: 6px;
-    background: var(--color-border);
-    border-radius: 3px;
-    overflow: hidden;
-    margin-bottom: 8px;
-    max-width: 100%;
-    box-sizing: border-box;
-  }
-
-  .progress-fill {
-    height: 100%;
-    background: var(--color-accent);
-    border-radius: 4px;
-    transition: width 0.3s;
-
-    &.complete {
-      background: var(--color-success);
-    }
-  }
-
-  /* Checklist */
-  .checklist {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    max-height: 400px;
-    overflow-y: auto;
-
-    li {
-      padding: 6px 8px;
-      font-size: 0.85rem;
-      display: flex;
-      gap: 8px;
-      align-items: flex-start;
-      border-radius: 4px;
-
-      &:hover {
-        background: var(--overlay-hover-faint);
-      }
-
-      &.done .check-text {
-        text-decoration: line-through;
-        color: var(--color-text-muted);
-      }
-    }
-  }
-
-  .checkbox-btn {
-    all: unset;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-  }
-
-  .checkbox {
-    flex-shrink: 0;
-    width: 16px;
-    height: 16px;
-    margin-top: 1px;
-    color: var(--color-text-secondary);
-
-    &.checked {
-      color: var(--color-accent);
-    }
-
-    svg {
-      width: 16px;
-      height: 16px;
-    }
-  }
-
-  .check-text {
-    line-height: 1.3;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-
-    a {
-      color: var(--color-accent);
-      text-decoration: none;
-      line-height: inherit;
-      display: inline;
-
-      &:hover {
-        text-decoration: underline;
-      }
-    }
-  }
-
-  /* Sidebar */
-  .sidebar-section {
-    background: var(--overlay-hover-light);
-    border-radius: 6px;
-    padding: 10px 12px;
-    margin-bottom: 8px;
-  }
-
-  .sidebar-title {
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--color-text-tertiary);
-    margin: 0 0 6px 0;
-  }
-
-  .sidebar-value {
-    font-size: 0.8rem;
-    color: #b6c2d1;
-  }
-
-  .move-dropdown {
-    position: relative;
-  }
-
-  .move-trigger {
-    all: unset;
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 4px;
-    background: var(--color-bg-base);
-    border: 1px solid var(--color-border);
-    color: var(--color-text-primary);
-    font-size: 0.8rem;
-    padding: 4px 6px;
-    border-radius: 4px;
-    cursor: pointer;
-    box-sizing: border-box;
-
-    &:hover {
-      border-color: var(--color-text-tertiary);
-    }
-  }
-
-  .move-chevron {
-    color: var(--color-text-tertiary);
-    transition: transform 0.15s;
-    flex-shrink: 0;
-
-    &.open {
-      transform: rotate(180deg);
-    }
-  }
-
-  .move-menu {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-    padding: 4px 0;
-    z-index: 10;
-    max-height: 200px;
-    overflow-y: auto;
-  }
-
-  .move-option {
-    all: unset;
-    display: block;
-    width: 100%;
-    padding: 5px 8px;
-    font-size: 0.8rem;
-    color: var(--color-text-primary);
-    cursor: pointer;
-    box-sizing: border-box;
-
-    &:hover:not(:disabled) {
-      background: var(--overlay-hover);
-    }
-
-    &.active {
-      color: var(--color-accent);
-    }
-
-    &.disabled {
-      color: var(--color-text-muted);
-      cursor: not-allowed;
-    }
-  }
-
-  .move-full {
-    font-size: 0.7rem;
-    color: var(--color-text-muted);
-  }
-
-  .sidebar-badge {
-    font-size: 0.8rem;
-    font-weight: 600;
-    padding: 4px 8px;
-    border-radius: 3px;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-
-    &.on-time {
-      background: var(--overlay-success-strong);
-      color: var(--color-success);
-    }
-
-    &.overdue {
-      background: var(--overlay-error-strong);
-      color: var(--color-error);
-    }
-  }
-
-  .badge-icon {
-    width: 14px;
-    height: 14px;
-  }
-
-  .counter-value {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--color-text-primary);
-    margin-bottom: 6px;
-  }
-
-  .sidebar-progress {
-    margin-bottom: 0;
   }
 
   /* Markdown body */
@@ -1328,114 +639,6 @@
       border: none;
       border-top: 1px solid var(--color-border);
       margin: 16px 0;
-    }
-  }
-
-  /* Draft mode actions */
-  .draft-actions {
-    display: flex;
-    align-items: flex-end;
-    gap: 8px;
-  }
-
-  .position-section {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-right: auto;
-  }
-
-  .position-label {
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-  }
-
-  .position-toggle {
-    display: flex;
-    border-radius: 4px;
-    overflow: hidden;
-    border: 1px solid var(--color-border);
-    width: fit-content;
-  }
-
-  .position-specific-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .draft-btns {
-    display: flex;
-    gap: 8px;
-    flex-shrink: 0;
-  }
-
-  .position-input {
-    width: 44px;
-    background: var(--color-bg-base);
-    border: 1px solid var(--color-border);
-    color: var(--color-text-primary);
-    font-size: 0.78rem;
-    padding: 4px 6px;
-    border-radius: 4px;
-    outline: none;
-    text-align: center;
-    appearance: textfield;
-    -moz-appearance: textfield;
-
-    &:focus {
-      border-color: var(--color-accent);
-    }
-
-    &::-webkit-inner-spin-button,
-    &::-webkit-outer-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
-    }
-  }
-
-  .position-hint {
-    font-size: 0.75rem;
-    color: var(--color-text-tertiary);
-  }
-
-  .pos-btn {
-    all: unset;
-    padding: 5px 12px;
-    font-size: 0.78rem;
-    font-weight: 500;
-    cursor: pointer;
-    color: var(--color-text-secondary);
-    background: transparent;
-
-    &:hover {
-      background: var(--overlay-hover-light);
-    }
-
-    &.active {
-      background: var(--overlay-accent);
-      color: var(--color-accent);
-    }
-  }
-
-  .save-btn {
-    background: var(--color-accent);
-    color: var(--color-bg-base);
-    border: none;
-    padding: 8px 20px;
-    border-radius: 4px;
-    font-weight: 600;
-    font-size: 0.85rem;
-    cursor: pointer;
-
-    &:hover:not(:disabled) {
-      background: var(--color-accent-hover);
-    }
-
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
     }
   }
 

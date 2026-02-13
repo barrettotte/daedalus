@@ -75,6 +75,35 @@ export function isOverLimit(listKey: string, lists: BoardLists, config: BoardCon
   return (lists[listKey]?.length || 0) > cfg.limit;
 }
 
+// Formats date/time components as an ISO string with an explicit timezone offset.
+// offsetMinutes is minutes east of UTC (e.g., -300 for UTC-5, +330 for UTC+5:30).
+export function formatISOWithOffset(
+  year: number, month: number, day: number,
+  hour: number, minute: number,
+  offsetMinutes: number,
+): string {
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  const absOff = Math.abs(offsetMinutes);
+  const offH = String(Math.floor(absOff / 60)).padStart(2, "0");
+  const offM = String(absOff % 60).padStart(2, "0");
+
+  const mo = String(month).padStart(2, "0");
+  const d = String(day).padStart(2, "0");
+  const h = String(hour).padStart(2, "0");
+  const min = String(minute).padStart(2, "0");
+
+  return `${year}-${mo}-${d}T${h}:${min}:00${sign}${offH}:${offM}`;
+}
+
+// Formats a Date as an ISO string with local timezone offset (e.g., 2026-02-13T17:00:00-05:00).
+export function toLocalISO(dt: Date): string {
+  return formatISOWithOffset(
+    dt.getFullYear(), dt.getMonth() + 1, dt.getDate(),
+    dt.getHours(), dt.getMinutes(),
+    -dt.getTimezoneOffset(),
+  );
+}
+
 // Svelte action that focuses and selects the content of an input on mount.
 export function autoFocus(node: HTMLInputElement | HTMLTextAreaElement): ActionReturn {
   node.focus();

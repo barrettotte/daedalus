@@ -5,18 +5,24 @@
   } from "../stores/board";
   import { MoveCard, LoadBoard } from "../../wailsjs/go/main/App";
   import {
-    formatListName, formatDate, formatDateTime, labelColor,
+    formatListName, formatDateTime, labelColor, toLocalISO,
   } from "../lib/utils";
   import type { daedalus } from "../../wailsjs/go/models";
+  import DatePicker from "./DatePicker.svelte";
 
   let {
     meta,
     moveDropdownOpen = $bindable(false),
     onsavecounter,
+    onsavedates,
   }: {
     meta: daedalus.CardMetadata;
     moveDropdownOpen?: boolean;
     onsavecounter?: (counter: daedalus.Counter | null) => void;
+    onsavedates?: (
+      due: string | null,
+      range: { start: string; end: string } | null,
+    ) => void;
   } = $props();
 
   // Counter settings panel state
@@ -177,6 +183,63 @@
     counterSettingsOpen = false;
   }
 
+  // Adds a single date (due) set to now.
+  function addDate(): void {
+    if (!onsavedates) {
+      return;
+    }
+    onsavedates(toLocalISO(new Date()), null);
+  }
+
+  // Removes all dates (due and range).
+  function removeAllDates(): void {
+    if (!onsavedates) {
+      return;
+    }
+    onsavedates(null, null);
+  }
+
+  // Handles due date selection from the date picker.
+  function onDueDateSelect(iso: string): void {
+    if (!onsavedates) {
+      return;
+    }
+    onsavedates(iso, null);
+  }
+
+  // Promotes a single due date to a range by adding an end date (start + 1 day).
+  function addEndDate(): void {
+    if (!onsavedates || !meta.due) {
+      return;
+    }
+    const start = meta.due;
+    const dt = new Date(start);
+    dt.setDate(dt.getDate() + 1);
+    const end = toLocalISO(dt);
+    onsavedates(null, { start, end });
+  }
+
+  // Demotes a range back to a single due date (keeps the start date).
+  function removeEndDate(): void {
+    if (!onsavedates || !meta.range) {
+      return;
+    }
+    onsavedates(meta.range.start, null);
+  }
+
+  // Handles range date selection from the date picker, swapping if start > end.
+  function onRangeDateSelect(field: "start" | "end", iso: string): void {
+    if (!onsavedates || !meta.range) {
+      return;
+    }
+    let start = field === "start" ? iso : meta.range.start;
+    let end = field === "end" ? iso : meta.range.end;
+    if (start > end) {
+      [start, end] = [end, start];
+    }
+    onsavedates(null, { start, end });
+  }
+
   // Moves the current card to a different list, placing it at the top.
   async function moveToList(targetListKey: string): Promise<void> {
     if (!$selectedCard || targetListKey === cardListKey) {
@@ -207,12 +270,10 @@
 
 <div class="sidebar">
   <div class="sidebar-section">
-    <h4 class="sidebar-title">Card</h4>
-    <div class="sidebar-value">#{meta.id}</div>
-  </div>
-
-  <div class="sidebar-section">
-    <h4 class="sidebar-title">List{#if cardPosition} <span class="position-hint">{cardPosition}</span>{/if}</h4>
+    <h4 class="sidebar-title">
+      Card #{meta.id}
+      {#if cardPosition}<span class="position-hint">{cardPosition}</span>{/if}
+    </h4>
     <div class="move-dropdown">
       <button class="move-trigger" onclick={() => moveDropdownOpen = !moveDropdownOpen}>
         <span>{listDisplayName}</span>
@@ -250,25 +311,47 @@
     </div>
   {/if}
 
-  {#if meta.due}
-    <div class="sidebar-section">
-      <h4 class="sidebar-title">Due Date</h4>
-      <div class="sidebar-badge">
-        <svg class="badge-icon" viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
-          <polyline points="12 6 12 12 16 14" fill="none" stroke="currentColor" stroke-width="2"/>
-        </svg>
-        {formatDate(meta.due)}
-      </div>
-    </div>
-  {/if}
-
   {#if meta.range}
     <div class="sidebar-section">
-      <h4 class="sidebar-title">Date Range</h4>
-      <div class="sidebar-value">
-        {formatDate(meta.range.start)} &ndash; {formatDate(meta.range.end)}
+      <div class="date-header">
+        <h4 class="sidebar-title">Date Range</h4>
+        <button class="counter-header-btn remove" title="Remove dates" onclick={removeAllDates}>
+          <svg viewBox="0 0 24 24" width="12" height="12">
+            <polyline points="3 6 5 6 21 6" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round"
+            />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            />
+          </svg>
+        </button>
       </div>
+      <div class="counter-range-row">
+        <DatePicker value={meta.range.start} onselect={d => onRangeDateSelect('start', d)} />
+        <span class="range-text">to</span>
+        <DatePicker value={meta.range.end} onselect={d => onRangeDateSelect('end', d)} />
+      </div>
+      <button class="date-expand-btn" onclick={removeEndDate}>- End date</button>
+    </div>
+  {:else if meta.due}
+    <div class="sidebar-section">
+      <div class="date-header">
+        <h4 class="sidebar-title">Date</h4>
+        <button class="counter-header-btn remove" title="Remove date" onclick={removeAllDates}>
+          <svg viewBox="0 0 24 24" width="12" height="12">
+            <polyline points="3 6 5 6 21 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            />
+          </svg>
+        </button>
+      </div>
+      <DatePicker value={meta.due} onselect={onDueDateSelect} />
+      <button class="date-expand-btn" onclick={addEndDate}>+ End date</button>
+    </div>
+  {:else}
+    <div class="sidebar-section">
+      <button class="add-counter-btn" onclick={addDate}>+ Add date</button>
     </div>
   {/if}
 
@@ -283,27 +366,31 @@
                 <polyline points="20 6 9 17 4 12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </button>
-            <button class="counter-header-btn remove" title="Remove counter" onclick={removeCounter}>
-              <svg viewBox="0 0 24 24" width="12" height="12">
-                <polyline points="3 6 5 6 21 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </button>
           {:else}
             <button class="counter-header-btn" title="Counter settings" onclick={openCounterSettings}>
               <svg viewBox="0 0 24 24" width="12" height="12">
                 <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33
-                  1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06
-                  a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09
-                  A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68
-                  a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06
-                  a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09
-                  a1.65 1.65 0 0 0-1.51 1z"
-                  fill="none" stroke="currentColor" stroke-width="2"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65
+                  1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9
+                  19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0
+                  4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65
+                  0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65
+                  0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0
+                  1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0
+                  1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+                  fill="none" stroke="currentColor" stroke-width="2"
+                />
               </svg>
             </button>
           {/if}
+          <button class="counter-header-btn remove" title="Remove counter" onclick={removeCounter}>
+            <svg viewBox="0 0 24 24" width="12" height="12">
+              <polyline points="3 6 5 6 21 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              />
+            </svg>
+          </button>
         </div>
       </div>
       <div class="counter-progress-row">
@@ -316,9 +403,7 @@
       </div>
       {#if counterSettingsOpen}
         <div class="counter-settings">
-          <input type="text" class="counter-input" bind:value={editLabel}
-            placeholder="Label" onkeydown={e => e.key === 'Enter' && saveCounterSettings()}
-          />
+          <input type="text" class="counter-input" bind:value={editLabel} placeholder="Label" onkeydown={e => e.key === 'Enter' && saveCounterSettings()}/>
           <div class="counter-range-row">
             <input type="number" class="counter-input range-input" bind:value={editStart}
               onblur={() => { editStart = Math.max(0, Number(editStart) || 0); if (editStart === editMax) { editMax = editStart + 1; } }}
@@ -361,7 +446,7 @@
 
 <style lang="scss">
   .sidebar {
-    flex: 0 0 168px;
+    flex: 0 0 200px;
   }
 
   .sidebar-section {
@@ -484,21 +569,6 @@
   .move-full {
     font-size: 0.7rem;
     color: var(--color-text-muted);
-  }
-
-  .sidebar-badge {
-    font-size: 0.8rem;
-    font-weight: 600;
-    padding: 4px 8px;
-    border-radius: 3px;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .badge-icon {
-    width: 14px;
-    height: 14px;
   }
 
   .progress-bar {
@@ -657,10 +727,34 @@
     text-align: center;
   }
 
+  .date-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+
+    .sidebar-title {
+      margin: 0;
+    }
+  }
+
+  .date-expand-btn {
+    all: unset;
+    display: block;
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    margin-top: 6px;
+
+    &:hover {
+      color: var(--color-text-primary);
+    }
+  }
+
   .add-counter-btn {
     all: unset;
     width: 100%;
-    text-align: center;
+    text-align: left;
     font-size: 0.75rem;
     color: var(--color-text-muted);
     cursor: pointer;

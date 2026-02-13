@@ -127,6 +127,27 @@
     }
   }
 
+  // Saves due date and/or date range changes and persists to disk.
+  async function saveDates(
+    due: string | null,
+    range: { start: string; end: string } | null,
+  ): Promise<void> {
+    const updatedMeta = {
+      ...meta!,
+      due: due ?? undefined,
+      range: range ?? undefined,
+    } as daedalus.CardMetadata;
+    const fullBody = `# ${meta!.title}\n\n${rawBody}`;
+
+    try {
+      const result = await SaveCard($selectedCard!.filePath, updatedMeta, fullBody);
+      updateCardInBoard(result);
+      selectedCard.set(result);
+    } catch (e) {
+      addToast(`Failed to save dates: ${e}`);
+    }
+  }
+
   // Toggles a checklist item's done state and saves immediately.
   async function toggleCheckItem(idx: number): Promise<void> {
     const updatedChecklist = meta!.checklist!.map((item, i) => {
@@ -406,7 +427,12 @@
           {/if}
         </div>
 
-        <CardSidebar {meta} bind:moveDropdownOpen onsavecounter={saveCounter} />
+        <CardSidebar
+          {meta}
+          bind:moveDropdownOpen
+          onsavecounter={saveCounter}
+          onsavedates={saveDates}
+        />
       </div>
       {/if}
     </div>

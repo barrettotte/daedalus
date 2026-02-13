@@ -27,6 +27,7 @@
     ]},
     { title: "General", items: [
       { key: "/", desc: "Focus search bar" },
+      { key: "#", desc: "Jump to card by ID (#123)" },
       { key: "N", desc: "Create new card" },
       { key: "?", desc: "Toggle this help overlay" },
     ]},

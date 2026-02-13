@@ -3,7 +3,7 @@
   import { SvelteSet } from "svelte/reactivity";
   import { WindowSetTitle } from "../wailsjs/runtime/runtime";
   import {
-    LoadBoard, SaveLabelsExpanded,
+    LoadBoard, SaveLabelsExpanded, SaveShowYearProgress,
     SaveCollapsedLists, SaveHalfCollapsedLists, DeleteCard,
   } from "../wailsjs/go/main/App";
   import {
@@ -35,10 +35,50 @@
   let halfCollapsedLists = $state(new SvelteSet<string>());
   let showKeyboardHelp = $state(false);
   let showAbout = $state(false);
+  let showYearProgress = $state(false);
   let confirmingFocusDelete = $state(false);
   let boardContainerEl: HTMLDivElement | undefined = $state(undefined);
   let searchInputEl: HTMLInputElement | undefined = $state(undefined);
   let searchOpen = $state(false);
+
+  // Computes year progress percentage, day of year, and remaining time from a timestamp.
+  function computeYearInfo(now: Date): { pct: string; remaining: string; dayOfYear: number } {
+    const year = now.getFullYear();
+    const start = new Date(year, 0, 1).getTime();
+    const end = new Date(year + 1, 0, 1).getTime();
+
+    const pct = ((now.getTime() - start) / (end - start) * 100).toFixed(5);
+    const dayOfYear = Math.ceil((now.getTime() - start) / 86400000);
+    const leftMs = end - now.getTime();
+    const totalSec = Math.max(0, Math.floor(leftMs / 1000));
+
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    return { pct, remaining: `${h}h ${m}m ${s}s`, dayOfYear };
+  }
+
+  let yearInfo = $state(computeYearInfo(new Date()));
+  let yearTimer: ReturnType<typeof setInterval> | null = null;
+
+  // Starts/stops the 1-second year countdown timer based on bar visibility.
+  $effect(() => {
+    if (showYearProgress) {
+      yearInfo = computeYearInfo(new Date());
+      yearTimer = setInterval(() => {
+        yearInfo = computeYearInfo(new Date());
+      }, 1000);
+    } else if (yearTimer) {
+      clearInterval(yearTimer);
+      yearTimer = null;
+    }
+    return () => {
+      if (yearTimer) {
+        clearInterval(yearTimer);
+        yearTimer = null;
+      }
+    };
+  });
 
   // Counts total matched cards across all lists for the search badge.
   function matchedCardCount(filtered: Record<string, any[]>, raw: Record<string, any[]>): { matched: number; total: number } {
@@ -51,10 +91,19 @@
     return { matched, total };
   }
 
-  // Expands the search bar and focuses the input on next tick.
-  function openSearch(): void {
+  // Expands the search bar, optionally pre-filling a prefix, and focuses the input on next tick.
+  function openSearch(prefill: string = ""): void {
     searchOpen = true;
-    requestAnimationFrame(() => searchInputEl?.focus());
+    if (prefill) {
+      searchQuery.set(prefill);
+    }
+    requestAnimationFrame(() => {
+      if (searchInputEl) {
+        searchInputEl.focus();
+        // Place cursor at end after prefill
+        searchInputEl.setSelectionRange(searchInputEl.value.length, searchInputEl.value.length);
+      }
+    });
   }
 
   // Collapses the search bar, clears the query, and blurs the input.
@@ -71,6 +120,12 @@
       e.stopPropagation();
       closeSearch();
     }
+  }
+
+  // Toggles year progress bar visibility and persists to board.yaml.
+  function toggleYearProgress(): void {
+    showYearProgress = !showYearProgress;
+    SaveShowYearProgress(showYearProgress).catch(e => addToast(`Failed to save year progress state: ${e}`));
   }
 
   // Cycles a list through expanded -> half-collapsed -> fully collapsed -> expanded.
@@ -110,6 +165,9 @@
 
       if (response.config?.labelsExpanded !== undefined && response.config.labelsExpanded !== null) {
         labelsExpanded.set(response.config.labelsExpanded);
+      }
+      if (response.config?.showYearProgress !== undefined && response.config.showYearProgress !== null) {
+        showYearProgress = response.config.showYearProgress;
       }
       if (response.config?.collapsedLists) {
         collapsedLists = new SvelteSet(response.config.collapsedLists);
@@ -248,6 +306,13 @@
     if (e.key === "/") {
       e.preventDefault();
       openSearch();
+      return;
+    }
+
+    // # - Open search with # prefix for card ID jump
+    if (e.key === "#") {
+      e.preventDefault();
+      openSearch("#");
       return;
     }
 
@@ -450,7 +515,7 @@
           {/if}
         </div>
       {:else}
-        <button class="top-btn" onclick={openSearch} title="Search (/)">
+        <button class="top-btn" onclick={() => openSearch()} title="Search (/)">
           <svg viewBox="0 0 24 24" width="14" height="14">
             <circle cx="11" cy="11" r="8" fill="none" stroke="currentColor" stroke-width="2"/>
             <line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -461,6 +526,11 @@
         <svg viewBox="0 0 24 24" width="14" height="14">
           <path d="M23 4v6h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <button class="top-btn" class:active={showYearProgress} onclick={toggleYearProgress} title="Year progress">
+        <svg viewBox="0 0 24 24" width="14" height="14">
+          <path d="M6 2h12v6l-4 4 4 4v6H6v-6l4-4-4-4V2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
       <button class="top-btn" class:active={$showMetrics} onclick={() => showMetrics.update(v => !v)} title="Toggle metrics">
@@ -489,6 +559,16 @@
       </button>
     </div>
   </div>
+  {#if showYearProgress}
+    <div class="year-bar" title="{yearInfo.pct}% of {new Date().getFullYear()}">
+      <span class="year-bar-label">Day {yearInfo.dayOfYear} of {new Date().getFullYear()}</span>
+      <div class="year-bar-track">
+        <div class="year-bar-fill" style="width: {yearInfo.pct}%"></div>
+      </div>
+      <span class="year-bar-pct">{yearInfo.pct}%</span>
+      <span class="year-bar-remaining">{yearInfo.remaining}</span>
+    </div>
+  {/if}
 
   {#if error}
     <div class="error">{error}</div>
@@ -624,6 +704,51 @@
     align-items: center;
     padding: 0 20px;
     border-bottom: 1px solid #000;
+  }
+
+  .year-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 20px;
+    background: var(--color-bg-inset);
+    border-bottom: 1px solid #000;
+  }
+
+  .year-bar-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+    margin-right: 8px;
+  }
+
+  .year-bar-track {
+    flex: 1;
+    height: 6px;
+    background: var(--color-border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .year-bar-fill {
+    height: 100%;
+    background: var(--color-accent);
+    border-radius: 3px;
+  }
+
+  .year-bar-pct {
+    font-size: 0.68rem;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+  }
+
+  .year-bar-remaining {
+    font-size: 0.68rem;
+    font-family: monospace;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+    margin-left: 8px;
   }
 
   .search-bar {

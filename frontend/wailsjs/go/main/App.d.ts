@@ -26,3 +26,5 @@ export function SaveHalfCollapsedLists(arg1:Array<string>):Promise<void>;
 export function SaveLabelsExpanded(arg1:boolean):Promise<void>;
 
 export function SaveListConfig(arg1:string,arg2:string,arg3:number):Promise<void>;
+
+export function SaveShowYearProgress(arg1:boolean):Promise<void>;

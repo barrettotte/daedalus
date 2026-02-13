@@ -17,6 +17,7 @@ export namespace daedalus {
 	export class BoardConfig {
 	    lists: Record<string, ListConfig>;
 	    labelsExpanded?: boolean;
+	    showYearProgress?: boolean;
 	    collapsedLists?: string[];
 	    halfCollapsedLists?: string[];
 	
@@ -28,6 +29,7 @@ export namespace daedalus {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.lists = this.convertValues(source["lists"], ListConfig, true);
 	        this.labelsExpanded = source["labelsExpanded"];
+	        this.showYearProgress = source["showYearProgress"];
 	        this.collapsedLists = source["collapsedLists"];
 	        this.halfCollapsedLists = source["halfCollapsedLists"];
 	    }

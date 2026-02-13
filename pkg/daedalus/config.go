@@ -15,8 +15,9 @@ type ListConfig struct {
 
 // BoardConfig holds board-level configuration loaded from board.yaml.
 type BoardConfig struct {
-	Lists          map[string]ListConfig `yaml:"lists" json:"lists"`
-	LabelsExpanded *bool                 `yaml:"labels_expanded,omitempty" json:"labelsExpanded,omitempty"`
+	Lists              map[string]ListConfig `yaml:"lists" json:"lists"`
+	LabelsExpanded     *bool                 `yaml:"labels_expanded,omitempty" json:"labelsExpanded,omitempty"`
+	ShowYearProgress   *bool                 `yaml:"show_year_progress,omitempty" json:"showYearProgress,omitempty"`
 	CollapsedLists     []string              `yaml:"collapsed_lists,omitempty" json:"collapsedLists,omitempty"`
 	HalfCollapsedLists []string              `yaml:"half_collapsed_lists,omitempty" json:"halfCollapsedLists,omitempty"`
 }

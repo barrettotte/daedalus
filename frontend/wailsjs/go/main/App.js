@@ -49,3 +49,7 @@ export function SaveLabelsExpanded(arg1) {
 export function SaveListConfig(arg1, arg2, arg3) {
   return window['go']['main']['App']['SaveListConfig'](arg1, arg2, arg3);
 }
+
+export function SaveShowYearProgress(arg1) {
+  return window['go']['main']['App']['SaveShowYearProgress'](arg1);
+}

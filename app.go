@@ -101,6 +101,15 @@ func (a *App) SaveLabelsExpanded(expanded bool) error {
 	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
 }
 
+// SaveShowYearProgress persists the year progress bar visibility to board.yaml.
+func (a *App) SaveShowYearProgress(show bool) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+	a.board.Config.ShowYearProgress = &show
+	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
+}
+
 // SaveCollapsedLists persists the set of collapsed list keys to board.yaml.
 func (a *App) SaveCollapsedLists(lists []string) error {
 	if a.board == nil {

@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import { LoadBoard, SaveListConfig, SaveLabelsExpanded, SaveCollapsedLists, MoveCard, DeleteCard } from "../wailsjs/go/main/App";
-  import { boardData, boardConfig, sortedListKeys, isLoaded, selectedCard, draftListKey, draftPosition, showMetrics, labelsExpanded, dragState, dropTarget, focusedCard, openInEditMode, moveCardInBoard, removeCardFromBoard, computeListOrder, addToast } from "./stores/board";
+  import { boardData, boardConfig, sortedListKeys, isLoaded, selectedCard, draftListKey, draftPosition, showMetrics, labelsExpanded, dragState, dropTarget, focusedCard, openInEditMode, moveCardInBoard, removeCardFromBoard, computeListOrder, addToast, isAtLimit } from "./stores/board";
   import type { BoardLists, BoardConfigMap } from "./stores/board";
   import type { daedalus } from "../wailsjs/go/models";
   import { formatListName, autoFocus, labelColor } from "./lib/utils";
@@ -53,13 +53,21 @@
   // Handles dragover on a list body - positions the drop indicator and triggers auto-scroll.
   function handleDragOver(e: DragEvent, listKey: string): void {
     e.preventDefault();
-    e.dataTransfer!.dropEffect = "move";
     dragX = e.clientX;
     dragY = e.clientY;
     if (!$dragState) {
+      e.dataTransfer!.dropEffect = "move";
       return;
     }
 
+    // Block cross-list drops into lists that are at their card limit.
+    if ($dragState.sourceListKey !== listKey && isAtLimit(listKey, $boardData, $boardConfig)) {
+      e.dataTransfer!.dropEffect = "none";
+      clearDropIndicators();
+      return;
+    }
+
+    e.dataTransfer!.dropEffect = "move";
     clearDropIndicators();
 
     // Find the closest item-slot under the cursor
@@ -123,6 +131,12 @@
     dropTarget.set(null);
 
     if (!drag || !drop) {
+      return;
+    }
+
+    // Block cross-list moves into lists at their card limit.
+    if (drag.sourceListKey !== listKey && isAtLimit(listKey, $boardData, $boardConfig)) {
+      addToast("List is at its card limit");
       return;
     }
 
@@ -191,14 +205,22 @@
   // Handles drag over the list header
   function handleHeaderDragOver(e: DragEvent, listKey: string): void {
     e.preventDefault();
-    e.dataTransfer!.dropEffect = "move";
     dragX = e.clientX;
     dragY = e.clientY;
 
     if (!$dragState) {
+      e.dataTransfer!.dropEffect = "move";
       return;
     }
 
+    // Block cross-list drops into lists that are at their card limit.
+    if ($dragState.sourceListKey !== listKey && isAtLimit(listKey, $boardData, $boardConfig)) {
+      e.dataTransfer!.dropEffect = "none";
+      clearDropIndicators();
+      return;
+    }
+
+    e.dataTransfer!.dropEffect = "move";
     clearDropIndicators();
     const cards = $boardData[listKey] || [];
     if (cards.length > 0) {
@@ -220,13 +242,21 @@
   // Handles drop on the footer add-button area
   function handleFooterDragOver(e: DragEvent, listKey: string): void {
     e.preventDefault();
-    e.dataTransfer!.dropEffect = "move";
     dragX = e.clientX;
     dragY = e.clientY;
     if (!$dragState) {
+      e.dataTransfer!.dropEffect = "move";
       return;
     }
 
+    // Block cross-list drops into lists that are at their card limit.
+    if ($dragState.sourceListKey !== listKey && isAtLimit(listKey, $boardData, $boardConfig)) {
+      e.dataTransfer!.dropEffect = "none";
+      clearDropIndicators();
+      return;
+    }
+
+    e.dataTransfer!.dropEffect = "move";
     clearDropIndicators();
     dropTarget.set({ listKey, cardId: null, position: "below" });
     handleAutoScroll(e);
@@ -437,12 +467,20 @@
 
   // Opens the draft-creation modal for the given list, defaulting to top placement.
   function createCard(listKey: string): void {
+    if (isAtLimit(listKey, $boardData, $boardConfig)) {
+      addToast("List is at its card limit");
+      return;
+    }
     draftPosition.set("top");
     draftListKey.set(listKey);
   }
 
   // Opens the draft-creation modal for the given list, defaulting to bottom placement.
   function createCardBottom(listKey: string): void {
+    if (isAtLimit(listKey, $boardData, $boardConfig)) {
+      addToast("List is at its card limit");
+      return;
+    }
     draftPosition.set("bottom");
     draftListKey.set(listKey);
   }
@@ -694,7 +732,7 @@
             <span class="collapsed-count">{getCountDisplay(listKey, $boardData, $boardConfig)}</span>
           </div>
         {:else}
-          <div class="list-column">
+          <div class="list-column" class:list-full={$dragState && $dragState.sourceListKey !== listKey && isAtLimit(listKey, $boardData, $boardConfig)}>
             <div class="list-header" role="group" ondragenter={handleDragEnter} ondragover={(e) => handleHeaderDragOver(e, listKey)} ondrop={(e) => handleDrop(e, listKey)}>
               {#if editingTitle === listKey}
                 <input
@@ -868,6 +906,11 @@
       &:hover {
         background: var(--color-bg-surface-alt);
       }
+    }
+
+    &.list-full {
+      opacity: 0.5;
+      pointer-events: auto;
     }
   }
 

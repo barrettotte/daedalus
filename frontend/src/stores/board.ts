@@ -137,6 +137,15 @@ export function computeListOrder(cards: daedalus.KanbanCard[], targetIndex: numb
     return (before + after) / 2;
 }
 
+// Returns true when a list has a limit set and the card count is at or above it.
+export function isAtLimit(listKey: string, lists: BoardLists, config: BoardConfigMap): boolean {
+    const cfg = config[listKey];
+    if (!cfg || cfg.limit <= 0) {
+        return false;
+    }
+    return (lists[listKey]?.length || 0) >= cfg.limit;
+}
+
 // Sort lists based on folder naming convention (01_, 02_, ...)
 export const sortedListKeys = (lists: BoardLists): string[] => {
     return Object.keys(lists).sort();

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { selectedCard, draftListKey, draftPosition, updateCardInBoard, addCardToBoard, removeCardFromBoard, boardConfig, boardData, sortedListKeys, focusedCard, openInEditMode, addToast } from "../stores/board";
+  import { selectedCard, draftListKey, draftPosition, updateCardInBoard, addCardToBoard, removeCardFromBoard, boardConfig, boardData, sortedListKeys, focusedCard, openInEditMode, addToast, isAtLimit } from "../stores/board";
   import { GetCardContent, SaveCard, OpenFileExternal, CreateCard, DeleteCard } from "../../wailsjs/go/main/App";
   import { marked } from "marked";
   import { labelColor, formatDate, formatDateTime, formatListName, autoFocus } from "../lib/utils";
@@ -59,6 +59,13 @@
     if (!draftTitle.trim()) {
       return;
     }
+
+    // Re-check limit in case the list filled while the modal was open.
+    if (isAtLimit($draftListKey!, $boardData, $boardConfig)) {
+      addToast("List is at its card limit");
+      return;
+    }
+
     saving = true;
 
     try {

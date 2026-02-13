@@ -16,8 +16,9 @@ import (
 
 // BoardResponse is the structure returned to the frontend from LoadBoard.
 type BoardResponse struct {
-	Lists  map[string][]daedalus.KanbanCard `json:"lists"`
-	Config *daedalus.BoardConfig            `json:"config"`
+	Lists     map[string][]daedalus.KanbanCard `json:"lists"`
+	Config    *daedalus.BoardConfig            `json:"config"`
+	BoardPath string                           `json:"boardPath"`
 }
 
 // AppMetrics holds runtime performance metrics for the frontend overlay
@@ -67,9 +68,12 @@ func (a *App) LoadBoard(path string) *BoardResponse {
 	a.board = state
 	fmt.Printf("Scan Complete. MaxID: %d\n", state.MaxID)
 
+	absRoot, _ := filepath.Abs(state.RootPath)
+
 	return &BoardResponse{
-		Lists:  state.Lists,
-		Config: state.Config,
+		Lists:     state.Lists,
+		Config:    state.Config,
+		BoardPath: absRoot,
 	}
 }
 

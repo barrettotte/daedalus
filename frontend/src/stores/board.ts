@@ -35,6 +35,7 @@ export interface Toast {
 
 export const boardData: Writable<BoardLists> = writable({});
 export const boardConfig: Writable<BoardConfigMap> = writable({});
+export const boardPath: Writable<string> = writable("");
 export const isLoaded: Writable<boolean> = writable(false);
 export const selectedCard: Writable<daedalus.KanbanCard | null> = writable(null);
 export const draftListKey: Writable<string | null> = writable(null);

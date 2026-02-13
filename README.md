@@ -15,6 +15,9 @@ I really don't care for the obsessive customization and installing a bunch of co
 I've used dataviews, bases, and the Kanban plugin, but none of them accomplished exactly what I want.
 So this was built specifically as a complementary application to Obsidian.
 
+The user is put in charge of data retention. 
+This is meant for programmers, so setup a cron job or something to export somewhere external.
+
 ## Stack
 
 - **Backend**: Go with [Wails](https://wails.io/)

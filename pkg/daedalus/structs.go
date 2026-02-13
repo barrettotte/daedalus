@@ -40,10 +40,13 @@ type DateRange struct {
 	End   time.Time `yaml:"end" json:"end"`
 }
 
-// Counter is an incrementable counter with a label
+// Counter is an incrementable counter with a label.
+// If start < max the counter counts up; if start > max it counts down.
 type Counter struct {
 	Current int    `yaml:"current" json:"current"`
 	Max     int    `yaml:"max" json:"max"`
+	Start   int    `yaml:"start,omitempty" json:"start"`
+	Step    int    `yaml:"step,omitempty" json:"step"`
 	Label   string `yaml:"label,omitempty" json:"label"`
 }
 

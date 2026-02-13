@@ -1,14 +1,15 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
+  import { WindowSetTitle } from "../wailsjs/runtime/runtime";
   import {
     LoadBoard, SaveLabelsExpanded,
     SaveCollapsedLists, DeleteCard,
   } from "../wailsjs/go/main/App";
   import {
-    boardData, boardConfig, sortedListKeys, isLoaded, selectedCard,
-    draftListKey, draftPosition, showMetrics, labelsExpanded,
-    dragState, dropTarget, focusedCard, openInEditMode,
+    boardData, boardConfig, boardPath, sortedListKeys, isLoaded,
+    selectedCard, draftListKey, draftPosition, showMetrics,
+    labelsExpanded, dragState, dropTarget, focusedCard, openInEditMode,
     removeCardFromBoard, addToast, isAtLimit,
   } from "./stores/board";
   import { labelColor, getDisplayTitle, getCountDisplay } from "./lib/utils";
@@ -49,6 +50,10 @@
       const response = await LoadBoard("");
       boardData.set(response.lists);
       boardConfig.set(response.config?.lists || {} as Record<string, any>);
+      boardPath.set(response.boardPath || "");
+      if (response.boardPath) {
+        WindowSetTitle(`Daedalus - ${response.boardPath}`);
+      }
 
       if (response.config?.labelsExpanded !== undefined && response.config.labelsExpanded !== null) {
         labelsExpanded.set(response.config.labelsExpanded);
@@ -330,8 +335,8 @@
       {#each sortedListKeys($boardData) as listKey}
         {#if collapsedLists.has(listKey)}
           <div class="list-column collapsed" role="button" tabindex="0" onclick={() => toggleCollapse(listKey)} onkeydown={e => e.key === 'Enter' && toggleCollapse(listKey)}>
-            <span class="collapsed-title">{getDisplayTitle(listKey, $boardConfig)}</span>
             <span class="collapsed-count">{getCountDisplay(listKey, $boardData, $boardConfig)}</span>
+            <span class="collapsed-title">{getDisplayTitle(listKey, $boardConfig)}</span>
           </div>
         {:else}
           <div class="list-column" class:list-full={$dragState && $dragState.sourceListKey !== listKey && isAtLimit(listKey, $boardData, $boardConfig)}>
@@ -514,6 +519,7 @@
   .list-body {
     flex: 1;
     overflow: hidden;
+    padding-top: 6px;
   }
 
   .list-footer-add {

@@ -9,11 +9,14 @@ export namespace daedalus {
 	    }
 	
 	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
+	        if ('string' === typeof source) {
+				source = JSON.parse(source);
+			}
 	        this.title = source["title"];
 	        this.limit = source["limit"];
 	    }
 	}
+
 	export class BoardConfig {
 	    lists: Record<string, ListConfig>;
 	    labelsExpanded?: boolean;
@@ -24,7 +27,9 @@ export namespace daedalus {
 	    }
 	
 	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
+	        if ('string' === typeof source) {
+				source = JSON.parse(source);
+			}
 	        this.lists = this.convertValues(source["lists"], ListConfig, true);
 	        this.labelsExpanded = source["labelsExpanded"];
 	        this.collapsedLists = source["collapsedLists"];
@@ -36,7 +41,8 @@ export namespace daedalus {
 		    }
 		    if (a.slice && a.map) {
 		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
+		    } 
+			if ("object" === typeof a) {
 		        if (asMap) {
 		            for (const key of Object.keys(a)) {
 		                a[key] = new classs(a[key]);
@@ -48,6 +54,7 @@ export namespace daedalus {
 		    return a;
 		}
 	}
+
 	export class CheckListItem {
 	    idx: number;
 	    desc: string;
@@ -58,15 +65,20 @@ export namespace daedalus {
 	    }
 	
 	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
+	        if ('string' === typeof source) {
+				source = JSON.parse(source);
+			}
 	        this.idx = source["idx"];
 	        this.desc = source["desc"];
 	        this.done = source["done"];
 	    }
 	}
+
 	export class Counter {
 	    current: number;
 	    max: number;
+	    start: number;
+	    step: number;
 	    label: string;
 	
 	    static createFrom(source: any = {}) {
@@ -74,12 +86,17 @@ export namespace daedalus {
 	    }
 	
 	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
+	        if ('string' === typeof source) {
+				source = JSON.parse(source);
+			}
 	        this.current = source["current"];
 	        this.max = source["max"];
+	        this.start = source["start"];
+	        this.step = source["step"];
 	        this.label = source["label"];
 	    }
 	}
+
 	export class DateRange {
 	    // Go type: time
 	    start: any;
@@ -91,7 +108,9 @@ export namespace daedalus {
 	    }
 	
 	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
+	        if ('string' === typeof source) {
+				source = JSON.parse(source);
+			}
 	        this.start = this.convertValues(source["start"], null);
 	        this.end = this.convertValues(source["end"], null);
 	    }
@@ -102,7 +121,8 @@ export namespace daedalus {
 		    }
 		    if (a.slice && a.map) {
 		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
+		    }
+			if ("object" === typeof a) {
 		        if (asMap) {
 		            for (const key of Object.keys(a)) {
 		                a[key] = new classs(a[key]);
@@ -114,6 +134,7 @@ export namespace daedalus {
 		    return a;
 		}
 	}
+
 	export class CardMetadata {
 	    id: number;
 	    title: string;
@@ -135,7 +156,9 @@ export namespace daedalus {
 	    }
 	
 	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
+	        if ('string' === typeof source) {
+				source = JSON.parse(source);
+			}
 	        this.id = source["id"];
 	        this.title = source["title"];
 	        this.created = this.convertValues(source["created"], null);
@@ -155,46 +178,8 @@ export namespace daedalus {
 		    }
 		    if (a.slice && a.map) {
 		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
 		    }
-		    return a;
-		}
-	}
-	
-	
-	
-	export class KanbanCard {
-	    filePath: string;
-	    listName: string;
-	    metadata: CardMetadata;
-	    previewText: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new KanbanCard(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.filePath = source["filePath"];
-	        this.listName = source["listName"];
-	        this.metadata = this.convertValues(source["metadata"], CardMetadata);
-	        this.previewText = source["previewText"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
+			if ("object" === typeof a) {
 		        if (asMap) {
 		            for (const key of Object.keys(a)) {
 		                a[key] = new classs(a[key]);
@@ -207,6 +192,45 @@ export namespace daedalus {
 		}
 	}
 
+	export class KanbanCard {
+	    filePath: string;
+	    listName: string;
+	    metadata: CardMetadata;
+	    previewText: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new KanbanCard(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) {
+				source = JSON.parse(source);
+			}
+	        this.filePath = source["filePath"];
+	        this.listName = source["listName"];
+	        this.metadata = this.convertValues(source["metadata"], CardMetadata);
+	        this.previewText = source["previewText"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    }
+			if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 }
 
 export namespace main {
@@ -228,7 +252,9 @@ export namespace main {
 	    }
 	
 	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
+	        if ('string' === typeof source) {
+				source = JSON.parse(source);
+			}
 	        this.heapAlloc = source["heapAlloc"];
 	        this.sys = source["sys"];
 	        this.numGC = source["numGC"];
@@ -241,18 +267,23 @@ export namespace main {
 	        this.processCPU = source["processCPU"];
 	    }
 	}
+
 	export class BoardResponse {
 	    lists: Record<string, Array<daedalus.KanbanCard>>;
 	    config?: daedalus.BoardConfig;
+	    boardPath: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new BoardResponse(source);
 	    }
 	
 	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
+	        if ('string' === typeof source){
+				source = JSON.parse(source);
+			}
 	        this.lists = this.convertValues(source["lists"], Array<daedalus.KanbanCard>, true);
 	        this.config = this.convertValues(source["config"], daedalus.BoardConfig);
+	        this.boardPath = source["boardPath"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -261,7 +292,8 @@ export namespace main {
 		    }
 		    if (a.slice && a.map) {
 		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
+		    } 
+			if ("object" === typeof a) {
 		        if (asMap) {
 		            for (const key of Object.keys(a)) {
 		                a[key] = new classs(a[key]);
@@ -273,6 +305,4 @@ export namespace main {
 		    return a;
 		}
 	}
-
 }
-

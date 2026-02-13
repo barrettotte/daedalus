@@ -113,6 +113,20 @@
     }
   }
 
+  // Saves the counter (or removes it when null) and persists to disk.
+  async function saveCounter(counter: daedalus.Counter | null): Promise<void> {
+    const updatedMeta = { ...meta!, counter: counter ?? undefined } as daedalus.CardMetadata;
+    const fullBody = `# ${meta!.title}\n\n${rawBody}`;
+
+    try {
+      const result = await SaveCard($selectedCard!.filePath, updatedMeta, fullBody);
+      updateCardInBoard(result);
+      selectedCard.set(result);
+    } catch (e) {
+      addToast(`Failed to save counter: ${e}`);
+    }
+  }
+
   // Toggles a checklist item's done state and saves immediately.
   async function toggleCheckItem(idx: number): Promise<void> {
     const updatedChecklist = meta!.checklist!.map((item, i) => {
@@ -392,7 +406,7 @@
           {/if}
         </div>
 
-        <CardSidebar {meta} bind:moveDropdownOpen />
+        <CardSidebar {meta} bind:moveDropdownOpen onsavecounter={saveCounter} />
       </div>
       {/if}
     </div>

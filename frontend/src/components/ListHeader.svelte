@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { boardConfig, boardData, addToast } from "../stores/board";
+  import { boardConfig, boardData, addToast, isAtLimit } from "../stores/board";
   import { SaveListConfig } from "../../wailsjs/go/main/App";
   import {
     getDisplayTitle, getCountDisplay, isOverLimit,
@@ -137,7 +137,7 @@
         onblur={saveLimit} onkeydown={handleLimitKeydown} use:autoFocus
       />
     {:else}
-      <button class="count-btn" class:over-limit={isOverLimit(listKey, $boardData, $boardConfig)} onclick={startEditLimit}>
+      <button class="count-btn" class:at-limit={isAtLimit(listKey, $boardData, $boardConfig)} class:over-limit={isOverLimit(listKey, $boardData, $boardConfig)} onclick={startEditLimit}>
         {getCountDisplay(listKey, $boardData, $boardConfig)}
       </button>
     {/if}
@@ -197,6 +197,11 @@
     cursor: pointer;
     flex-shrink: 0;
     color: inherit;
+
+    &.at-limit {
+      background: rgba(255, 170, 50, 0.15);
+      color: #ffaa32;
+    }
 
     &.over-limit {
       background: var(--overlay-error-limit);

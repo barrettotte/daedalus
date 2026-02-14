@@ -6,7 +6,7 @@ import type { daedalus } from '../../wailsjs/go/models';
 export type BoardLists = Record<string, daedalus.KanbanCard[]>;
 
 // Map of list directory names to their config (title, limit).
-export type BoardConfigMap = Record<string, daedalus.ListConfig>;
+export type BoardConfigMap = Record<string, { title: string; limit: number }>;
 
 // Keyboard focus position on the board (list + index within that list).
 export interface FocusState {

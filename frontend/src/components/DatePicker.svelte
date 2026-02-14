@@ -330,9 +330,9 @@
     <div class="datepicker-backdrop" onclick={onBackdropClick} role="presentation"></div>
     <div class="datepicker-dropdown">
       <div class="datepicker-nav">
-        <button class="datepicker-nav-btn" onclick={() => changeMonth(-1)}>&lt;</button>
+        <button class="datepicker-nav-btn" title="Previous month" onclick={() => changeMonth(-1)}>&lt;</button>
         <span class="datepicker-month-label">{monthNames[viewMonth]} {viewYear}</span>
-        <button class="datepicker-nav-btn" onclick={() => changeMonth(1)}>&gt;</button>
+        <button class="datepicker-nav-btn" title="Next month" onclick={() => changeMonth(1)}>&gt;</button>
       </div>
       <div class="datepicker-grid">
         {#each dayHeaders as dh}
@@ -360,14 +360,14 @@
           bind:value={viewMinute} onchange={onMinuteChange}
           onkeydown={e => e.key === 'Enter' && onMinuteChange()}
         />
-        <button class="datepicker-ampm-btn" onclick={toggleAmPm}>{ampm}</button>
+        <button class="datepicker-ampm-btn" title="Toggle AM/PM" onclick={toggleAmPm}>{ampm}</button>
         <select class="datepicker-tz-select" bind:value={viewTzOffset} onchange={onTzChange}>
           {#each tzOffsets as tz}
             <option value={tz}>{formatTzLabel(tz)}</option>
           {/each}
         </select>
       </div>
-      <button class="datepicker-now-btn" onclick={selectNow}>Now</button>
+      <button class="datepicker-now-btn" title="Set to current date and time" onclick={selectNow}>Now</button>
     </div>
   {/if}
 </div>

@@ -275,7 +275,7 @@
       {#if cardPosition}<span class="position-hint">{cardPosition}</span>{/if}
     </h4>
     <div class="move-dropdown">
-      <button class="move-trigger" onclick={() => moveDropdownOpen = !moveDropdownOpen}>
+      <button class="move-trigger" title="Move card to a different list" onclick={() => moveDropdownOpen = !moveDropdownOpen}>
         <span>{listDisplayName}</span>
         <svg class="move-chevron" class:open={moveDropdownOpen} viewBox="0 0 16 16" width="12" height="12">
           <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -331,7 +331,7 @@
         <span class="range-text">to</span>
         <DatePicker value={meta.range.end} onselect={d => onRangeDateSelect('end', d)} />
       </div>
-      <button class="date-expand-btn" onclick={removeEndDate}>- End date</button>
+      <button class="date-expand-btn" title="Convert to single date" onclick={removeEndDate}>- End date</button>
     </div>
   {:else if meta.due}
     <div class="sidebar-section">
@@ -347,11 +347,11 @@
         </button>
       </div>
       <DatePicker value={meta.due} onselect={onDueDateSelect} />
-      <button class="date-expand-btn" onclick={addEndDate}>+ End date</button>
+      <button class="date-expand-btn" title="Add an end date to create a range" onclick={addEndDate}>+ End date</button>
     </div>
   {:else}
     <div class="sidebar-section">
-      <button class="add-counter-btn" onclick={addDate}>+ Add date</button>
+      <button class="add-counter-btn" title="Add a due date" onclick={addDate}>+ Add date</button>
     </div>
   {/if}
 
@@ -394,12 +394,12 @@
         </div>
       </div>
       <div class="counter-progress-row">
-        <button class="counter-btn" disabled={atStart} onclick={() => adjustCounter(countingDown ? 1 : -1)}>-</button>
+        <button class="counter-btn" title="Decrease" disabled={atStart} onclick={() => adjustCounter(countingDown ? 1 : -1)}>-</button>
         <div class="progress-bar sidebar-progress">
           <div class="progress-fill" class:complete={counterPct >= 100} style="width: {counterPct}%"></div>
         </div>
         <span class="counter-fraction">{meta.counter.current}/{meta.counter.max}</span>
-        <button class="counter-btn" disabled={atGoal} onclick={() => adjustCounter(countingDown ? -1 : 1)}>+</button>
+        <button class="counter-btn" title="Increase" disabled={atGoal} onclick={() => adjustCounter(countingDown ? -1 : 1)}>+</button>
       </div>
       {#if counterSettingsOpen}
         <div class="counter-settings">
@@ -425,7 +425,7 @@
     </div>
   {:else}
     <div class="sidebar-section">
-      <button class="add-counter-btn" onclick={addCounter}>+ Add counter</button>
+      <button class="add-counter-btn" title="Add a progress counter" onclick={addCounter}>+ Add counter</button>
     </div>
   {/if}
 

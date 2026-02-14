@@ -123,12 +123,11 @@ def main() -> None:
         cards_by_list[card['idList']].append(card)
 
     labels_map = {l['id']: l['name'] if l['name'] else l['color'] for l in data['labels']}
-    folder_idx = 0
     for lst in valid_lists:
         list_id = lst['id']
         list_name = lst['name']
 
-        folder_name = f"{str(folder_idx).zfill(2)}___{sanitize_filename(list_name)}"
+        folder_name = sanitize_filename(list_name)
         list_dir = os.path.join(output_dir, folder_name)
         os.makedirs(list_dir, exist_ok=True)
 
@@ -146,8 +145,6 @@ def main() -> None:
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(frontmatter)
                 f.write(body)
-
-        folder_idx += 1
 
     print(f"Converted Trello to Markdown at {os.path.abspath(output_dir)}")
 

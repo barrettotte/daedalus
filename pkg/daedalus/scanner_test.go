@@ -205,12 +205,12 @@ func TestParseFileHeader_PreviewTruncation(t *testing.T) {
 }
 
 // ScanBoard should discover list directories, assign cards to the right lists,
-// parse display names from the directory prefix, and track the global MaxID.
+// and track the global MaxID.
 func TestScanBoard_ListDiscovery(t *testing.T) {
 	root := t.TempDir()
 
-	list1 := filepath.Join(root, "00___open")
-	list2 := filepath.Join(root, "10___in_progress")
+	list1 := filepath.Join(root, "open")
+	list2 := filepath.Join(root, "in_progress")
 	os.Mkdir(list1, 0755)
 	os.Mkdir(list2, 0755)
 
@@ -227,12 +227,12 @@ func TestScanBoard_ListDiscovery(t *testing.T) {
 		t.Fatalf("expected 2 lists, got %d", len(state.Lists))
 	}
 
-	openCards := state.Lists["00___open"]
+	openCards := state.Lists["open"]
 	if len(openCards) != 2 {
 		t.Fatalf("expected 2 cards in open, got %d", len(openCards))
 	}
 
-	ipCards := state.Lists["10___in_progress"]
+	ipCards := state.Lists["in_progress"]
 	if len(ipCards) != 1 {
 		t.Fatalf("expected 1 card in in_progress, got %d", len(ipCards))
 	}
@@ -249,7 +249,7 @@ func TestScanBoard_ListDiscovery(t *testing.T) {
 // Cards within a list should be sorted by list_order, with ID as tiebreaker.
 func TestScanBoard_CardSortOrder(t *testing.T) {
 	root := t.TempDir()
-	list := filepath.Join(root, "00___test")
+	list := filepath.Join(root, "test")
 	os.Mkdir(list, 0755)
 
 	writeTestCard(t, list, "1.md", "---\ntitle: \"Third\"\nid: 1\nlist_order: 30\n---\n")
@@ -261,7 +261,7 @@ func TestScanBoard_CardSortOrder(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	cards := state.Lists["00___test"]
+	cards := state.Lists["test"]
 	if len(cards) != 3 {
 		t.Fatalf("expected 3 cards, got %d", len(cards))
 	}
@@ -281,9 +281,10 @@ func TestScanBoard_CardSortOrder(t *testing.T) {
 func TestScanBoard_HiddenDirsIgnored(t *testing.T) {
 	root := t.TempDir()
 	os.Mkdir(filepath.Join(root, ".hidden"), 0755)
-	os.Mkdir(filepath.Join(root, "00___visible"), 0755)
+	os.Mkdir(filepath.Join(root, "visible"), 0755)
+
 	writeTestCard(t, filepath.Join(root, ".hidden"), "1.md", "---\ntitle: \"Hidden\"\nid: 1\n---\n")
-	writeTestCard(t, filepath.Join(root, "00___visible"), "2.md", "---\ntitle: \"Visible\"\nid: 2\n---\n")
+	writeTestCard(t, filepath.Join(root, "visible"), "2.md", "---\ntitle: \"Visible\"\nid: 2\n---\n")
 
 	state, err := ScanBoard(root)
 	if err != nil {
@@ -301,7 +302,7 @@ func TestScanBoard_HiddenDirsIgnored(t *testing.T) {
 // When frontmatter has no id field, the card ID should fall back to the filename.
 func TestScanBoard_IDFromFilename(t *testing.T) {
 	root := t.TempDir()
-	list := filepath.Join(root, "00___test")
+	list := filepath.Join(root, "test")
 	os.Mkdir(list, 0755)
 
 	writeTestCard(t, list, "42.md", "---\ntitle: \"No ID\"\nlist_order: 1\n---\n")
@@ -311,7 +312,7 @@ func TestScanBoard_IDFromFilename(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	cards := state.Lists["00___test"]
+	cards := state.Lists["test"]
 	if len(cards) != 1 {
 		t.Fatalf("expected 1 card, got %d", len(cards))
 	}
@@ -323,7 +324,7 @@ func TestScanBoard_IDFromFilename(t *testing.T) {
 // Only .md files should be picked up as cards; other file types are ignored.
 func TestScanBoard_NonMdFilesIgnored(t *testing.T) {
 	root := t.TempDir()
-	list := filepath.Join(root, "00___test")
+	list := filepath.Join(root, "test")
 	os.Mkdir(list, 0755)
 
 	writeTestCard(t, list, "1.md", "---\ntitle: \"Card\"\nid: 1\n---\n")
@@ -335,7 +336,7 @@ func TestScanBoard_NonMdFilesIgnored(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	cards := state.Lists["00___test"]
+	cards := state.Lists["test"]
 	if len(cards) != 1 {
 		t.Errorf("expected 1 card (non-.md ignored), got %d", len(cards))
 	}
@@ -360,7 +361,7 @@ func TestScanBoard_EmptyBoard(t *testing.T) {
 // Each card's FilePath should be the full absolute path to the .md file on disk.
 func TestScanBoard_FilePaths(t *testing.T) {
 	root := t.TempDir()
-	list := filepath.Join(root, "00___test")
+	list := filepath.Join(root, "test")
 	os.Mkdir(list, 0755)
 	writeTestCard(t, list, "7.md", "---\ntitle: \"Path Test\"\nid: 7\n---\nBody\n")
 
@@ -369,7 +370,7 @@ func TestScanBoard_FilePaths(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	cards := state.Lists["00___test"]
+	cards := state.Lists["test"]
 	expectedPath := filepath.Join(list, "7.md")
 	if cards[0].FilePath != expectedPath {
 		t.Errorf("filePath: got %q, want %q", cards[0].FilePath, expectedPath)

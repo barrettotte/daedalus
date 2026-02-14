@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { boardConfig, boardData, boardPath, addToast, isAtLimit } from "../stores/board";
-  import { SaveListConfig, OpenFileExternal } from "../../wailsjs/go/main/App";
+  import { boardConfig, boardData, boardPath, addToast, isAtLimit, listOrder } from "../stores/board";
+  import { SaveListConfig, OpenFileExternal, SaveListOrder } from "../../wailsjs/go/main/App";
   import {
     getDisplayTitle, getCountDisplay, isOverLimit,
     formatListName, autoFocus,
@@ -12,7 +12,8 @@
   let {
     listKey,
     oncreatecard,
-    oncollapse,
+    onfullcollapse,
+    onhalfcollapse,
     onreload,
     onlistdragstart,
     onlistdragend,
@@ -20,7 +21,8 @@
   }: {
     listKey: string;
     oncreatecard: () => void;
-    oncollapse: () => void;
+    onfullcollapse: () => void;
+    onhalfcollapse: () => void;
     onreload: () => void;
     onlistdragstart: () => void;
     onlistdragend: () => void;
@@ -32,6 +34,10 @@
   let editTitleValue = $state("");
   let editLimitValue = $state(0);
   let confirmingDelete = $state(false);
+  let menuOpen = $state(false);
+  let menuRef: HTMLDivElement | undefined = $state();
+  let movingPosition = $state(false);
+  let movePositionValue = $state(1);
 
   // Auto-cancel delete confirmation after 3 seconds.
   $effect(() => {
@@ -39,6 +45,19 @@
       const timer = setTimeout(() => { confirmingDelete = false; }, 3000);
       return () => clearTimeout(timer);
     }
+  });
+
+  // Close menu when clicking outside.
+  $effect(() => {
+    if (!menuOpen) { return; }
+    function handleClick(e: MouseEvent) {
+      if (menuRef && !menuRef.contains(e.target as Node)) {
+        menuOpen = false;
+        movingPosition = false;
+      }
+    }
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
   });
 
   // Starts inline editing of the list title.
@@ -116,6 +135,48 @@
     OpenFileExternal($boardPath + "/" + listKey).catch(e => addToast(`Failed to open folder: ${e}`));
   }
 
+  // Shows the move-to-position input, pre-filled with the current 1-indexed position.
+  function startMovePosition(): void {
+    const currentIdx = $listOrder.indexOf(listKey);
+    movePositionValue = currentIdx >= 0 ? currentIdx + 1 : 1;
+    movingPosition = true;
+  }
+
+  // Moves this list to the entered position, clamping to valid range.
+  function commitMovePosition(): void {
+    movingPosition = false;
+    menuOpen = false;
+
+    const order = [...$listOrder];
+    const srcIdx = order.indexOf(listKey);
+    if (srcIdx === -1) {
+      return;
+    }
+
+    const maxPos = order.length;
+    const clamped = isNaN(movePositionValue) ? 1 : movePositionValue;
+    const targetPos = Math.max(1, Math.min(maxPos, Math.floor(clamped)));
+    const targetIdx = targetPos - 1;
+
+    if (targetIdx === srcIdx) {
+      return;
+    }
+
+    order.splice(srcIdx, 1);
+    order.splice(targetIdx, 0, listKey);
+    listOrder.set(order);
+    SaveListOrder(order).catch(e => addToast(`Failed to save list order: ${e}`));
+  }
+
+  // Handles keydown events on the move position input.
+  function handleMoveKeydown(e: KeyboardEvent): void {
+    if (e.key === "Enter") {
+      commitMovePosition();
+    } else if (e.key === "Escape") {
+      movingPosition = false;
+    }
+  }
+
   // Handles keydown events on the limit input.
   function handleLimitKeydown(e: KeyboardEvent): void {
     if (e.key === "Enter") {
@@ -131,8 +192,7 @@
   ondragover={(e) => handleHeaderDragOver(e, listKey)}
   ondrop={(e) => handleDrop(e, listKey, onreload)}
 >
-  <div class="list-drag-handle" draggable="true"
-    ondragstart={(e) => {
+  <div class="list-drag-handle" draggable="true" role="button" tabindex="0" aria-label="Drag to reorder list" ondragstart={(e) => {
       // WebKitGTK requires setData for the drop event to fire
       e.dataTransfer!.setData('text/plain', listKey);
       e.dataTransfer!.effectAllowed = 'move';
@@ -160,53 +220,25 @@
     </svg>
   </div>
   {#if editingTitle}
-    <input class="edit-title-input" type="text" bind:value={editTitleValue} onblur={saveTitle}
-      onkeydown={handleTitleKeydown} use:autoFocus
-    />
+    <input class="edit-title-input" type="text" bind:value={editTitleValue} onblur={saveTitle} onkeydown={handleTitleKeydown} use:autoFocus/>
   {:else}
-    <button class="list-title-btn" onclick={startEditTitle}>
+    <button class="list-title-btn" title="Click to edit list name" onclick={startEditTitle}>
       {getDisplayTitle(listKey, $boardConfig)}
     </button>
   {/if}
   <div class="header-right">
-    <button class="collapse-btn" onclick={openInExplorer} title="Open in file explorer">
-      <svg viewBox="0 0 24 24" width="12" height="12">
-        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-        />
-      </svg>
-    </button>
     <button class="collapse-btn" onclick={oncreatecard} title="Add card">
       <svg viewBox="0 0 24 24" width="12" height="12">
         <line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
         <line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
       </svg>
     </button>
-    <button class="collapse-btn" onclick={oncollapse} title="Collapse list">
-      <svg viewBox="0 0 24 24" width="12" height="12">
-        <polyline points="6 9 12 15 18 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </button>
-    {#if confirmingDelete}
-      <button class="collapse-btn confirm-delete-btn" onclick={ondelete} title="Confirm delete">
-        <span>delete?</span>
-      </button>
-    {:else}
-      <button class="collapse-btn" onclick={() => confirmingDelete = true} title="Delete list">
-        <svg viewBox="0 0 24 24" width="12" height="12">
-          <polyline points="3 6 5 6 21 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-          />
-        </svg>
-      </button>
-    {/if}
     {#if editingLimit}
       <input class="edit-limit-input" type="number" min="0" bind:value={editLimitValue}
         onblur={saveLimit} onkeydown={handleLimitKeydown} use:autoFocus
       />
     {:else}
-      <button class="count-btn"
+      <button class="count-btn" title="Click to edit card limit"
         class:at-limit={isAtLimit(listKey, $boardData, $boardConfig)}
         class:over-limit={isOverLimit(listKey, $boardData, $boardConfig)}
         onclick={startEditLimit}
@@ -214,6 +246,81 @@
         {getCountDisplay(listKey, $boardData, $boardConfig)}
       </button>
     {/if}
+    <div class="menu-wrapper" bind:this={menuRef}>
+      <button class="collapse-btn" onclick={() => menuOpen = !menuOpen} title="More actions">
+        <svg viewBox="0 0 24 24" width="12" height="12">
+          <circle cx="5" cy="12" r="1.5" fill="currentColor"/>
+          <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+          <circle cx="19" cy="12" r="1.5" fill="currentColor"/>
+        </svg>
+      </button>
+      {#if menuOpen}
+        <div class="header-menu">
+          <button class="menu-item" title="Show first 5 cards, minimize the rest" onclick={() => { menuOpen = false; onhalfcollapse(); }}>
+            <svg viewBox="0 0 24 24" width="12" height="12">
+              <polyline points="6 9 12 15 18 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Half collapse
+          </button>
+          <button class="menu-item" title="Collapse to a vertical title bar" onclick={() => { menuOpen = false; onfullcollapse(); }}>
+            <svg viewBox="0 0 24 24" width="12" height="12">
+              <polyline points="6 7 12 13 18 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <polyline points="6 13 12 19 18 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Full collapse
+          </button>
+          <div class="menu-divider"></div>
+          <button class="menu-item" title="Open this list's directory in your file manager"
+            onclick={() => { menuOpen = false; openInExplorer(); }}
+          >
+            <svg viewBox="0 0 24 24" width="12" height="12">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              />
+            </svg>
+            Open in explorer
+          </button>
+          {#if movingPosition}
+            <div class="menu-item move-position-row">
+              <svg viewBox="0 0 24 24" width="12" height="12">
+                <polyline points="5 9 2 12 5 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <polyline points="19 9 22 12 19 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <line x1="2" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              <span>Position</span>
+              <input class="move-position-input" type="number" min="1" max={$listOrder.length}
+                bind:value={movePositionValue} onblur={commitMovePosition} onkeydown={handleMoveKeydown} use:autoFocus
+              />
+            </div>
+          {:else}
+            <button class="menu-item" title="Move list to a specific position (1-{$listOrder.length})" onclick={startMovePosition}>
+              <svg viewBox="0 0 24 24" width="12" height="12">
+                <polyline points="5 9 2 12 5 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <polyline points="19 9 22 12 19 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <line x1="2" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              Move to position
+            </button>
+          {/if}
+          <div class="menu-divider"></div>
+          {#if confirmingDelete}
+            <button class="menu-item menu-item-danger" title="Click to permanently delete this list and all cards" onclick={() => { menuOpen = false; ondelete(); }}>
+              Confirm delete?
+            </button>
+          {:else}
+            <button class="menu-item menu-item-danger" title="Remove this list and all its cards" onclick={() => { confirmingDelete = true; }}>
+              <svg viewBox="0 0 24 24" width="12" height="12">
+                <polyline points="3 6 5 6 21 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                />
+              </svg>
+              Delete list
+            </button>
+          {/if}
+        </div>
+      {/if}
+    </div>
   </div>
 </div>
 
@@ -249,12 +356,52 @@
     }
   }
 
-  .confirm-delete-btn {
-    color: var(--color-error) !important;
+  .menu-wrapper {
+    position: relative;
+  }
 
-    span {
-      font-size: 0.65rem;
-      font-weight: 600;
+  .header-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 100;
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border-medium);
+    border-radius: 6px;
+    padding: 4px 0;
+    min-width: 160px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .menu-divider {
+    height: 1px;
+    background: var(--color-border-medium);
+    margin: 4px 0;
+  }
+
+  .menu-item {
+    all: unset;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    box-sizing: border-box;
+
+    &:hover {
+      background: var(--overlay-hover);
+      color: var(--color-text-primary);
+    }
+  }
+
+  .menu-item-danger {
+    color: var(--color-error);
+
+    &:hover {
+      color: var(--color-error);
     }
   }
 
@@ -291,6 +438,9 @@
     text-overflow: ellipsis;
     cursor: pointer;
     color: inherit;
+    flex: 1;
+    text-align: left;
+    min-width: 0;
   }
 
   .count-btn {
@@ -311,6 +461,35 @@
     &.over-limit {
       background: var(--overlay-error-limit);
       color: #ff6b6b;
+    }
+  }
+
+  .move-position-row {
+    cursor: default;
+
+    span {
+      flex: 1;
+    }
+  }
+
+  .move-position-input {
+    background: var(--color-bg-inset);
+    border: 1px solid var(--color-accent);
+    color: var(--color-text-primary);
+    font-size: 0.78rem;
+    padding: 2px 4px;
+    border-radius: 4px;
+    outline: none;
+    width: 40px;
+    text-align: center;
+    appearance: textfield;
+    -moz-appearance: textfield;
+
+    &::-webkit-inner-spin-button,
+    &::-webkit-outer-spin-button {
+      appearance: none;
+      -webkit-appearance: none;
+      margin: 0;
     }
   }
 

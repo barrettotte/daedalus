@@ -296,7 +296,7 @@ export function handleFooterDragOver(e: DragEvent, listKey: string): void {
 }
 
 // Updates auto-scroll speeds based on cursor proximity to viewport edges.
-function handleAutoScroll(e: DragEvent): void {
+export function handleAutoScroll(e: DragEvent): void {
   const edgeSize = 40;
   const speed = 10;
   let hSpeed = 0;

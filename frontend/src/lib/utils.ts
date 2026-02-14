@@ -15,11 +15,9 @@ export function labelColor(label: string, customColors?: Record<string, string>)
   return `hsl(${hue}, 55%, 45%)`;
 }
 
-// Strips the numeric prefix and underscores from directory names into display titles.
+// Converts directory slug into a display title (replaces dashes/underscores, title-cases words).
 export function formatListName(rawName: string): string {
-  const parts = rawName.split('___');
-  const name = parts.length > 1 && parts[1] ? parts[1] : rawName;
-  return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  return rawName.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 }
 
 // Formats a date value as "YYYY-MM-DD".

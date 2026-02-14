@@ -25,7 +25,7 @@
 
 </script>
 
-<button class="section-header" onclick={() => expanded = !expanded}>
+<button class="section-header" title="Toggle checklist" onclick={() => expanded = !expanded}>
   <svg class="chevron" class:collapsed={!expanded} viewBox="0 0 24 24">
     <polyline points="6 9 12 15 18 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>
@@ -43,7 +43,7 @@
 <ul class="checklist">
   {#each checklist as item, idx}
     <li class:done={item.done}>
-      <button class="checkbox-btn" onclick={() => ontoggle(idx)}>
+      <button class="checkbox-btn" title="Toggle item" onclick={() => ontoggle(idx)}>
         <span class="checkbox" class:checked={item.done}>
           {#if item.done}
             <svg viewBox="0 0 16 16">

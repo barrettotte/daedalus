@@ -7,29 +7,27 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ListConfig holds per-list settings like display title override and card limit.
-type ListConfig struct {
-	Title string `yaml:"title" json:"title"`
-	Limit int    `yaml:"limit" json:"limit"`
+// ListEntry holds per-list settings. Array order in BoardConfig.Lists = display order.
+type ListEntry struct {
+	Dir           string `yaml:"dir" json:"dir"`
+	Title         string `yaml:"title,omitempty" json:"title,omitempty"`
+	Limit         int    `yaml:"limit,omitempty" json:"limit,omitempty"`
+	Collapsed     bool   `yaml:"collapsed,omitempty" json:"collapsed,omitempty"`
+	HalfCollapsed bool   `yaml:"half_collapsed,omitempty" json:"halfCollapsed,omitempty"`
 }
 
 // BoardConfig holds board-level configuration loaded from board.yaml.
 type BoardConfig struct {
-	Lists              map[string]ListConfig `yaml:"lists" json:"lists"`
-	LabelColors        map[string]string     `yaml:"label_colors,omitempty" json:"labelColors,omitempty"`
-	LabelsExpanded     *bool                 `yaml:"labels_expanded,omitempty" json:"labelsExpanded,omitempty"`
-	ShowYearProgress   *bool                 `yaml:"show_year_progress,omitempty" json:"showYearProgress,omitempty"`
-	CollapsedLists     []string              `yaml:"collapsed_lists,omitempty" json:"collapsedLists,omitempty"`
-	HalfCollapsedLists []string              `yaml:"half_collapsed_lists,omitempty" json:"halfCollapsedLists,omitempty"`
-	DarkMode           *bool                 `yaml:"dark_mode,omitempty" json:"darkMode,omitempty"`
-	ListOrder          []string              `yaml:"list_order,omitempty" json:"listOrder,omitempty"`
+	Lists          []ListEntry       `yaml:"lists,omitempty" json:"lists,omitempty"`
+	LabelColors    map[string]string `yaml:"label_colors,omitempty" json:"labelColors,omitempty"`
+	LabelsExpanded *bool             `yaml:"labels_expanded,omitempty" json:"labelsExpanded,omitempty"`
+	ShowYearProgress *bool           `yaml:"show_year_progress,omitempty" json:"showYearProgress,omitempty"`
+	DarkMode       *bool             `yaml:"dark_mode,omitempty" json:"darkMode,omitempty"`
 }
 
 // LoadBoardConfig reads board.yaml from rootPath. Returns empty config if file is missing.
 func LoadBoardConfig(rootPath string) (*BoardConfig, error) {
-	config := &BoardConfig{
-		Lists: make(map[string]ListConfig),
-	}
+	config := &BoardConfig{}
 
 	data, err := os.ReadFile(filepath.Join(rootPath, "board.yaml"))
 	if err != nil {
@@ -41,10 +39,6 @@ func LoadBoardConfig(rootPath string) (*BoardConfig, error) {
 
 	if err := yaml.Unmarshal(data, config); err != nil {
 		return nil, err
-	}
-
-	if config.Lists == nil {
-		config.Lists = make(map[string]ListConfig)
 	}
 
 	return config, nil
@@ -59,12 +53,12 @@ func SaveBoardConfig(rootPath string, config *BoardConfig) error {
 	return os.WriteFile(filepath.Join(rootPath, "board.yaml"), data, 0644)
 }
 
-// UpdateListConfig sets a list's config entry. If both title and limit are zero-value,
-// the entry is removed to keep board.yaml clean.
-func (c *BoardConfig) UpdateListConfig(dirName string, lc ListConfig) {
-	if lc.Title == "" && lc.Limit == 0 {
-		delete(c.Lists, dirName)
-	} else {
-		c.Lists[dirName] = lc
+// FindListEntry returns the index of the entry with the given dir, or -1.
+func FindListEntry(lists []ListEntry, dir string) int {
+	for i, entry := range lists {
+		if entry.Dir == dir {
+			return i
+		}
 	}
+	return -1
 }

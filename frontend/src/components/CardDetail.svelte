@@ -369,7 +369,7 @@
             onkeydown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} use:autoFocus
           />
         {:else}
-          <button class="card-title clickable" onclick={startEditTitle}>{meta.title}</button>
+          <button class="card-title clickable" title="Click to edit title" onclick={startEditTitle}>{meta.title}</button>
         {/if}
         <div class="header-btns">
           {#if !loading}
@@ -424,9 +424,11 @@
             {:else if loading}
               <p class="loading-text">Loading...</p>
             {:else if bodyHtml.trim()}
-              <div class="markdown-body clickable" role="button" tabindex="0" onclick={startEditBody} onkeydown={e => e.key === 'Enter' && startEditBody()}>{@html bodyHtml}</div>
+              <div class="markdown-body clickable" role="button" tabindex="0" title="Click to edit description"
+                onclick={startEditBody} onkeydown={e => e.key === 'Enter' && startEditBody()}
+              >{@html bodyHtml}</div>
             {:else}
-              <button class="empty-desc clickable" onclick={startEditBody}>Enter description...</button>
+              <button class="empty-desc clickable" title="Click to add description" onclick={startEditBody}>Enter description...</button>
             {/if}
           </div>
 

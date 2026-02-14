@@ -188,8 +188,8 @@
             <div class="position-section">
               <span class="position-label">Position</span>
               <div class="position-toggle">
-                <button class="pos-btn" class:active={$draftPosition === 'top'} onclick={() => draftPosition.set('top')}>Top</button>
-                <button class="pos-btn" class:active={$draftPosition === 'bottom'} onclick={() => draftPosition.set('bottom')}>Bottom</button>
+                <button class="pos-btn" title="Add card to top of list" class:active={$draftPosition === 'top'} onclick={() => draftPosition.set('top')}>Top</button>
+                <button class="pos-btn" title="Add card to bottom of list" class:active={$draftPosition === 'bottom'} onclick={() => draftPosition.set('bottom')}>Bottom</button>
               </div>
               <div class="position-specific-row">
                 <input class="position-input" type="number" min="1" max={draftListCount + 1}

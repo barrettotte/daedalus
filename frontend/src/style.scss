@@ -152,4 +152,8 @@ body {
 ::-webkit-scrollbar-thumb {
     background: var(--color-scrollbar-thumb);
     border-radius: 3px;
+
+    &:hover {
+        background: var(--color-text-muted);
+    }
 }

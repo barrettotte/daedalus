@@ -1,28 +1,31 @@
 export namespace daedalus {
 	
-	export class ListConfig {
-	    title: string;
-	    limit: number;
+	export class ListEntry {
+	    dir: string;
+	    title?: string;
+	    limit?: number;
+	    collapsed?: boolean;
+	    halfCollapsed?: boolean;
 	
 	    static createFrom(source: any = {}) {
-	        return new ListConfig(source);
+	        return new ListEntry(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dir = source["dir"];
 	        this.title = source["title"];
 	        this.limit = source["limit"];
+	        this.collapsed = source["collapsed"];
+	        this.halfCollapsed = source["halfCollapsed"];
 	    }
 	}
 	export class BoardConfig {
-	    lists: Record<string, ListConfig>;
+	    lists?: ListEntry[];
 	    labelColors?: Record<string, string>;
 	    labelsExpanded?: boolean;
 	    showYearProgress?: boolean;
-	    collapsedLists?: string[];
-	    halfCollapsedLists?: string[];
 	    darkMode?: boolean;
-	    listOrder?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new BoardConfig(source);
@@ -30,14 +33,11 @@ export namespace daedalus {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.lists = this.convertValues(source["lists"], ListConfig, true);
+	        this.lists = this.convertValues(source["lists"], ListEntry);
 	        this.labelColors = source["labelColors"];
 	        this.labelsExpanded = source["labelsExpanded"];
 	        this.showYearProgress = source["showYearProgress"];
-	        this.collapsedLists = source["collapsedLists"];
-	        this.halfCollapsedLists = source["halfCollapsedLists"];
 	        this.darkMode = source["darkMode"];
-	        this.listOrder = source["listOrder"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

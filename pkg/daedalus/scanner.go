@@ -46,11 +46,6 @@ func ScanBoard(rootPath string) (*BoardState, error) {
 		if entry.IsDir() && !strings.HasPrefix(entry.Name(), ".") {
 			dirName := entry.Name()
 			listPath := filepath.Join(absRoot, dirName)
-			displayName := dirName
-
-			if parts := strings.SplitN(dirName, "___", 2); len(parts) == 2 {
-				displayName = parts[1]
-			}
 
 			wg.Add(1)
 			go func(path, realName, displayName string) {
@@ -65,7 +60,7 @@ func ScanBoard(rootPath string) (*BoardState, error) {
 				state.TotalFileBytes += localBytes
 				mutex.Unlock()
 
-			}(listPath, dirName, displayName)
+			}(listPath, dirName, dirName)
 		}
 	}
 	wg.Wait()

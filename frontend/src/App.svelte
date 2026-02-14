@@ -19,7 +19,7 @@
   import {
     dragPos, setBoardContainer, clearDropIndicators,
     handleDragEnter, handleDragOver, handleDragLeave, handleDrop,
-    handleFooterDragOver, stopAutoScroll,
+    handleFooterDragOver, handleAutoScroll, stopAutoScroll,
   } from "./lib/drag";
   import VirtualList from "./components/VirtualList.svelte";
   import Card from "./components/Card.svelte";
@@ -147,17 +147,24 @@
     SaveDarkMode(darkMode).catch(e => addToast(`Failed to save dark mode state: ${e}`));
   }
 
-  // Cycles a list through expanded -> half-collapsed -> fully collapsed -> expanded.
-  function cycleCollapseState(listKey: string): void {
-    if (halfCollapsedLists.has(listKey)) {
-      // Half-collapsed -> fully collapsed
-      halfCollapsedLists.delete(listKey);
-      collapsedLists.add(listKey);
-    } else if (collapsedLists.has(listKey)) {
-      // Fully collapsed -> expanded
+  // Toggles a list into or out of fully collapsed state.
+  function toggleFullCollapse(listKey: string): void {
+    halfCollapsedLists.delete(listKey);
+    if (collapsedLists.has(listKey)) {
       collapsedLists.delete(listKey);
     } else {
-      // Expanded -> half-collapsed
+      collapsedLists.add(listKey);
+    }
+    SaveCollapsedLists([...collapsedLists]).catch(e => addToast(`Failed to save collapsed state: ${e}`));
+    SaveHalfCollapsedLists([...halfCollapsedLists]).catch(e => addToast(`Failed to save half-collapsed state: ${e}`));
+  }
+
+  // Toggles a list into or out of half-collapsed state.
+  function toggleHalfCollapse(listKey: string): void {
+    collapsedLists.delete(listKey);
+    if (halfCollapsedLists.has(listKey)) {
+      halfCollapsedLists.delete(listKey);
+    } else {
       halfCollapsedLists.add(listKey);
     }
     SaveCollapsedLists([...collapsedLists]).catch(e => addToast(`Failed to save collapsed state: ${e}`));
@@ -171,10 +178,11 @@
   }
 
   // Document-level dragover handler active only during list drags.
-  // Updates ghost position and allows drops everywhere (WebKitGTK needs this).
+  // Updates ghost position, allows drops everywhere, and auto-scrolls at edges.
   function listDragOverHandler(e: DragEvent): void {
     e.preventDefault();
     dragPos.set({ x: e.clientX, y: e.clientY });
+    handleAutoScroll(e);
   }
 
   // Begins a list column drag operation and attaches a document-level dragover listener.
@@ -188,31 +196,62 @@
     listDragging = null;
     listDropTarget = null;
     listDropSide = null;
+    stopAutoScroll();
     document.removeEventListener('dragover', listDragOverHandler as EventListener);
   }
 
-  // Computes drop side and vertical line position from the hovered column.
-  function handleListDragOver(e: DragEvent, targetKey: string): void {
-    const col = (e.target as HTMLElement).closest('.list-column') as HTMLElement | null;
-    if (!col) {
+  // Computes drop position from cursor X relative to all column midpoints.
+  function handleListDragOver(e: DragEvent): void {
+    if (!listDragging || !boardContainerEl) {
       return;
     }
-    const rect = col.getBoundingClientRect();
-    const midX = rect.left + rect.width / 2;
-    const side = e.clientX < midX ? 'left' : 'right';
+
+    const keys = sortedListKeys($boardData, $listOrder);
+    const columns = boardContainerEl.querySelectorAll('.list-column');
+    if (columns.length === 0) {
+      return;
+    }
+
+    // Find the insertion edge closest to the cursor.
+    // Bias thresholds at edges so first/last positions are easier to hit:
+    // first column splits at 2/3, last at 1/3, interior at 1/2.
+    let targetKey = keys[0];
+    let side: 'left' | 'right' = 'left';
+    const last = columns.length - 1;
+
+    for (let i = 0; i < columns.length; i++) {
+      const rect = columns[i].getBoundingClientRect();
+      const bias = i === 0 ? 0.67 : i === last ? 0.33 : 0.5;
+      const splitX = rect.left + rect.width * bias;
+
+      if (e.clientX < splitX) {
+        targetKey = keys[i];
+        side = 'left';
+        break;
+      }
+      // Past this column's split point -- tentatively place after it
+      targetKey = keys[i];
+      side = 'right';
+    }
 
     listDropTarget = targetKey;
     listDropSide = side;
+
+    // Position the visual drop line at the chosen edge
+    const idx = keys.indexOf(targetKey);
+    const col = columns[idx] as HTMLElement;
+    const rect = col.getBoundingClientRect();
+
     dropLineX = side === 'left' ? rect.left - 6 : rect.right + 6;
     dropLineTop = rect.top;
     dropLineHeight = rect.height;
   }
 
-  // Handles dropping a list column onto another, reordering and persisting.
-  function handleListDrop(e: DragEvent, targetKey: string): void {
+  // Handles dropping a list column, reordering and persisting.
+  function handleListDrop(e: DragEvent): void {
     e.preventDefault();
 
-    if (!listDragging || listDragging === targetKey) {
+    if (!listDragging || !listDropTarget || listDragging === listDropTarget) {
       endListDrag();
       return;
     }
@@ -228,7 +267,7 @@
     reordered.splice(srcIdx, 1);
 
     // Find target position after source removal, then adjust for drop side.
-    let insertIdx = reordered.indexOf(targetKey);
+    let insertIdx = reordered.indexOf(listDropTarget);
     if (insertIdx === -1) {
       endListDrag();
       return;
@@ -267,12 +306,25 @@
     try {
       const response = await LoadBoard("");
       boardData.set(response.lists);
-      boardConfig.set(response.config?.lists || {} as Record<string, any>);
       boardPath.set(response.boardPath || "");
 
       if (response.boardPath) {
         WindowSetTitle(`Daedalus - ${response.boardPath}`);
       }
+
+      // Unpack []ListEntry array into stores (cast needed until Wails bindings regenerate)
+      const entries: any[] = (response.config?.lists as any) || [];
+      listOrder.set(entries.map((e: any) => e.dir));
+
+      const configMap: Record<string, { title: string; limit: number }> = {};
+      for (const entry of entries) {
+        configMap[entry.dir] = { title: entry.title || '', limit: entry.limit || 0 };
+      }
+      boardConfig.set(configMap);
+
+      collapsedLists = new SvelteSet(entries.filter((e: any) => e.collapsed).map((e: any) => e.dir));
+      halfCollapsedLists = new SvelteSet(entries.filter((e: any) => e.halfCollapsed).map((e: any) => e.dir));
+
       labelColors.set(response.config?.labelColors || {});
 
       if (response.config?.labelsExpanded !== undefined && response.config.labelsExpanded !== null) {
@@ -285,14 +337,6 @@
         darkMode = response.config.darkMode;
       }
       document.documentElement.classList.toggle("light", !darkMode);
-      if (response.config?.collapsedLists) {
-        collapsedLists = new SvelteSet(response.config.collapsedLists);
-      }
-
-      if (response.config?.halfCollapsedLists) {
-        halfCollapsedLists = new SvelteSet(response.config.halfCollapsedLists);
-      }
-      listOrder.set(response.config?.listOrder || []);
       isLoaded.set(true);
 
     } catch (e) {
@@ -559,8 +603,12 @@
   });
 
   // Sync the board container DOM ref to the drag module for horizontal auto-scroll.
+  // Also scroll past the left padding buffer on initial load.
   $effect(() => {
     setBoardContainer(boardContainerEl);
+    if (boardContainerEl && boardContainerEl.scrollLeft === 0) {
+      boardContainerEl.scrollLeft = 130;
+    }
   });
 
   // Auto-open a card when search query is exactly #<digits> and a unique match exists.
@@ -623,7 +671,9 @@
       {#if searchOpen}
         <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
         <div class="search-bar" role="search" onmousedown={(e) => {
-          if ((e.target as HTMLElement).tagName !== "INPUT") { e.preventDefault(); }
+          if ((e.target as HTMLElement).tagName !== "INPUT") {
+            e.preventDefault();
+          }
         }}>
           <svg class="search-icon" viewBox="0 0 24 24" width="14" height="14">
             <circle cx="11" cy="11" r="8" fill="none" stroke="currentColor" stroke-width="2"/>
@@ -730,35 +780,30 @@
   {#if error}
     <div class="error">{error}</div>
   {:else if $isLoaded}
-    <div class="board-container" class:modal-open={$selectedCard || $draftListKey} bind:this={boardContainerEl}>
+    <div class="board-container" role="group" class:modal-open={$selectedCard || $draftListKey}
+      bind:this={boardContainerEl}
+      ondragover={(e) => { if (listDragging) { handleListDragOver(e); } }}
+      ondrop={(e) => { if (listDragging) { handleListDrop(e); } }}
+    >
       {#each sortedListKeys($boardData, $listOrder) as listKey}
         {#if collapsedLists.has(listKey)}
-          <div class="list-column collapsed" role="button" tabindex="0"
+          <div class="list-column collapsed" role="button" tabindex="0" title="Expand list"
             class:list-dragging={listDragging === listKey}
-            onclick={() => cycleCollapseState(listKey)}
-            onkeydown={e => e.key === 'Enter' && cycleCollapseState(listKey)}
-            ondragover={(e) => { if (listDragging) { handleListDragOver(e, listKey); } }}
-            ondrop={(e) => { if (listDragging) { handleListDrop(e, listKey); } }}
+            onclick={() => toggleFullCollapse(listKey)}
+            onkeydown={e => e.key === 'Enter' && toggleFullCollapse(listKey)}
           >
-            <span class="collapsed-count">
-              {getCountDisplay(listKey, $boardData, $boardConfig)}
-            </span>
-            <span class="collapsed-title">
-              {getDisplayTitle(listKey, $boardConfig)}
-            </span>
+            <span class="collapsed-count">{getCountDisplay(listKey, $boardData, $boardConfig)}</span>
+            <span class="collapsed-title">{getDisplayTitle(listKey, $boardConfig)}</span>
           </div>
         {:else if halfCollapsedLists.has(listKey)}
           {@const allItems = $filteredBoardData[listKey] || []}
           {@const visibleItems = allItems.slice(0, 5)}
           {@const remaining = allItems.length - 5}
-          <div class="list-column half-collapsed"
-            class:list-dragging={listDragging === listKey}
-            ondragover={(e) => { if (listDragging) { handleListDragOver(e, listKey); } }}
-            ondrop={(e) => { if (listDragging) { handleListDrop(e, listKey); } }}
-          >
+          <div class="list-column half-collapsed" role="group" class:list-dragging={listDragging === listKey}>
             <ListHeader {listKey}
               oncreatecard={() => createCard(listKey)}
-              oncollapse={() => cycleCollapseState(listKey)}
+              onfullcollapse={() => toggleFullCollapse(listKey)}
+              onhalfcollapse={() => toggleHalfCollapse(listKey)}
               onreload={initBoard}
               onlistdragstart={() => startListDrag(listKey)}
               onlistdragend={endListDrag}
@@ -770,23 +815,22 @@
               />
             </div>
             {#if remaining > 0}
-              <button class="show-more-bar" onclick={() => expandFromHalf(listKey)}>
+              <button class="show-more-bar" title="Expand to show all cards" onclick={() => expandFromHalf(listKey)}>
                 Show {remaining} more
               </button>
             {/if}
           </div>
         {:else}
-          <div class="list-column"
+          <div class="list-column" role="group"
             class:list-full={$dragState
               && $dragState.sourceListKey !== listKey
               && isAtLimit(listKey, $boardData, $boardConfig)}
             class:list-dragging={listDragging === listKey}
-            ondragover={(e) => { if (listDragging) { handleListDragOver(e, listKey); } }}
-            ondrop={(e) => { if (listDragging) { handleListDrop(e, listKey); } }}
           >
             <ListHeader {listKey}
               oncreatecard={() => createCard(listKey)}
-              oncollapse={() => cycleCollapseState(listKey)}
+              onfullcollapse={() => toggleFullCollapse(listKey)}
+              onhalfcollapse={() => toggleHalfCollapse(listKey)}
               onreload={initBoard}
               onlistdragstart={() => startListDrag(listKey)}
               onlistdragend={endListDrag}
@@ -1037,9 +1081,17 @@
     flex: 1;
     display: flex;
     overflow-x: auto;
-    padding: 10px;
+    padding: 10px 0 10px 140px;
     gap: 10px;
     will-change: scroll-position;
+
+    // Right padding collapses in overflow-x containers; use pseudo-element instead
+    &::after {
+      content: '';
+      flex-shrink: 0;
+      width: 140px;
+    }
+
   }
 
   .list-column {
@@ -1050,7 +1102,12 @@
     border-radius: 8px;
     max-height: 100%;
     border: 1px solid var(--color-border-medium);
-    contain: layout style paint;
+    position: relative;
+    z-index: 1;
+
+    &:has(:global(.header-menu)) {
+      z-index: 10;
+    }
 
     &.collapsed {
       flex: 0 0 36px;

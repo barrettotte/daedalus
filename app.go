@@ -69,6 +69,34 @@ func (a *App) LoadBoard(path string) *BoardResponse {
 	a.board = state
 	fmt.Printf("Scan Complete. MaxID: %d\n", state.MaxID)
 
+	// Merge discovered list dirs into config array:
+	// keep existing entries in order, append new dirs alphabetically, remove stale entries.
+	diskDirs := make(map[string]bool)
+	for dirName := range state.Lists {
+		diskDirs[dirName] = true
+	}
+
+	// Keep existing entries that still exist on disk
+	var merged []daedalus.ListEntry
+	for _, entry := range state.Config.Lists {
+		if diskDirs[entry.Dir] {
+			merged = append(merged, entry)
+			delete(diskDirs, entry.Dir)
+		}
+	}
+
+	// Append newly discovered dirs alphabetically
+	var newDirs []string
+	for dir := range diskDirs {
+		newDirs = append(newDirs, dir)
+	}
+	sort.Strings(newDirs)
+	for _, dir := range newDirs {
+		merged = append(merged, daedalus.ListEntry{Dir: dir})
+	}
+
+	state.Config.Lists = merged
+
 	absRoot, _ := filepath.Abs(state.RootPath)
 
 	return &BoardResponse{
@@ -84,10 +112,17 @@ func (a *App) SaveListConfig(dirName string, title string, limit int) error {
 		return fmt.Errorf("board not loaded")
 	}
 
-	a.board.Config.UpdateListConfig(dirName, daedalus.ListConfig{
-		Title: title,
-		Limit: limit,
-	})
+	idx := daedalus.FindListEntry(a.board.Config.Lists, dirName)
+	if idx >= 0 {
+		a.board.Config.Lists[idx].Title = title
+		a.board.Config.Lists[idx].Limit = limit
+	} else {
+		a.board.Config.Lists = append(a.board.Config.Lists, daedalus.ListEntry{
+			Dir:   dirName,
+			Title: title,
+			Limit: limit,
+		})
+	}
 
 	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
 }
@@ -231,12 +266,36 @@ func (a *App) SaveDarkMode(dark bool) error {
 	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
 }
 
-// SaveListOrder persists the custom list display order to board.yaml.
+// SaveListOrder reorders the config Lists array to match the given order and persists to board.yaml.
 func (a *App) SaveListOrder(order []string) error {
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
 	}
-	a.board.Config.ListOrder = order
+
+	// Build a map of dir -> entry for quick lookup
+	entryMap := make(map[string]daedalus.ListEntry)
+	for _, entry := range a.board.Config.Lists {
+		entryMap[entry.Dir] = entry
+	}
+
+	// Reassemble in new order
+	var reordered []daedalus.ListEntry
+	used := make(map[string]bool)
+	for _, dir := range order {
+		if entry, ok := entryMap[dir]; ok {
+			reordered = append(reordered, entry)
+			used[dir] = true
+		}
+	}
+
+	// Append any stragglers not in the order array
+	for _, entry := range a.board.Config.Lists {
+		if !used[entry.Dir] {
+			reordered = append(reordered, entry)
+		}
+	}
+
+	a.board.Config.Lists = reordered
 	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
 }
 
@@ -276,40 +335,47 @@ func (a *App) DeleteList(listDirName string) error {
 
 	// Clean up in-memory state
 	delete(a.board.Lists, listDirName)
-	delete(a.board.Config.Lists, listDirName)
-	a.board.Config.ListOrder = removeFromSlice(a.board.Config.ListOrder, listDirName)
-	a.board.Config.CollapsedLists = removeFromSlice(a.board.Config.CollapsedLists, listDirName)
-	a.board.Config.HalfCollapsedLists = removeFromSlice(a.board.Config.HalfCollapsedLists, listDirName)
+
+	// Remove from config Lists array
+	idx := daedalus.FindListEntry(a.board.Config.Lists, listDirName)
+	if idx >= 0 {
+		a.board.Config.Lists = append(a.board.Config.Lists[:idx], a.board.Config.Lists[idx+1:]...)
+	}
 
 	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
 }
 
-// removeFromSlice returns a new slice with all occurrences of val removed.
-func removeFromSlice(slice []string, val string) []string {
-	result := make([]string, 0, len(slice))
-	for _, s := range slice {
-		if s != val {
-			result = append(result, s)
-		}
-	}
-	return result
-}
-
-// SaveCollapsedLists persists the set of collapsed list keys to board.yaml.
-func (a *App) SaveCollapsedLists(lists []string) error {
+// SaveCollapsedLists sets the Collapsed flag on matching entries and persists to board.yaml.
+func (a *App) SaveCollapsedLists(collapsed []string) error {
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
 	}
-	a.board.Config.CollapsedLists = lists
+
+	set := make(map[string]bool, len(collapsed))
+	for _, dir := range collapsed {
+		set[dir] = true
+	}
+	for i := range a.board.Config.Lists {
+		a.board.Config.Lists[i].Collapsed = set[a.board.Config.Lists[i].Dir]
+	}
+
 	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
 }
 
-// SaveHalfCollapsedLists persists the set of half-collapsed list keys to board.yaml.
-func (a *App) SaveHalfCollapsedLists(lists []string) error {
+// SaveHalfCollapsedLists sets the HalfCollapsed flag on matching entries and persists to board.yaml.
+func (a *App) SaveHalfCollapsedLists(halfCollapsed []string) error {
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
 	}
-	a.board.Config.HalfCollapsedLists = lists
+
+	set := make(map[string]bool, len(halfCollapsed))
+	for _, dir := range halfCollapsed {
+		set[dir] = true
+	}
+	for i := range a.board.Config.Lists {
+		a.board.Config.Lists[i].HalfCollapsed = set[a.board.Config.Lists[i].Dir]
+	}
+
 	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
 }
 

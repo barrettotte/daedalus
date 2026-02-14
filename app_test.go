@@ -9,12 +9,12 @@ import (
 	"testing"
 )
 
-// setupTestBoardMulti creates a board with 3 cards in 00___open and an empty 10___done list.
+// setupTestBoardMulti creates a board with 3 cards in "open" and an empty "done" list.
 func setupTestBoardMulti(t *testing.T) (*App, string) {
 	t.Helper()
 	root := t.TempDir()
-	openList := filepath.Join(root, "00___open")
-	doneList := filepath.Join(root, "10___done")
+	openList := filepath.Join(root, "open")
+	doneList := filepath.Join(root, "done")
 
 	os.Mkdir(openList, 0755)
 	os.Mkdir(doneList, 0755)
@@ -33,7 +33,7 @@ func setupTestBoardMulti(t *testing.T) (*App, string) {
 func setupTestBoard(t *testing.T) (*App, string) {
 	t.Helper()
 	root := t.TempDir()
-	list := filepath.Join(root, "00___test")
+	list := filepath.Join(root, "test")
 
 	os.Mkdir(list, 0755)
 	os.WriteFile(filepath.Join(list, "1.md"), []byte("---\ntitle: \"Test\"\nid: 1\n---\n# Hello\n\nBody content.\n"), 0644)
@@ -50,7 +50,7 @@ func setupTestBoard(t *testing.T) (*App, string) {
 // GetCardContent should return the full markdown body for a valid card path.
 func TestGetCardContent_Success(t *testing.T) {
 	app, root := setupTestBoard(t)
-	cardPath := filepath.Join(root, "00___test", "1.md")
+	cardPath := filepath.Join(root, "test", "1.md")
 
 	content, err := app.GetCardContent(cardPath)
 	if err != nil {
@@ -92,7 +92,7 @@ func TestGetCardContent_BoardNotLoaded(t *testing.T) {
 // Requesting a card file that doesn't exist on disk should return an error.
 func TestGetCardContent_NonexistentFile(t *testing.T) {
 	app, root := setupTestBoard(t)
-	badPath := filepath.Join(root, "00___test", "999.md")
+	badPath := filepath.Join(root, "test", "999.md")
 
 	_, err := app.GetCardContent(badPath)
 	if err == nil {
@@ -104,7 +104,7 @@ func TestGetCardContent_NonexistentFile(t *testing.T) {
 // even when they start inside a valid list directory.
 func TestGetCardContent_DotDotInPath(t *testing.T) {
 	app, root := setupTestBoard(t)
-	traversal := filepath.Join(root, "00___test", "..", "..", "secret.md")
+	traversal := filepath.Join(root, "test", "..", "..", "secret.md")
 
 	_, err := app.GetCardContent(traversal)
 	if err == nil {
@@ -131,7 +131,7 @@ func TestLoadBoard_InvalidPath(t *testing.T) {
 // with the correct RootPath.
 func TestLoadBoard_SetsBoard(t *testing.T) {
 	root := t.TempDir()
-	list := filepath.Join(root, "00___test")
+	list := filepath.Join(root, "test")
 	os.Mkdir(list, 0755)
 	os.WriteFile(filepath.Join(list, "1.md"), []byte("---\ntitle: \"T\"\nid: 1\n---\n"), 0644)
 
@@ -151,7 +151,7 @@ func TestLoadBoard_SetsBoard(t *testing.T) {
 // The response from LoadBoard should contain the correct list keys and card metadata.
 func TestLoadBoard_ReturnedData(t *testing.T) {
 	root := t.TempDir()
-	list := filepath.Join(root, "00___open")
+	list := filepath.Join(root, "open")
 	os.Mkdir(list, 0755)
 	os.WriteFile(filepath.Join(list, "5.md"), []byte("---\ntitle: \"Card Five\"\nid: 5\nlist_order: 1\n---\nBody\n"), 0644)
 
@@ -161,9 +161,9 @@ func TestLoadBoard_ReturnedData(t *testing.T) {
 		t.Fatal("LoadBoard returned nil")
 	}
 
-	cards, ok := resp.Lists["00___open"]
+	cards, ok := resp.Lists["open"]
 	if !ok {
-		t.Fatal("expected 00___open key in result")
+		t.Fatal("expected open key in result")
 	}
 	if len(cards) != 1 {
 		t.Fatalf("expected 1 card, got %d", len(cards))
@@ -185,7 +185,7 @@ func TestGetCardContent_ExactRootPath(t *testing.T) {
 // A relative path that resolves outside the board root should be rejected.
 func TestGetCardContent_RelativePath(t *testing.T) {
 	root := t.TempDir()
-	list := filepath.Join(root, "00___test")
+	list := filepath.Join(root, "test")
 	os.Mkdir(list, 0755)
 	os.WriteFile(filepath.Join(list, "1.md"), []byte("---\ntitle: \"T\"\nid: 1\n---\nBody\n"), 0644)
 
@@ -204,15 +204,16 @@ func TestGetCardContent_RelativePath(t *testing.T) {
 func TestSaveListConfig_Success(t *testing.T) {
 	app, root := setupTestBoard(t)
 
-	err := app.SaveListConfig("00___test", "My Test List", 10)
+	err := app.SaveListConfig("test", "My Test List", 10)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	lc, ok := app.board.Config.Lists["00___test"]
-	if !ok {
-		t.Fatal("expected config entry for 00___test")
+	idx := daedalus.FindListEntry(app.board.Config.Lists, "test")
+	if idx < 0 {
+		t.Fatal("expected config entry for test")
 	}
+	lc := app.board.Config.Lists[idx]
 	if lc.Title != "My Test List" || lc.Limit != 10 {
 		t.Errorf("got title=%q limit=%d, want title=\"My Test List\" limit=10", lc.Title, lc.Limit)
 	}
@@ -222,7 +223,11 @@ func TestSaveListConfig_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error loading saved config: %v", err)
 	}
-	saved := config.Lists["00___test"]
+	savedIdx := daedalus.FindListEntry(config.Lists, "test")
+	if savedIdx < 0 {
+		t.Fatal("expected saved config entry for test")
+	}
+	saved := config.Lists[savedIdx]
 	if saved.Title != "My Test List" || saved.Limit != 10 {
 		t.Errorf("saved config: got %+v", saved)
 	}
@@ -257,11 +262,11 @@ func TestSaveLabelsExpanded_Success(t *testing.T) {
 	}
 }
 
-// SaveHalfCollapsedLists should persist the list to board.yaml and reload correctly.
+// SaveHalfCollapsedLists should persist the flags to board.yaml and reload correctly.
 func TestSaveHalfCollapsedLists_Success(t *testing.T) {
 	app, root := setupTestBoard(t)
 
-	lists := []string{"00___test", "10___done"}
+	lists := []string{"test"}
 	if err := app.SaveHalfCollapsedLists(lists); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -270,14 +275,15 @@ func TestSaveHalfCollapsedLists_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error loading config: %v", err)
 	}
-	if len(config.HalfCollapsedLists) != 2 {
-		t.Fatalf("expected 2 half-collapsed lists, got %d", len(config.HalfCollapsedLists))
+	idx := daedalus.FindListEntry(config.Lists, "test")
+	if idx < 0 {
+		t.Fatal("expected config entry for test")
 	}
-	if config.HalfCollapsedLists[0] != "00___test" || config.HalfCollapsedLists[1] != "10___done" {
-		t.Errorf("unexpected half-collapsed lists: %v", config.HalfCollapsedLists)
+	if !config.Lists[idx].HalfCollapsed {
+		t.Error("expected test to be half-collapsed")
 	}
 
-	// Clear and verify empty
+	// Clear and verify
 	if err := app.SaveHalfCollapsedLists(nil); err != nil {
 		t.Fatalf("unexpected error clearing: %v", err)
 	}
@@ -286,15 +292,19 @@ func TestSaveHalfCollapsedLists_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error loading config: %v", err)
 	}
-	if len(config.HalfCollapsedLists) != 0 {
-		t.Errorf("expected empty half-collapsed lists, got %v", config.HalfCollapsedLists)
+	idx = daedalus.FindListEntry(config.Lists, "test")
+	if idx < 0 {
+		t.Fatal("expected config entry for test after clear")
+	}
+	if config.Lists[idx].HalfCollapsed {
+		t.Error("expected test to not be half-collapsed after clearing")
 	}
 }
 
 // SaveListConfig should return an error when no board has been loaded.
 func TestSaveListConfig_BoardNotLoaded(t *testing.T) {
 	app := NewApp()
-	err := app.SaveListConfig("00___test", "Title", 5)
+	err := app.SaveListConfig("test", "Title", 5)
 	if err == nil {
 		t.Fatal("expected error when board not loaded")
 	}
@@ -306,7 +316,7 @@ func TestSaveListConfig_BoardNotLoaded(t *testing.T) {
 // LoadBoard response should include a non-nil config even without a board.yaml file.
 func TestLoadBoard_IncludesConfig(t *testing.T) {
 	root := t.TempDir()
-	list := filepath.Join(root, "00___test")
+	list := filepath.Join(root, "test")
 	os.Mkdir(list, 0755)
 	os.WriteFile(filepath.Join(list, "1.md"), []byte("---\ntitle: \"T\"\nid: 1\n---\n"), 0644)
 
@@ -318,18 +328,20 @@ func TestLoadBoard_IncludesConfig(t *testing.T) {
 	if resp.Config == nil {
 		t.Fatal("expected non-nil Config in response")
 	}
-	if resp.Config.Lists == nil {
-		t.Fatal("expected non-nil Lists map in Config")
+
+	// Lists should be populated by LoadBoard's merge logic (discovered "test" dir)
+	if len(resp.Config.Lists) != 1 {
+		t.Fatalf("expected 1 list entry from merge, got %d", len(resp.Config.Lists))
 	}
 }
 
 // LoadBoard should include config values from an existing board.yaml.
 func TestLoadBoard_WithConfigFile(t *testing.T) {
 	root := t.TempDir()
-	list := filepath.Join(root, "00___test")
+	list := filepath.Join(root, "test")
 	os.Mkdir(list, 0755)
 	os.WriteFile(filepath.Join(list, "1.md"), []byte("---\ntitle: \"T\"\nid: 1\n---\n"), 0644)
-	os.WriteFile(filepath.Join(root, "board.yaml"), []byte("lists:\n  00___test:\n    title: \"Custom\"\n    limit: 3\n"), 0644)
+	os.WriteFile(filepath.Join(root, "board.yaml"), []byte("lists:\n  - dir: test\n    title: \"Custom\"\n    limit: 3\n"), 0644)
 
 	app := NewApp()
 	resp := app.LoadBoard(root)
@@ -337,10 +349,12 @@ func TestLoadBoard_WithConfigFile(t *testing.T) {
 		t.Fatal("LoadBoard returned nil")
 	}
 
-	lc, ok := resp.Config.Lists["00___test"]
-	if !ok {
-		t.Fatal("expected config entry for 00___test")
+	idx := daedalus.FindListEntry(resp.Config.Lists, "test")
+	if idx < 0 {
+		t.Fatal("expected config entry for test")
 	}
+
+	lc := resp.Config.Lists[idx]
 	if lc.Title != "Custom" || lc.Limit != 3 {
 		t.Errorf("got title=%q limit=%d, want title=\"Custom\" limit=3", lc.Title, lc.Limit)
 	}
@@ -351,7 +365,7 @@ func TestCreateCard_Success(t *testing.T) {
 	app, root := setupTestBoard(t)
 
 	oldMaxID := app.board.MaxID
-	card, err := app.CreateCard("00___test", "New Card", "Some body text", "top")
+	card, err := app.CreateCard("test", "New Card", "Some body text", "top")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -364,13 +378,13 @@ func TestCreateCard_Success(t *testing.T) {
 	}
 
 	// File should exist on disk
-	expectedPath := filepath.Join(root, "00___test", fmt.Sprintf("%d.md", card.Metadata.ID))
+	expectedPath := filepath.Join(root, "test", fmt.Sprintf("%d.md", card.Metadata.ID))
 	if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
 		t.Error("expected card file to exist on disk")
 	}
 
 	// Card should be prepended (first in list)
-	cards := app.board.Lists["00___test"]
+	cards := app.board.Lists["test"]
 	if len(cards) < 2 {
 		t.Fatalf("expected at least 2 cards, got %d", len(cards))
 	}
@@ -385,8 +399,8 @@ func TestCreateCard_Success(t *testing.T) {
 	}
 
 	// ListName should be set
-	if card.ListName != "00___test" {
-		t.Errorf("ListName: got %q, want %q", card.ListName, "00___test")
+	if card.ListName != "test" {
+		t.Errorf("ListName: got %q, want %q", card.ListName, "test")
 	}
 
 	// Title should match the provided title
@@ -403,7 +417,7 @@ func TestCreateCard_Success(t *testing.T) {
 // CreateCard should return an error when no board has been loaded.
 func TestCreateCard_BoardNotLoaded(t *testing.T) {
 	app := NewApp()
-	_, err := app.CreateCard("00___test", "", "", "top")
+	_, err := app.CreateCard("test", "", "", "top")
 	if err == nil {
 		t.Fatal("expected error when board not loaded")
 	}
@@ -416,7 +430,7 @@ func TestCreateCard_BoardNotLoaded(t *testing.T) {
 func TestCreateCard_InvalidList(t *testing.T) {
 	app, _ := setupTestBoard(t)
 
-	_, err := app.CreateCard("99___nonexistent", "", "", "top")
+	_, err := app.CreateCard("nonexistent", "", "", "top")
 	if err == nil {
 		t.Fatal("expected error for invalid list")
 	}
@@ -429,7 +443,7 @@ func TestCreateCard_InvalidList(t *testing.T) {
 func TestCreateCard_EmptyTitle(t *testing.T) {
 	app, _ := setupTestBoard(t)
 
-	card, err := app.CreateCard("00___test", "", "some body", "top")
+	card, err := app.CreateCard("test", "", "some body", "top")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -445,7 +459,7 @@ func TestCreateCard_LongBodyPreview(t *testing.T) {
 	app, _ := setupTestBoard(t)
 
 	longBody := strings.Repeat("x", 300)
-	card, err := app.CreateCard("00___test", "Title", longBody, "top")
+	card, err := app.CreateCard("test", "Title", longBody, "top")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -459,19 +473,19 @@ func TestCreateCard_LongBodyPreview(t *testing.T) {
 func TestCreateCard_Bottom(t *testing.T) {
 	app, root := setupTestBoard(t)
 
-	card, err := app.CreateCard("00___test", "Bottom Card", "bottom body", "bottom")
+	card, err := app.CreateCard("test", "Bottom Card", "bottom body", "bottom")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	// File should exist on disk
-	expectedPath := filepath.Join(root, "00___test", fmt.Sprintf("%d.md", card.Metadata.ID))
+	expectedPath := filepath.Join(root, "test", fmt.Sprintf("%d.md", card.Metadata.ID))
 	if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
 		t.Error("expected card file to exist on disk")
 	}
 
 	// Card should be last in the list
-	cards := app.board.Lists["00___test"]
+	cards := app.board.Lists["test"]
 	if len(cards) < 2 {
 		t.Fatalf("expected at least 2 cards, got %d", len(cards))
 	}
@@ -492,7 +506,7 @@ func TestCreateCard_Bottom(t *testing.T) {
 func TestDeleteCard_Success(t *testing.T) {
 	app, root := setupTestBoard(t)
 
-	cardPath := filepath.Join(root, "00___test", "1.md")
+	cardPath := filepath.Join(root, "test", "1.md")
 	oldMaxID := app.board.MaxID
 
 	err := app.DeleteCard(cardPath)
@@ -549,7 +563,7 @@ func TestDeleteCard_BoardNotLoaded(t *testing.T) {
 // DeleteCard should return an error when the file does not exist.
 func TestDeleteCard_NonexistentFile(t *testing.T) {
 	app, root := setupTestBoard(t)
-	badPath := filepath.Join(root, "00___test", "999.md")
+	badPath := filepath.Join(root, "test", "999.md")
 
 	err := app.DeleteCard(badPath)
 	if err == nil {
@@ -564,7 +578,7 @@ func TestDeleteCard_NonexistentFile(t *testing.T) {
 func TestDeleteCard_UpdatesTotalFileBytes(t *testing.T) {
 	app, root := setupTestBoard(t)
 
-	cardPath := filepath.Join(root, "00___test", "1.md")
+	cardPath := filepath.Join(root, "test", "1.md")
 	info, err := os.Stat(cardPath)
 	if err != nil {
 		t.Fatalf("could not stat card file: %v", err)
@@ -586,13 +600,14 @@ func TestDeleteCard_UpdatesTotalFileBytes(t *testing.T) {
 // SaveCard should write updated title and body to disk and return the updated card.
 func TestSaveCard_Success(t *testing.T) {
 	app, root := setupTestBoard(t)
-	cardPath := filepath.Join(root, "00___test", "1.md")
+	cardPath := filepath.Join(root, "test", "1.md")
 
 	meta := daedalus.CardMetadata{
 		ID:        1,
 		Title:     "Updated Title",
 		ListOrder: 1,
 	}
+
 	result, err := app.SaveCard(cardPath, meta, "# Updated Title\n\nNew body.\n")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -633,6 +648,7 @@ func TestSaveCard_PathTraversal(t *testing.T) {
 func TestSaveCard_BoardNotLoaded(t *testing.T) {
 	app := NewApp()
 	meta := daedalus.CardMetadata{ID: 1, Title: "Test"}
+
 	_, err := app.SaveCard("/some/path.md", meta, "body")
 	if err == nil {
 		t.Fatal("expected error when board not loaded")
@@ -645,7 +661,7 @@ func TestSaveCard_BoardNotLoaded(t *testing.T) {
 // After SaveCard, the in-memory board state should reflect the updated card data.
 func TestSaveCard_UpdatesInMemory(t *testing.T) {
 	app, root := setupTestBoard(t)
-	cardPath := filepath.Join(root, "00___test", "1.md")
+	cardPath := filepath.Join(root, "test", "1.md")
 
 	meta := daedalus.CardMetadata{
 		ID:        1,
@@ -658,7 +674,7 @@ func TestSaveCard_UpdatesInMemory(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	cards := app.board.Lists["00___test"]
+	cards := app.board.Lists["test"]
 	found := false
 	for _, card := range cards {
 		if card.FilePath == cardPath {
@@ -680,7 +696,7 @@ func TestSaveCard_UpdatesInMemory(t *testing.T) {
 func TestCreateCard_NumericMiddle(t *testing.T) {
 	app, _ := setupTestBoardMulti(t)
 
-	card, err := app.CreateCard("00___open", "Middle Card", "body", "1")
+	card, err := app.CreateCard("open", "Middle Card", "body", "1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -690,7 +706,7 @@ func TestCreateCard_NumericMiddle(t *testing.T) {
 		t.Errorf("ListOrder: got %f, want 1.5", card.Metadata.ListOrder)
 	}
 
-	cards := app.board.Lists["00___open"]
+	cards := app.board.Lists["open"]
 	if len(cards) != 4 {
 		t.Fatalf("expected 4 cards, got %d", len(cards))
 	}
@@ -703,12 +719,12 @@ func TestCreateCard_NumericMiddle(t *testing.T) {
 func TestCreateCard_NumericZero(t *testing.T) {
 	app, _ := setupTestBoardMulti(t)
 
-	card, err := app.CreateCard("00___open", "Zero Card", "body", "0")
+	card, err := app.CreateCard("open", "Zero Card", "body", "0")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	cards := app.board.Lists["00___open"]
+	cards := app.board.Lists["open"]
 	if cards[0].Metadata.ID != card.Metadata.ID {
 		t.Errorf("new card should be first, got ID %d", cards[0].Metadata.ID)
 	}
@@ -722,16 +738,17 @@ func TestCreateCard_NumericZero(t *testing.T) {
 func TestCreateCard_NumericBeyondEnd(t *testing.T) {
 	app, _ := setupTestBoardMulti(t)
 
-	card, err := app.CreateCard("00___open", "Beyond Card", "body", "99")
+	card, err := app.CreateCard("open", "Beyond Card", "body", "99")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	cards := app.board.Lists["00___open"]
+	cards := app.board.Lists["open"]
 	last := cards[len(cards)-1]
 	if last.Metadata.ID != card.Metadata.ID {
 		t.Errorf("new card should be last, got ID %d", last.Metadata.ID)
 	}
+
 	prev := cards[len(cards)-2]
 	if card.Metadata.ListOrder <= prev.Metadata.ListOrder {
 		t.Errorf("list_order (%f) should be greater than previous last (%f)",
@@ -743,7 +760,7 @@ func TestCreateCard_NumericBeyondEnd(t *testing.T) {
 func TestCreateCard_NumericEmptyList(t *testing.T) {
 	app, _ := setupTestBoardMulti(t)
 
-	card, err := app.CreateCard("10___done", "Empty List Card", "body", "5")
+	card, err := app.CreateCard("done", "Empty List Card", "body", "5")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -752,7 +769,7 @@ func TestCreateCard_NumericEmptyList(t *testing.T) {
 		t.Errorf("ListOrder: got %f, want 0", card.Metadata.ListOrder)
 	}
 
-	cards := app.board.Lists["10___done"]
+	cards := app.board.Lists["done"]
 	if len(cards) != 1 {
 		t.Fatalf("expected 1 card, got %d", len(cards))
 	}
@@ -763,8 +780,8 @@ func TestMoveCard_SameList(t *testing.T) {
 	app, _ := setupTestBoardMulti(t)
 
 	// Move card 3 (list_order=3) to between card A and card B (list_order=1.5)
-	cardPath := app.board.Lists["00___open"][2].FilePath
-	result, err := app.MoveCard(cardPath, "00___open", 1.5)
+	cardPath := app.board.Lists["open"][2].FilePath
+	result, err := app.MoveCard(cardPath, "open", 1.5)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -774,7 +791,7 @@ func TestMoveCard_SameList(t *testing.T) {
 	}
 
 	// Verify in-memory order: A(1), C(1.5), B(2)
-	cards := app.board.Lists["00___open"]
+	cards := app.board.Lists["open"]
 	if len(cards) != 3 {
 		t.Fatalf("expected 3 cards, got %d", len(cards))
 	}
@@ -787,14 +804,14 @@ func TestMoveCard_SameList(t *testing.T) {
 func TestMoveCard_CrossList(t *testing.T) {
 	app, root := setupTestBoardMulti(t)
 
-	cardPath := app.board.Lists["00___open"][0].FilePath
-	result, err := app.MoveCard(cardPath, "10___done", 0)
+	cardPath := app.board.Lists["open"][0].FilePath
+	result, err := app.MoveCard(cardPath, "done", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	// File should exist in new directory
-	newPath := filepath.Join(root, "10___done", "1.md")
+	newPath := filepath.Join(root, "done", "1.md")
 	if _, err := os.Stat(newPath); os.IsNotExist(err) {
 		t.Error("expected file to exist in target directory")
 	}
@@ -805,11 +822,11 @@ func TestMoveCard_CrossList(t *testing.T) {
 	}
 
 	// Source list should have 2 cards, target should have 1
-	if len(app.board.Lists["00___open"]) != 2 {
-		t.Errorf("source list: got %d cards, want 2", len(app.board.Lists["00___open"]))
+	if len(app.board.Lists["open"]) != 2 {
+		t.Errorf("source list: got %d cards, want 2", len(app.board.Lists["open"]))
 	}
-	if len(app.board.Lists["10___done"]) != 1 {
-		t.Errorf("target list: got %d cards, want 1", len(app.board.Lists["10___done"]))
+	if len(app.board.Lists["done"]) != 1 {
+		t.Errorf("target list: got %d cards, want 1", len(app.board.Lists["done"]))
 	}
 
 	if result.FilePath != newPath {
@@ -822,7 +839,7 @@ func TestMoveCard_PathTraversal(t *testing.T) {
 	app, root := setupTestBoardMulti(t)
 	outsidePath := filepath.Join(root, "..", "evil.md")
 
-	_, err := app.MoveCard(outsidePath, "00___open", 0)
+	_, err := app.MoveCard(outsidePath, "open", 0)
 	if err == nil {
 		t.Fatal("expected error for path traversal")
 	}
@@ -834,7 +851,7 @@ func TestMoveCard_PathTraversal(t *testing.T) {
 // MoveCard should return an error when no board has been loaded.
 func TestMoveCard_BoardNotLoaded(t *testing.T) {
 	app := NewApp()
-	_, err := app.MoveCard("/some/path.md", "00___open", 0)
+	_, err := app.MoveCard("/some/path.md", "open", 0)
 	if err == nil {
 		t.Fatal("expected error when board not loaded")
 	}
@@ -846,9 +863,9 @@ func TestMoveCard_BoardNotLoaded(t *testing.T) {
 // MoveCard should return an error for a nonexistent target list.
 func TestMoveCard_InvalidTargetList(t *testing.T) {
 	app, _ := setupTestBoardMulti(t)
-	cardPath := app.board.Lists["00___open"][0].FilePath
+	cardPath := app.board.Lists["open"][0].FilePath
 
-	_, err := app.MoveCard(cardPath, "99___nonexistent", 0)
+	_, err := app.MoveCard(cardPath, "nonexistent", 0)
 	if err == nil {
 		t.Fatal("expected error for invalid target list")
 	}
@@ -857,20 +874,20 @@ func TestMoveCard_InvalidTargetList(t *testing.T) {
 	}
 }
 
-// SaveListOrder should persist the order to board.yaml and update in-memory config.
+// SaveListOrder should reorder the Lists array and persist to board.yaml.
 func TestSaveListOrder_Success(t *testing.T) {
 	app, root := setupTestBoardMulti(t)
 
-	order := []string{"10___done", "00___open"}
+	order := []string{"done", "open"}
 	if err := app.SaveListOrder(order); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(app.board.Config.ListOrder) != 2 {
-		t.Fatalf("expected 2 entries, got %d", len(app.board.Config.ListOrder))
+	if len(app.board.Config.Lists) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(app.board.Config.Lists))
 	}
-	if app.board.Config.ListOrder[0] != "10___done" || app.board.Config.ListOrder[1] != "00___open" {
-		t.Errorf("unexpected in-memory order: %v", app.board.Config.ListOrder)
+	if app.board.Config.Lists[0].Dir != "done" || app.board.Config.Lists[1].Dir != "open" {
+		t.Errorf("unexpected in-memory order: %v", app.board.Config.Lists)
 	}
 
 	// Verify persisted to disk
@@ -878,11 +895,11 @@ func TestSaveListOrder_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error loading config: %v", err)
 	}
-	if len(config.ListOrder) != 2 {
-		t.Fatalf("expected 2 persisted entries, got %d", len(config.ListOrder))
+	if len(config.Lists) != 2 {
+		t.Fatalf("expected 2 persisted entries, got %d", len(config.Lists))
 	}
-	if config.ListOrder[0] != "10___done" {
-		t.Errorf("unexpected persisted order: %v", config.ListOrder)
+	if config.Lists[0].Dir != "done" {
+		t.Errorf("unexpected persisted order: %v", config.Lists)
 	}
 }
 
@@ -903,25 +920,25 @@ func TestDeleteList_Success(t *testing.T) {
 	app, root := setupTestBoardMulti(t)
 
 	// Verify list exists before delete
-	if _, ok := app.board.Lists["00___open"]; !ok {
-		t.Fatal("expected 00___open to exist before delete")
+	if _, ok := app.board.Lists["open"]; !ok {
+		t.Fatal("expected open to exist before delete")
 	}
 	bytesBefore := app.board.TotalFileBytes
 
-	err := app.DeleteList("00___open")
+	err := app.DeleteList("open")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	// Directory should be gone from disk
-	dirPath := filepath.Join(root, "00___open")
+	dirPath := filepath.Join(root, "open")
 	if _, err := os.Stat(dirPath); !os.IsNotExist(err) {
 		t.Error("expected directory to be removed from disk")
 	}
 
 	// List should be gone from in-memory state
-	if _, ok := app.board.Lists["00___open"]; ok {
-		t.Error("expected 00___open to be removed from board.Lists")
+	if _, ok := app.board.Lists["open"]; ok {
+		t.Error("expected open to be removed from board.Lists")
 	}
 
 	// TotalFileBytes should have decreased
@@ -934,7 +951,7 @@ func TestDeleteList_Success(t *testing.T) {
 func TestDeleteList_NotFound(t *testing.T) {
 	app, _ := setupTestBoardMulti(t)
 
-	err := app.DeleteList("99___nonexistent")
+	err := app.DeleteList("nonexistent")
 	if err == nil {
 		t.Fatal("expected error for nonexistent list")
 	}
@@ -946,7 +963,7 @@ func TestDeleteList_NotFound(t *testing.T) {
 // DeleteList should return an error when no board has been loaded.
 func TestDeleteList_BoardNotLoaded(t *testing.T) {
 	app := NewApp()
-	err := app.DeleteList("00___open")
+	err := app.DeleteList("open")
 	if err == nil {
 		t.Fatal("expected error when board not loaded")
 	}
@@ -970,23 +987,20 @@ func TestDeleteList_PathTraversal(t *testing.T) {
 	}
 }
 
-// DeleteList should remove the list from ListOrder in config.
-func TestDeleteList_CleansListOrder(t *testing.T) {
+// DeleteList should remove the list entry from the config Lists array.
+func TestDeleteList_CleansConfigLists(t *testing.T) {
 	app, _ := setupTestBoardMulti(t)
 
-	// Set up a custom list order that includes the list we'll delete
-	app.board.Config.ListOrder = []string{"00___open", "10___done"}
-
-	err := app.DeleteList("00___open")
+	err := app.DeleteList("open")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(app.board.Config.ListOrder) != 1 {
-		t.Fatalf("expected 1 entry in ListOrder, got %d", len(app.board.Config.ListOrder))
+	if len(app.board.Config.Lists) != 1 {
+		t.Fatalf("expected 1 entry in Lists, got %d", len(app.board.Config.Lists))
 	}
-	if app.board.Config.ListOrder[0] != "10___done" {
-		t.Errorf("unexpected ListOrder: %v", app.board.Config.ListOrder)
+	if app.board.Config.Lists[0].Dir != "done" {
+		t.Errorf("unexpected Lists: %v", app.board.Config.Lists)
 	}
 }
 
@@ -994,9 +1008,9 @@ func TestDeleteList_CleansListOrder(t *testing.T) {
 func TestMoveCard_CardNotFound(t *testing.T) {
 	app, root := setupTestBoardMulti(t)
 	// Valid path within board root but not a card in any list
-	fakePath := filepath.Join(root, "00___open", "999.md")
+	fakePath := filepath.Join(root, "open", "999.md")
 
-	_, err := app.MoveCard(fakePath, "00___open", 0)
+	_, err := app.MoveCard(fakePath, "open", 0)
 	if err == nil {
 		t.Fatal("expected error for card not found")
 	}

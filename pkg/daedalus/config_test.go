@@ -101,6 +101,32 @@ func TestUpdateListConfig_SetsValues(t *testing.T) {
 	}
 }
 
+// ListOrder should survive a save/load round trip.
+func TestBoardConfig_ListOrderRoundTrip(t *testing.T) {
+	root := t.TempDir()
+
+	original := &BoardConfig{
+		Lists:     map[string]ListConfig{"00___open": {Title: "Open", Limit: 10}},
+		ListOrder: []string{"10___done", "00___open", "05___wip"},
+	}
+
+	if err := SaveBoardConfig(root, original); err != nil {
+		t.Fatalf("save error: %v", err)
+	}
+
+	loaded, err := LoadBoardConfig(root)
+	if err != nil {
+		t.Fatalf("load error: %v", err)
+	}
+
+	if len(loaded.ListOrder) != 3 {
+		t.Fatalf("expected 3 list_order entries, got %d", len(loaded.ListOrder))
+	}
+	if loaded.ListOrder[0] != "10___done" || loaded.ListOrder[1] != "00___open" || loaded.ListOrder[2] != "05___wip" {
+		t.Errorf("unexpected list_order: %v", loaded.ListOrder)
+	}
+}
+
 // UpdateListConfig should remove the entry when both title and limit are zero-value.
 func TestUpdateListConfig_CleansEmptyEntry(t *testing.T) {
 	config := &BoardConfig{

@@ -5,12 +5,13 @@
   import {
     LoadBoard, SaveLabelsExpanded, SaveShowYearProgress,
     SaveCollapsedLists, SaveHalfCollapsedLists, SaveDarkMode, DeleteCard,
+    SaveListOrder, DeleteList,
   } from "../wailsjs/go/main/App";
   import {
     boardData, boardConfig, boardPath, sortedListKeys, isLoaded,
     selectedCard, draftListKey, draftPosition, showMetrics,
-    labelsExpanded, dragState, dropTarget, focusedCard, openInEditMode,
-    removeCardFromBoard, addToast, isAtLimit,
+    labelsExpanded, labelColors, dragState, dropTarget, focusedCard, openInEditMode,
+    removeCardFromBoard, addToast, isAtLimit, listOrder,
     searchQuery, filteredBoardData,
   } from "./stores/board";
   import type { daedalus } from "../wailsjs/go/models";
@@ -29,18 +30,26 @@
   import Toast from "./components/Toast.svelte";
   import KeyboardHelp from "./components/KeyboardHelp.svelte";
   import About from "./components/About.svelte";
+  import LabelColorEditor from "./components/LabelColorEditor.svelte";
 
   let error = $state("");
   let collapsedLists = $state(new SvelteSet<string>());
   let halfCollapsedLists = $state(new SvelteSet<string>());
   let showKeyboardHelp = $state(false);
   let showAbout = $state(false);
+  let showLabelEditor = $state(false);
   let showYearProgress = $state(false);
   let darkMode = $state(true);
   let confirmingFocusDelete = $state(false);
   let boardContainerEl: HTMLDivElement | undefined = $state(undefined);
   let searchInputEl: HTMLInputElement | undefined = $state(undefined);
   let searchOpen = $state(false);
+  let listDragging = $state<string | null>(null);
+  let listDropTarget = $state<string | null>(null);
+  let listDropSide = $state<'left' | 'right' | null>(null);
+  let dropLineX = $state(0);
+  let dropLineTop = $state(0);
+  let dropLineHeight = $state(0);
 
   // Computes year progress percentage, day of year, and remaining time from a timestamp.
   function computeYearInfo(now: Date): { pct: string; remaining: string; dayOfYear: number } {
@@ -161,6 +170,97 @@
     SaveHalfCollapsedLists([...halfCollapsedLists]).catch(e => addToast(`Failed to save half-collapsed state: ${e}`));
   }
 
+  // Document-level dragover handler active only during list drags.
+  // Updates ghost position and allows drops everywhere (WebKitGTK needs this).
+  function listDragOverHandler(e: DragEvent): void {
+    e.preventDefault();
+    dragPos.set({ x: e.clientX, y: e.clientY });
+  }
+
+  // Begins a list column drag operation and attaches a document-level dragover listener.
+  function startListDrag(listKey: string): void {
+    listDragging = listKey;
+    document.addEventListener('dragover', listDragOverHandler as EventListener);
+  }
+
+  // Ends a list column drag operation and removes the document-level listener.
+  function endListDrag(): void {
+    listDragging = null;
+    listDropTarget = null;
+    listDropSide = null;
+    document.removeEventListener('dragover', listDragOverHandler as EventListener);
+  }
+
+  // Computes drop side and vertical line position from the hovered column.
+  function handleListDragOver(e: DragEvent, targetKey: string): void {
+    const col = (e.target as HTMLElement).closest('.list-column') as HTMLElement | null;
+    if (!col) {
+      return;
+    }
+    const rect = col.getBoundingClientRect();
+    const midX = rect.left + rect.width / 2;
+    const side = e.clientX < midX ? 'left' : 'right';
+
+    listDropTarget = targetKey;
+    listDropSide = side;
+    dropLineX = side === 'left' ? rect.left - 6 : rect.right + 6;
+    dropLineTop = rect.top;
+    dropLineHeight = rect.height;
+  }
+
+  // Handles dropping a list column onto another, reordering and persisting.
+  function handleListDrop(e: DragEvent, targetKey: string): void {
+    e.preventDefault();
+
+    if (!listDragging || listDragging === targetKey) {
+      endListDrag();
+      return;
+    }
+
+    const current = sortedListKeys($boardData, $listOrder);
+    const srcIdx = current.indexOf(listDragging);
+    if (srcIdx === -1) {
+      endListDrag();
+      return;
+    }
+
+    const reordered = [...current];
+    reordered.splice(srcIdx, 1);
+
+    // Find target position after source removal, then adjust for drop side.
+    let insertIdx = reordered.indexOf(targetKey);
+    if (insertIdx === -1) {
+      endListDrag();
+      return;
+    }
+
+    if (listDropSide === 'right') {
+      insertIdx += 1;
+    }
+    reordered.splice(insertIdx, 0, listDragging);
+
+    listOrder.set(reordered);
+    SaveListOrder(reordered).catch(err => addToast(`Failed to save list order: ${err}`));
+    endListDrag();
+  }
+
+  // Deletes a list after confirmation, clearing any related selection state.
+  async function deleteList(listKey: string): Promise<void> {
+    if ($selectedCard?.filePath.includes('/' + listKey + '/')) {
+      selectedCard.set(null);
+    }
+    if ($focusedCard?.listKey === listKey) {
+      focusedCard.set(null);
+    }
+
+    try {
+      await DeleteList(listKey);
+      await initBoard();
+    } catch (err) {
+      addToast(`Failed to delete list: ${err}`);
+    }
+  }
+
   // Loads the board from the backend and unpacks lists + config into separate stores.
   async function initBoard(): Promise<void> {
     error = "";
@@ -173,6 +273,8 @@
       if (response.boardPath) {
         WindowSetTitle(`Daedalus - ${response.boardPath}`);
       }
+      labelColors.set(response.config?.labelColors || {});
+
       if (response.config?.labelsExpanded !== undefined && response.config.labelsExpanded !== null) {
         labelsExpanded.set(response.config.labelsExpanded);
       }
@@ -186,9 +288,11 @@
       if (response.config?.collapsedLists) {
         collapsedLists = new SvelteSet(response.config.collapsedLists);
       }
+
       if (response.config?.halfCollapsedLists) {
         halfCollapsedLists = new SvelteSet(response.config.halfCollapsedLists);
       }
+      listOrder.set(response.config?.listOrder || []);
       isLoaded.set(true);
 
     } catch (e) {
@@ -222,7 +326,7 @@
       return;
     }
     const columns = boardContainerEl.querySelectorAll('.list-column');
-    const keys = sortedListKeys($boardData);
+    const keys = sortedListKeys($boardData, $listOrder);
 
     const idx = keys.indexOf(listKey);
     if (idx >= 0 && columns[idx]) {
@@ -274,6 +378,13 @@
       }
       return;
     }
+    if (showLabelEditor) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        showLabelEditor = false;
+      }
+      return;
+    }
     if (showKeyboardHelp) {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -306,7 +417,7 @@
       return;
     }
 
-    const keys = sortedListKeys($boardData);
+    const keys = sortedListKeys($boardData, $listOrder);
     if (keys.length === 0) {
       return;
     }
@@ -486,6 +597,7 @@
 
   onDestroy(() => {
     stopAutoScroll();
+    document.removeEventListener('dragover', listDragOverHandler as EventListener);
   });
 
 </script>
@@ -540,6 +652,14 @@
           </svg>
         </button>
       {/if}
+      <button class="top-btn" onclick={() => showLabelEditor = true} title="Label manager">
+        <svg viewBox="0 0 24 24" width="14" height="14">
+          <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          />
+          <line x1="7" y1="7" x2="7.01" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
       <button class="top-btn" onclick={initBoard} title="Reload board">
         <svg viewBox="0 0 24 24" width="14" height="14">
           <path d="M23 4v6h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -611,11 +731,14 @@
     <div class="error">{error}</div>
   {:else if $isLoaded}
     <div class="board-container" class:modal-open={$selectedCard || $draftListKey} bind:this={boardContainerEl}>
-      {#each sortedListKeys($boardData) as listKey}
+      {#each sortedListKeys($boardData, $listOrder) as listKey}
         {#if collapsedLists.has(listKey)}
           <div class="list-column collapsed" role="button" tabindex="0"
+            class:list-dragging={listDragging === listKey}
             onclick={() => cycleCollapseState(listKey)}
             onkeydown={e => e.key === 'Enter' && cycleCollapseState(listKey)}
+            ondragover={(e) => { if (listDragging) { handleListDragOver(e, listKey); } }}
+            ondrop={(e) => { if (listDragging) { handleListDrop(e, listKey); } }}
           >
             <span class="collapsed-count">
               {getCountDisplay(listKey, $boardData, $boardConfig)}
@@ -628,11 +751,18 @@
           {@const allItems = $filteredBoardData[listKey] || []}
           {@const visibleItems = allItems.slice(0, 5)}
           {@const remaining = allItems.length - 5}
-          <div class="list-column half-collapsed">
+          <div class="list-column half-collapsed"
+            class:list-dragging={listDragging === listKey}
+            ondragover={(e) => { if (listDragging) { handleListDragOver(e, listKey); } }}
+            ondrop={(e) => { if (listDragging) { handleListDrop(e, listKey); } }}
+          >
             <ListHeader {listKey}
               oncreatecard={() => createCard(listKey)}
               oncollapse={() => cycleCollapseState(listKey)}
               onreload={initBoard}
+              onlistdragstart={() => startListDrag(listKey)}
+              onlistdragend={endListDrag}
+              ondelete={() => deleteList(listKey)}
             />
             <div class="list-body half-collapsed-body" role="list">
               <VirtualList items={visibleItems} component={Card} estimatedHeight={90} listKey={listKey}
@@ -650,11 +780,17 @@
             class:list-full={$dragState
               && $dragState.sourceListKey !== listKey
               && isAtLimit(listKey, $boardData, $boardConfig)}
+            class:list-dragging={listDragging === listKey}
+            ondragover={(e) => { if (listDragging) { handleListDragOver(e, listKey); } }}
+            ondrop={(e) => { if (listDragging) { handleListDrop(e, listKey); } }}
           >
             <ListHeader {listKey}
               oncreatecard={() => createCard(listKey)}
               oncollapse={() => cycleCollapseState(listKey)}
               onreload={initBoard}
+              onlistdragstart={() => startListDrag(listKey)}
+              onlistdragend={endListDrag}
+              ondelete={() => deleteList(listKey)}
             />
             <div class="list-body" role="list"
               ondragenter={handleDragEnter}
@@ -689,12 +825,20 @@
       {#if $dragState.card.metadata.labels?.length > 0}
         <div class="ghost-labels">
           {#each $dragState.card.metadata.labels as label}
-            <span class="ghost-label" style="background: {labelColor(label)}"></span>
+            <span class="ghost-label" style="background: {labelColor(label, $labelColors)}"></span>
           {/each}
         </div>
       {/if}
       <div class="ghost-title">{$dragState.card.metadata.title}</div>
     </div>
+  {/if}
+  {#if listDragging}
+    <div class="drag-ghost list-drag-ghost" style="left: {$dragPos.x + 10}px; top: {$dragPos.y - 20}px">
+      {getDisplayTitle(listDragging, $boardConfig)}
+    </div>
+    {#if listDropTarget}
+      <div class="list-drop-line" style="left: {dropLineX}px; top: {dropLineTop}px; height: {dropLineHeight}px"></div>
+    {/if}
   {/if}
   {#if confirmingFocusDelete}
     <div class="focus-delete-confirm">Press Delete again to confirm, Escape to cancel</div>
@@ -708,6 +852,9 @@
   {/if}
   {#if showAbout}
     <About onclose={() => showAbout = false} />
+  {/if}
+  {#if showLabelEditor}
+    <LabelColorEditor onclose={() => showLabelEditor = false} onreload={initBoard} />
   {/if}
 </main>
 
@@ -922,6 +1069,10 @@
       opacity: 0.5;
       pointer-events: auto;
     }
+
+    &.list-dragging {
+      opacity: 0.4;
+    }
   }
 
   .collapsed-title {
@@ -1092,6 +1243,20 @@
       -webkit-line-clamp: 3;
       -webkit-box-orient: vertical;
     }
+  }
+
+  .list-drag-ghost {
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+
+  .list-drop-line {
+    position: fixed;
+    width: 3px;
+    background: var(--color-accent);
+    border-radius: 2px;
+    z-index: 10000;
+    pointer-events: none;
   }
 
 </style>

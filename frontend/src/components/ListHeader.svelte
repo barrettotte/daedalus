@@ -14,17 +14,32 @@
     oncreatecard,
     oncollapse,
     onreload,
+    onlistdragstart,
+    onlistdragend,
+    ondelete,
   }: {
     listKey: string;
     oncreatecard: () => void;
     oncollapse: () => void;
     onreload: () => void;
+    onlistdragstart: () => void;
+    onlistdragend: () => void;
+    ondelete: () => void;
   } = $props();
 
   let editingTitle = $state(false);
   let editingLimit = $state(false);
   let editTitleValue = $state("");
   let editLimitValue = $state(0);
+  let confirmingDelete = $state(false);
+
+  // Auto-cancel delete confirmation after 3 seconds.
+  $effect(() => {
+    if (confirmingDelete) {
+      const timer = setTimeout(() => { confirmingDelete = false; }, 3000);
+      return () => clearTimeout(timer);
+    }
+  });
 
   // Starts inline editing of the list title.
   function startEditTitle(): void {
@@ -116,6 +131,34 @@
   ondragover={(e) => handleHeaderDragOver(e, listKey)}
   ondrop={(e) => handleDrop(e, listKey, onreload)}
 >
+  <div class="list-drag-handle" draggable="true"
+    ondragstart={(e) => {
+      // WebKitGTK requires setData for the drop event to fire
+      e.dataTransfer!.setData('text/plain', listKey);
+      e.dataTransfer!.effectAllowed = 'move';
+
+      const ghost = document.createElement('div');
+      ghost.style.cssText = 'width:1px;height:1px;opacity:0';
+      document.body.appendChild(ghost);
+
+      e.dataTransfer!.setDragImage(ghost, 0, 0);
+      requestAnimationFrame(() => document.body.removeChild(ghost));
+      onlistdragstart();
+    }}
+    ondragend={onlistdragend}
+    title="Drag to reorder"
+  >
+    <svg viewBox="0 0 24 24" width="10" height="10">
+      <circle cx="8" cy="4" r="1.5" fill="currentColor"/>
+      <circle cx="16" cy="4" r="1.5" fill="currentColor"/>
+      <circle cx="8" cy="10" r="1.5" fill="currentColor"/>
+      <circle cx="16" cy="10" r="1.5" fill="currentColor"/>
+      <circle cx="8" cy="16" r="1.5" fill="currentColor"/>
+      <circle cx="16" cy="16" r="1.5" fill="currentColor"/>
+      <circle cx="8" cy="22" r="1.5" fill="currentColor"/>
+      <circle cx="16" cy="22" r="1.5" fill="currentColor"/>
+    </svg>
+  </div>
   {#if editingTitle}
     <input class="edit-title-input" type="text" bind:value={editTitleValue} onblur={saveTitle}
       onkeydown={handleTitleKeydown} use:autoFocus
@@ -144,6 +187,20 @@
         <polyline points="6 9 12 15 18 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </button>
+    {#if confirmingDelete}
+      <button class="collapse-btn confirm-delete-btn" onclick={ondelete} title="Confirm delete">
+        <span>delete?</span>
+      </button>
+    {:else}
+      <button class="collapse-btn" onclick={() => confirmingDelete = true} title="Delete list">
+        <svg viewBox="0 0 24 24" width="12" height="12">
+          <polyline points="3 6 5 6 21 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          />
+        </svg>
+      </button>
+    {/if}
     {#if editingLimit}
       <input class="edit-limit-input" type="number" min="0" bind:value={editLimitValue}
         onblur={saveLimit} onkeydown={handleLimitKeydown} use:autoFocus
@@ -167,6 +224,38 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 4px;
+  }
+
+  .list-drag-handle {
+    cursor: grab;
+    color: var(--color-text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 2px;
+    border-radius: 3px;
+    opacity: 0.5;
+
+    &:hover {
+      opacity: 1;
+      color: var(--color-text-secondary);
+      background: var(--overlay-hover);
+    }
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+
+  .confirm-delete-btn {
+    color: var(--color-error) !important;
+
+    span {
+      font-size: 0.65rem;
+      font-weight: 600;
+    }
   }
 
   .header-right {

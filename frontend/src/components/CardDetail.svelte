@@ -1,7 +1,7 @@
 <script lang="ts">
   import {
     selectedCard, draftListKey, updateCardInBoard,
-    removeCardFromBoard, boardData, sortedListKeys,
+    removeCardFromBoard, boardData, sortedListKeys, listOrder,
     focusedCard, openInEditMode, addToast,
   } from "../stores/board";
   import {
@@ -188,7 +188,7 @@
       return;
     }
 
-    const keys = sortedListKeys($boardData);
+    const keys = sortedListKeys($boardData, $listOrder);
     const listIdx = keys.indexOf(focus.listKey);
     let targetIdx = listIdx + delta;
 

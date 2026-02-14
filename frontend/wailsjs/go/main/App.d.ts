@@ -7,6 +7,8 @@ export function CreateCard(arg1:string,arg2:string,arg3:string,arg4:string):Prom
 
 export function DeleteCard(arg1:string):Promise<void>;
 
+export function DeleteList(arg1:string):Promise<void>;
+
 export function GetCardContent(arg1:string):Promise<string>;
 
 export function GetMetrics():Promise<main.AppMetrics>;
@@ -17,6 +19,10 @@ export function MoveCard(arg1:string,arg2:string,arg3:number):Promise<daedalus.K
 
 export function OpenFileExternal(arg1:string):Promise<void>;
 
+export function RemoveLabel(arg1:string):Promise<void>;
+
+export function RenameLabel(arg1:string,arg2:string):Promise<void>;
+
 export function SaveCard(arg1:string,arg2:daedalus.CardMetadata,arg3:string):Promise<daedalus.KanbanCard>;
 
 export function SaveCollapsedLists(arg1:Array<string>):Promise<void>;
@@ -25,8 +31,12 @@ export function SaveDarkMode(arg1:boolean):Promise<void>;
 
 export function SaveHalfCollapsedLists(arg1:Array<string>):Promise<void>;
 
+export function SaveLabelColors(arg1:Record<string, string>):Promise<void>;
+
 export function SaveLabelsExpanded(arg1:boolean):Promise<void>;
 
 export function SaveListConfig(arg1:string,arg2:string,arg3:number):Promise<void>;
+
+export function SaveListOrder(arg1:Array<string>):Promise<void>;
 
 export function SaveShowYearProgress(arg1:boolean):Promise<void>;

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { selectedCard, labelsExpanded, dragState, addToast } from "../stores/board";
+  import { selectedCard, labelsExpanded, labelColors, dragState, addToast } from "../stores/board";
   import { SaveLabelsExpanded } from "../../wailsjs/go/main/App";
   import { labelColor, formatDate } from "../lib/utils";
   import type { daedalus } from "../../wailsjs/go/models";
@@ -60,8 +60,9 @@
   {#if meta.labels && meta.labels.length > 0}
     <div class="labels">
       {#each meta.labels as label}
-        <span class="label" class:collapsed={!$labelsExpanded} style="background: {labelColor(label)}" title={$labelsExpanded ? '' : label} 
-          role="button" tabindex="0" onclick={(e: MouseEvent) => { e.stopPropagation(); toggleLabels(); }} 
+        <span class="label" class:collapsed={!$labelsExpanded} style="background: {labelColor(label, $labelColors)}"
+          title={$labelsExpanded ? '' : label} role="button" tabindex="0"
+          onclick={(e: MouseEvent) => { e.stopPropagation(); toggleLabels(); }}
           onkeydown={(e: KeyboardEvent) => { e.stopPropagation(); e.key === 'Enter' && toggleLabels(); }}
         >{#if $labelsExpanded}{label}{/if}</span>
       {/each}
@@ -191,6 +192,7 @@
     align-items: center;
     gap: 3px;
     font-size: 0.7rem;
+    line-height: 1;
     color: var(--color-text-tertiary);
     border-radius: 3px;
     padding: 1px 4px;

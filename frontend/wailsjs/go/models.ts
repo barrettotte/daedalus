@@ -16,11 +16,13 @@ export namespace daedalus {
 	}
 	export class BoardConfig {
 	    lists: Record<string, ListConfig>;
+	    labelColors?: Record<string, string>;
 	    labelsExpanded?: boolean;
 	    showYearProgress?: boolean;
 	    collapsedLists?: string[];
 	    halfCollapsedLists?: string[];
 	    darkMode?: boolean;
+	    listOrder?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new BoardConfig(source);
@@ -29,11 +31,13 @@ export namespace daedalus {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.lists = this.convertValues(source["lists"], ListConfig, true);
+	        this.labelColors = source["labelColors"];
 	        this.labelsExpanded = source["labelsExpanded"];
 	        this.showYearProgress = source["showYearProgress"];
 	        this.collapsedLists = source["collapsedLists"];
 	        this.halfCollapsedLists = source["halfCollapsedLists"];
 	        this.darkMode = source["darkMode"];
+	        this.listOrder = source["listOrder"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

@@ -1,7 +1,7 @@
 <script lang="ts">
   import {
-    selectedCard, boardConfig, boardData, sortedListKeys,
-    moveCardInBoard, computeListOrder, addToast, isAtLimit,
+    selectedCard, boardConfig, boardData, sortedListKeys, listOrder,
+    moveCardInBoard, computeListOrder, addToast, isAtLimit, labelColors,
   } from "../stores/board";
   import { MoveCard, LoadBoard } from "../../wailsjs/go/main/App";
   import {
@@ -283,7 +283,7 @@
       </button>
       {#if moveDropdownOpen}
         <div class="move-menu">
-          {#each sortedListKeys($boardData) as key}
+          {#each sortedListKeys($boardData, $listOrder) as key}
             {@const full = key !== cardListKey
               && isAtLimit(key, $boardData, $boardConfig)}
             <button class="move-option" class:active={key === cardListKey} class:disabled={full}
@@ -303,7 +303,7 @@
       <h4 class="sidebar-title">Labels</h4>
       <div class="sidebar-labels">
         {#each meta.labels as label}
-          <span class="label" style="background: {labelColor(label)}">
+          <span class="label" style="background: {labelColor(label, $labelColors)}">
             {label}
           </span>
         {/each}

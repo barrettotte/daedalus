@@ -10,6 +10,10 @@ export function DeleteCard(arg1) {
   return window['go']['main']['App']['DeleteCard'](arg1);
 }
 
+export function DeleteList(arg1) {
+  return window['go']['main']['App']['DeleteList'](arg1);
+}
+
 export function GetCardContent(arg1) {
   return window['go']['main']['App']['GetCardContent'](arg1);
 }
@@ -30,6 +34,14 @@ export function OpenFileExternal(arg1) {
   return window['go']['main']['App']['OpenFileExternal'](arg1);
 }
 
+export function RemoveLabel(arg1) {
+  return window['go']['main']['App']['RemoveLabel'](arg1);
+}
+
+export function RenameLabel(arg1, arg2) {
+  return window['go']['main']['App']['RenameLabel'](arg1, arg2);
+}
+
 export function SaveCard(arg1, arg2, arg3) {
   return window['go']['main']['App']['SaveCard'](arg1, arg2, arg3);
 }
@@ -46,12 +58,20 @@ export function SaveHalfCollapsedLists(arg1) {
   return window['go']['main']['App']['SaveHalfCollapsedLists'](arg1);
 }
 
+export function SaveLabelColors(arg1) {
+  return window['go']['main']['App']['SaveLabelColors'](arg1);
+}
+
 export function SaveLabelsExpanded(arg1) {
   return window['go']['main']['App']['SaveLabelsExpanded'](arg1);
 }
 
 export function SaveListConfig(arg1, arg2, arg3) {
   return window['go']['main']['App']['SaveListConfig'](arg1, arg2, arg3);
+}
+
+export function SaveListOrder(arg1) {
+  return window['go']['main']['App']['SaveListOrder'](arg1);
 }
 
 export function SaveShowYearProgress(arg1) {

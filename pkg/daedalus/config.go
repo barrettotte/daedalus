@@ -16,11 +16,13 @@ type ListConfig struct {
 // BoardConfig holds board-level configuration loaded from board.yaml.
 type BoardConfig struct {
 	Lists              map[string]ListConfig `yaml:"lists" json:"lists"`
+	LabelColors        map[string]string     `yaml:"label_colors,omitempty" json:"labelColors,omitempty"`
 	LabelsExpanded     *bool                 `yaml:"labels_expanded,omitempty" json:"labelsExpanded,omitempty"`
 	ShowYearProgress   *bool                 `yaml:"show_year_progress,omitempty" json:"showYearProgress,omitempty"`
 	CollapsedLists     []string              `yaml:"collapsed_lists,omitempty" json:"collapsedLists,omitempty"`
 	HalfCollapsedLists []string              `yaml:"half_collapsed_lists,omitempty" json:"halfCollapsedLists,omitempty"`
 	DarkMode           *bool                 `yaml:"dark_mode,omitempty" json:"darkMode,omitempty"`
+	ListOrder          []string              `yaml:"list_order,omitempty" json:"listOrder,omitempty"`
 }
 
 // LoadBoardConfig reads board.yaml from rootPath. Returns empty config if file is missing.

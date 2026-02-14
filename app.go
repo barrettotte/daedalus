@@ -110,6 +110,118 @@ func (a *App) SaveShowYearProgress(show bool) error {
 	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
 }
 
+// SaveLabelColors persists custom label color overrides to board.yaml.
+func (a *App) SaveLabelColors(colors map[string]string) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+	a.board.Config.LabelColors = colors
+	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
+}
+
+// RemoveLabel strips a label from every card that has it, writing each affected card to disk,
+// and removes any custom color for that label from board.yaml.
+func (a *App) RemoveLabel(label string) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+
+	for listKey, cards := range a.board.Lists {
+		for i, card := range cards {
+			idx := -1
+			for j, l := range card.Metadata.Labels {
+				if l == label {
+					idx = j
+					break
+				}
+			}
+			if idx == -1 {
+				continue
+			}
+
+			// Remove label from slice
+			card.Metadata.Labels = append(card.Metadata.Labels[:idx], card.Metadata.Labels[idx+1:]...)
+			now := time.Now()
+			card.Metadata.Updated = &now
+
+			body, err := daedalus.ReadCardContent(card.FilePath)
+			if err != nil {
+				return fmt.Errorf("reading card %s: %w", card.FilePath, err)
+			}
+			if err := daedalus.WriteCardFile(card.FilePath, card.Metadata, body); err != nil {
+				return fmt.Errorf("writing card %s: %w", card.FilePath, err)
+			}
+
+			a.board.Lists[listKey][i] = card
+		}
+	}
+
+	// Remove custom color if set
+	if a.board.Config.LabelColors != nil {
+		delete(a.board.Config.LabelColors, label)
+		if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
+			return fmt.Errorf("saving board config: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// RenameLabel replaces oldName with newName in every card's labels, writing each affected card
+// to disk, and migrates any custom color from the old name to the new name in board.yaml.
+func (a *App) RenameLabel(oldName string, newName string) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+	if oldName == "" || newName == "" || oldName == newName {
+		return fmt.Errorf("invalid label names")
+	}
+
+	for listKey, cards := range a.board.Lists {
+		for i, card := range cards {
+			idx := -1
+
+			for j, l := range card.Metadata.Labels {
+				if l == oldName {
+					idx = j
+					break
+				}
+			}
+			if idx == -1 {
+				continue
+			}
+
+			card.Metadata.Labels[idx] = newName
+			now := time.Now()
+			card.Metadata.Updated = &now
+
+			body, err := daedalus.ReadCardContent(card.FilePath)
+			if err != nil {
+				return fmt.Errorf("reading card %s: %w", card.FilePath, err)
+			}
+			if err := daedalus.WriteCardFile(card.FilePath, card.Metadata, body); err != nil {
+				return fmt.Errorf("writing card %s: %w", card.FilePath, err)
+			}
+
+			a.board.Lists[listKey][i] = card
+		}
+	}
+
+	// Migrate custom color if set
+	if a.board.Config.LabelColors != nil {
+		if color, ok := a.board.Config.LabelColors[oldName]; ok {
+			delete(a.board.Config.LabelColors, oldName)
+			a.board.Config.LabelColors[newName] = color
+
+			if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
+				return fmt.Errorf("saving board config: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
 // SaveDarkMode persists the dark mode preference to board.yaml.
 func (a *App) SaveDarkMode(dark bool) error {
 	if a.board == nil {
@@ -117,6 +229,70 @@ func (a *App) SaveDarkMode(dark bool) error {
 	}
 	a.board.Config.DarkMode = &dark
 	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
+}
+
+// SaveListOrder persists the custom list display order to board.yaml.
+func (a *App) SaveListOrder(order []string) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+	a.board.Config.ListOrder = order
+	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
+}
+
+// DeleteList removes an entire list directory and cleans up all config references.
+func (a *App) DeleteList(listDirName string) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+
+	// Reject names with path separators or traversal
+	if strings.ContainsAny(listDirName, "/\\") || strings.Contains(listDirName, "..") {
+		return fmt.Errorf("invalid list name")
+	}
+
+	// Verify list exists in memory
+	cards, ok := a.board.Lists[listDirName]
+	if !ok {
+		return fmt.Errorf("list not found: %s", listDirName)
+	}
+
+	// Sum file bytes for metrics update
+	var totalBytes int64
+	for _, card := range cards {
+		if info, err := os.Stat(card.FilePath); err == nil {
+			totalBytes += info.Size()
+		}
+	}
+
+	// Remove directory from disk
+	dirPath := filepath.Join(a.board.RootPath, listDirName)
+	if err := os.RemoveAll(dirPath); err != nil {
+		return fmt.Errorf("removing list directory: %w", err)
+	}
+
+	// Update metrics
+	a.board.TotalFileBytes -= totalBytes
+
+	// Clean up in-memory state
+	delete(a.board.Lists, listDirName)
+	delete(a.board.Config.Lists, listDirName)
+	a.board.Config.ListOrder = removeFromSlice(a.board.Config.ListOrder, listDirName)
+	a.board.Config.CollapsedLists = removeFromSlice(a.board.Config.CollapsedLists, listDirName)
+	a.board.Config.HalfCollapsedLists = removeFromSlice(a.board.Config.HalfCollapsedLists, listDirName)
+
+	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
+}
+
+// removeFromSlice returns a new slice with all occurrences of val removed.
+func removeFromSlice(slice []string, val string) []string {
+	result := make([]string, 0, len(slice))
+	for _, s := range slice {
+		if s != val {
+			result = append(result, s)
+		}
+	}
+	return result
 }
 
 // SaveCollapsedLists persists the set of collapsed list keys to board.yaml.

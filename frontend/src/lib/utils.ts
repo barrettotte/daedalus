@@ -1,8 +1,12 @@
 import type { ActionReturn } from "svelte/action";
 import type { BoardLists, BoardConfigMap } from "../stores/board";
 
-// Hashes a label string into a deterministic HSL color for consistent badge coloring.
-export function labelColor(label: string): string {
+// Returns a color for a label - custom override if set, otherwise a deterministic HSL hash.
+export function labelColor(label: string, customColors?: Record<string, string>): string {
+  if (customColors && customColors[label]) {
+    return customColors[label];
+  }
+
   let hash = 0;
   for (let i = 0; i < label.length; i++) {
     hash = label.charCodeAt(i) + ((hash << 5) - hash);

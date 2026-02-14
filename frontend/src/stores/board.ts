@@ -35,6 +35,7 @@ export interface Toast {
 
 export const boardData: Writable<BoardLists> = writable({});
 export const boardConfig: Writable<BoardConfigMap> = writable({});
+export const labelColors: Writable<Record<string, string>> = writable({});
 export const boardPath: Writable<string> = writable("");
 export const isLoaded: Writable<boolean> = writable(false);
 export const selectedCard: Writable<daedalus.KanbanCard | null> = writable(null);
@@ -46,6 +47,7 @@ export const dragState: Writable<DragInfo | null> = writable(null);
 export const dropTarget: Writable<DropInfo | null> = writable(null);
 export const focusedCard: Writable<FocusState | null> = writable(null);
 export const openInEditMode: Writable<boolean> = writable(false);
+export const listOrder: Writable<string[]> = writable([]);
 
 // Updates a single card in the boardData store by matching filePath.
 export function updateCardInBoard(updatedCard: daedalus.KanbanCard): void {
@@ -147,9 +149,19 @@ export function isAtLimit(listKey: string, lists: BoardLists, config: BoardConfi
   return (lists[listKey]?.length || 0) >= cfg.limit;
 }
 
-// Sort lists based on folder naming convention (01_, 02_, ...)
-export const sortedListKeys = (lists: BoardLists): string[] => {
-  return Object.keys(lists).sort();
+// Sort lists by custom order first, then alphabetically for any remaining keys.
+export const sortedListKeys = (lists: BoardLists, order: string[] = []): string[] => {
+  const allKeys = new Set(Object.keys(lists));
+  const result: string[] = [];
+
+  for (const key of order) {
+    if (allKeys.has(key)) {
+      result.push(key);
+      allKeys.delete(key);
+    }
+  }
+  result.push(...[...allKeys].sort());
+  return result;
 };
 
 export const searchQuery: Writable<string> = writable("");

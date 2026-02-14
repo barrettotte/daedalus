@@ -857,6 +857,139 @@ func TestMoveCard_InvalidTargetList(t *testing.T) {
 	}
 }
 
+// SaveListOrder should persist the order to board.yaml and update in-memory config.
+func TestSaveListOrder_Success(t *testing.T) {
+	app, root := setupTestBoardMulti(t)
+
+	order := []string{"10___done", "00___open"}
+	if err := app.SaveListOrder(order); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(app.board.Config.ListOrder) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(app.board.Config.ListOrder))
+	}
+	if app.board.Config.ListOrder[0] != "10___done" || app.board.Config.ListOrder[1] != "00___open" {
+		t.Errorf("unexpected in-memory order: %v", app.board.Config.ListOrder)
+	}
+
+	// Verify persisted to disk
+	config, err := daedalus.LoadBoardConfig(root)
+	if err != nil {
+		t.Fatalf("error loading config: %v", err)
+	}
+	if len(config.ListOrder) != 2 {
+		t.Fatalf("expected 2 persisted entries, got %d", len(config.ListOrder))
+	}
+	if config.ListOrder[0] != "10___done" {
+		t.Errorf("unexpected persisted order: %v", config.ListOrder)
+	}
+}
+
+// SaveListOrder should return an error when no board has been loaded.
+func TestSaveListOrder_BoardNotLoaded(t *testing.T) {
+	app := NewApp()
+	err := app.SaveListOrder([]string{"a", "b"})
+	if err == nil {
+		t.Fatal("expected error when board not loaded")
+	}
+	if err.Error() != "board not loaded" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// DeleteList should remove the directory, cards, and all config references.
+func TestDeleteList_Success(t *testing.T) {
+	app, root := setupTestBoardMulti(t)
+
+	// Verify list exists before delete
+	if _, ok := app.board.Lists["00___open"]; !ok {
+		t.Fatal("expected 00___open to exist before delete")
+	}
+	bytesBefore := app.board.TotalFileBytes
+
+	err := app.DeleteList("00___open")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Directory should be gone from disk
+	dirPath := filepath.Join(root, "00___open")
+	if _, err := os.Stat(dirPath); !os.IsNotExist(err) {
+		t.Error("expected directory to be removed from disk")
+	}
+
+	// List should be gone from in-memory state
+	if _, ok := app.board.Lists["00___open"]; ok {
+		t.Error("expected 00___open to be removed from board.Lists")
+	}
+
+	// TotalFileBytes should have decreased
+	if app.board.TotalFileBytes >= bytesBefore {
+		t.Errorf("TotalFileBytes should have decreased: before=%d, after=%d", bytesBefore, app.board.TotalFileBytes)
+	}
+}
+
+// DeleteList should return an error for a nonexistent list.
+func TestDeleteList_NotFound(t *testing.T) {
+	app, _ := setupTestBoardMulti(t)
+
+	err := app.DeleteList("99___nonexistent")
+	if err == nil {
+		t.Fatal("expected error for nonexistent list")
+	}
+	if !strings.Contains(err.Error(), "list not found") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// DeleteList should return an error when no board has been loaded.
+func TestDeleteList_BoardNotLoaded(t *testing.T) {
+	app := NewApp()
+	err := app.DeleteList("00___open")
+	if err == nil {
+		t.Fatal("expected error when board not loaded")
+	}
+	if err.Error() != "board not loaded" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// DeleteList should reject names with path traversal characters.
+func TestDeleteList_PathTraversal(t *testing.T) {
+	app, _ := setupTestBoardMulti(t)
+
+	for _, name := range []string{"../etc", "foo/bar", "..\\evil"} {
+		err := app.DeleteList(name)
+		if err == nil {
+			t.Errorf("expected error for path traversal name %q", name)
+		}
+		if err != nil && err.Error() != "invalid list name" {
+			t.Errorf("unexpected error for %q: %v", name, err)
+		}
+	}
+}
+
+// DeleteList should remove the list from ListOrder in config.
+func TestDeleteList_CleansListOrder(t *testing.T) {
+	app, _ := setupTestBoardMulti(t)
+
+	// Set up a custom list order that includes the list we'll delete
+	app.board.Config.ListOrder = []string{"00___open", "10___done"}
+
+	err := app.DeleteList("00___open")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(app.board.Config.ListOrder) != 1 {
+		t.Fatalf("expected 1 entry in ListOrder, got %d", len(app.board.Config.ListOrder))
+	}
+	if app.board.Config.ListOrder[0] != "10___done" {
+		t.Errorf("unexpected ListOrder: %v", app.board.Config.ListOrder)
+	}
+}
+
 // MoveCard should return an error when the card is not found in any list.
 func TestMoveCard_CardNotFound(t *testing.T) {
 	app, root := setupTestBoardMulti(t)

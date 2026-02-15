@@ -1096,6 +1096,98 @@ func TestMoveCard_LockedTarget(t *testing.T) {
 	}
 }
 
+// SavePinnedLists should persist left/right pin state and round-trip through reload.
+func TestSavePinnedLists_Success(t *testing.T) {
+	root := t.TempDir()
+	for _, dir := range []string{"backlog", "open", "done"} {
+		os.Mkdir(filepath.Join(root, dir), 0755)
+		os.WriteFile(
+			filepath.Join(root, dir, "1.md"),
+			[]byte("---\ntitle: \"T\"\nid: 1\n---\n"),
+			0644,
+		)
+	}
+
+	app := NewApp()
+	resp := app.LoadBoard(root)
+	if resp == nil {
+		t.Fatal("LoadBoard returned nil")
+	}
+
+	// Pin backlog left, done right
+	if err := app.SavePinnedLists([]string{"backlog"}, []string{"done"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify in-memory state
+	for _, entry := range app.board.Config.Lists {
+		switch entry.Dir {
+		case "backlog":
+			if entry.Pinned != "left" {
+				t.Errorf("backlog: got pinned=%q, want left", entry.Pinned)
+			}
+		case "done":
+			if entry.Pinned != "right" {
+				t.Errorf("done: got pinned=%q, want right", entry.Pinned)
+			}
+		case "open":
+			if entry.Pinned != "" {
+				t.Errorf("open: got pinned=%q, want empty", entry.Pinned)
+			}
+		}
+	}
+
+	// Verify round-trip: reload config from disk
+	config, err := daedalus.LoadBoardConfig(root)
+	if err != nil {
+		t.Fatalf("error loading config: %v", err)
+	}
+
+	for _, entry := range config.Lists {
+		switch entry.Dir {
+		case "backlog":
+			if entry.Pinned != "left" {
+				t.Errorf("reloaded backlog: got pinned=%q, want left", entry.Pinned)
+			}
+		case "done":
+			if entry.Pinned != "right" {
+				t.Errorf("reloaded done: got pinned=%q, want right", entry.Pinned)
+			}
+		case "open":
+			if entry.Pinned != "" {
+				t.Errorf("reloaded open: got pinned=%q, want empty", entry.Pinned)
+			}
+		}
+	}
+
+	// Clear all pins and verify
+	if err := app.SavePinnedLists(nil, nil); err != nil {
+		t.Fatalf("unexpected error clearing: %v", err)
+	}
+
+	config, err = daedalus.LoadBoardConfig(root)
+	if err != nil {
+		t.Fatalf("error loading config after clear: %v", err)
+	}
+	for _, entry := range config.Lists {
+		if entry.Pinned != "" {
+			t.Errorf("after clear: %s got pinned=%q, want empty", entry.Dir, entry.Pinned)
+		}
+	}
+}
+
+// SavePinnedLists should return an error when no board has been loaded.
+func TestSavePinnedLists_BoardNotLoaded(t *testing.T) {
+	app := NewApp()
+	err := app.SavePinnedLists([]string{"open"}, nil)
+	if err == nil {
+		t.Fatal("expected error when board not loaded")
+	}
+	if err.Error() != "board not loaded" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
 // MoveCard should return an error when the card is not found in any list.
 func TestMoveCard_CardNotFound(t *testing.T) {
 	app, root := setupTestBoardMulti(t)

@@ -1,4 +1,6 @@
 <script lang="ts">
+  // Displays a stack of temporary error/info notifications that auto-dismiss after a timeout.
+
   import { toasts } from "../stores/board";
 </script>
 

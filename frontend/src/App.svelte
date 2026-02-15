@@ -1,20 +1,23 @@
 <script lang="ts">
+  // Main board view. Renders list columns, handles collapse/pin/lock state, and coordinates modals.
+
   import { onMount, onDestroy } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import { WindowSetTitle } from "../wailsjs/runtime/runtime";
   import {
     LoadBoard, SaveCollapsedLists, SaveHalfCollapsedLists, SaveLockedLists,
-    DeleteCard, SaveListOrder, DeleteList,
+    SavePinnedLists, DeleteCard, SaveListOrder, DeleteList,
   } from "../wailsjs/go/main/App";
+  import { get } from "svelte/store";
   import {
-    boardData, boardConfig, boardPath, sortedListKeys, isLoaded,
+    boardData, boardTitle, boardConfig, boardPath, sortedListKeys, isLoaded,
     selectedCard, draftListKey, draftPosition,
     labelsExpanded, labelColors, dragState, dropTarget, focusedCard, openInEditMode,
     removeCardFromBoard, addToast, isAtLimit, isLocked, listOrder,
     searchQuery, filteredBoardData,
   } from "./stores/board";
   import type { daedalus } from "../wailsjs/go/models";
-  import { labelColor, getDisplayTitle, getCountDisplay } from "./lib/utils";
+  import { labelColor, getDisplayTitle, getCountDisplay, HALF_COLLAPSED_CARD_LIMIT } from "./lib/utils";
   import { handleBoardKeydown } from "./lib/keyboard";
   import {
     dragPos, setBoardContainer, clearDropIndicators,
@@ -38,6 +41,8 @@
   let collapsedLists = $state(new SvelteSet<string>());
   let halfCollapsedLists = $state(new SvelteSet<string>());
   let lockedLists = $state(new SvelteSet<string>());
+  let pinnedLeftLists = $state(new SvelteSet<string>());
+  let pinnedRightLists = $state(new SvelteSet<string>());
   let showKeyboardHelp = $state(false);
   let showAbout = $state(false);
   let showLabelEditor = $state(false);
@@ -61,6 +66,12 @@
     searchOpen = true;
   }
 
+  // Persists both collapse states to board.yaml.
+  function saveCollapseState(): void {
+    SaveCollapsedLists([...collapsedLists]).catch(e => addToast(`Failed to save collapsed state: ${e}`));
+    SaveHalfCollapsedLists([...halfCollapsedLists]).catch(e => addToast(`Failed to save half-collapsed state: ${e}`));
+  }
+
   // Toggles a list into or out of fully collapsed state.
   function toggleFullCollapse(listKey: string): void {
     halfCollapsedLists.delete(listKey);
@@ -69,8 +80,7 @@
     } else {
       collapsedLists.add(listKey);
     }
-    SaveCollapsedLists([...collapsedLists]).catch(e => addToast(`Failed to save collapsed state: ${e}`));
-    SaveHalfCollapsedLists([...halfCollapsedLists]).catch(e => addToast(`Failed to save half-collapsed state: ${e}`));
+    saveCollapseState();
   }
 
   // Toggles a list into or out of half-collapsed state.
@@ -81,14 +91,13 @@
     } else {
       halfCollapsedLists.add(listKey);
     }
-    SaveCollapsedLists([...collapsedLists]).catch(e => addToast(`Failed to save collapsed state: ${e}`));
-    SaveHalfCollapsedLists([...halfCollapsedLists]).catch(e => addToast(`Failed to save half-collapsed state: ${e}`));
+    saveCollapseState();
   }
 
   // Expands a half-collapsed list to full (used by the "Show N more" button).
   function expandFromHalf(listKey: string): void {
     halfCollapsedLists.delete(listKey);
-    SaveHalfCollapsedLists([...halfCollapsedLists]).catch(e => addToast(`Failed to save half-collapsed state: ${e}`));
+    saveCollapseState();
   }
 
   // Toggles a list's locked state and persists to board.yaml.
@@ -109,6 +118,41 @@
     SaveLockedLists([...lockedLists]).catch(e => addToast(`Failed to save locked state: ${e}`));
   }
 
+  // Pins a list to the left or right edge of the screen.
+  function pinList(listKey: string, side: "left" | "right"): void {
+    pinnedLeftLists.delete(listKey);
+    pinnedRightLists.delete(listKey);
+
+    if (side === "left") {
+      pinnedLeftLists.add(listKey);
+    } else {
+      pinnedRightLists.add(listKey);
+    }
+
+    SavePinnedLists([...pinnedLeftLists], [...pinnedRightLists])
+      .catch(e => addToast(`Failed to save pinned state: ${e}`));
+  }
+
+  // Unpins a list, returning it to the scrollable area.
+  function unpinList(listKey: string): void {
+    pinnedLeftLists.delete(listKey);
+    pinnedRightLists.delete(listKey);
+
+    SavePinnedLists([...pinnedLeftLists], [...pinnedRightLists])
+      .catch(e => addToast(`Failed to save pinned state: ${e}`));
+  }
+
+  // Returns the pin state of a list.
+  function getPinState(listKey: string): "left" | "right" | null {
+    if (pinnedLeftLists.has(listKey)) {
+      return "left";
+    }
+    if (pinnedRightLists.has(listKey)) {
+      return "right";
+    }
+    return null;
+  }
+
   // Document-level dragover handler active only during list drags.
   // Updates ghost position, allows drops everywhere, and auto-scrolls at edges.
   function listDragOverHandler(e: DragEvent): void {
@@ -117,8 +161,21 @@
     handleAutoScroll(e);
   }
 
+  // Computed key arrays for the three-panel layout.
+  let pinnedLeftKeys = $derived(sortedListKeys($boardData, $listOrder).filter(k => pinnedLeftLists.has(k)));
+  let pinnedRightKeys = $derived(sortedListKeys($boardData, $listOrder).filter(k => pinnedRightLists.has(k)));
+  let scrollableKeys = $derived(
+    sortedListKeys($boardData, $listOrder).filter(
+      k => !pinnedLeftLists.has(k) && !pinnedRightLists.has(k),
+    ),
+  );
+  let visualKeys = $derived([...pinnedLeftKeys, ...scrollableKeys, ...pinnedRightKeys]);
+
   // Begins a list column drag operation and attaches a document-level dragover listener.
   function startListDrag(listKey: string): void {
+    if (pinnedLeftLists.has(listKey) || pinnedRightLists.has(listKey)) {
+      return;
+    }
     listDragging = listKey;
     document.addEventListener('dragover', listDragOverHandler as EventListener);
   }
@@ -132,14 +189,14 @@
     document.removeEventListener('dragover', listDragOverHandler as EventListener);
   }
 
-  // Computes drop position from cursor X relative to all column midpoints.
+  // Computes drop position from cursor X relative to scrollable column midpoints.
   function handleListDragOver(e: DragEvent): void {
     if (!listDragging || !boardContainerEl) {
       return;
     }
 
-    const keys = sortedListKeys($boardData, $listOrder);
-    const columns = boardContainerEl.querySelectorAll('.list-column');
+    const keys = scrollableKeys;
+    const columns = boardContainerEl.querySelectorAll('.list-column:not(.pinned-left):not(.pinned-right)');
     if (columns.length === 0) {
       return;
     }
@@ -188,14 +245,14 @@
       return;
     }
 
-    const current = sortedListKeys($boardData, $listOrder);
-    const srcIdx = current.indexOf(listDragging);
+    const allKeys = sortedListKeys($boardData, $listOrder);
+    const srcIdx = allKeys.indexOf(listDragging);
     if (srcIdx === -1) {
       endListDrag();
       return;
     }
 
-    const reordered = [...current];
+    const reordered = [...allKeys];
     reordered.splice(srcIdx, 1);
 
     // Find target position after source removal, then adjust for drop side.
@@ -261,7 +318,10 @@
       collapsedLists = new SvelteSet(entries.filter((e) => e.collapsed).map((e) => e.dir));
       halfCollapsedLists = new SvelteSet(entries.filter((e) => e.halfCollapsed).map((e) => e.dir));
       lockedLists = new SvelteSet(entries.filter((e) => e.locked).map((e) => e.dir));
+      pinnedLeftLists = new SvelteSet(entries.filter((e) => e.pinned === "left").map((e) => e.dir));
+      pinnedRightLists = new SvelteSet(entries.filter((e) => e.pinned === "right").map((e) => e.dir));
 
+      boardTitle.set(response.config?.title || "Daedalus");
       labelColors.set(response.config?.labelColors || {});
 
       if (response.config?.labelsExpanded !== undefined && response.config.labelsExpanded !== null) {
@@ -303,15 +363,12 @@
 
   // Scrolls the board container to make the focused list column visible.
   function scrollListIntoView(listKey: string): void {
-    if (!boardContainerEl) {
+    if (!boardContainerEl || pinnedLeftLists.has(listKey) || pinnedRightLists.has(listKey)) {
       return;
     }
-    const columns = boardContainerEl.querySelectorAll('.list-column');
-    const keys = sortedListKeys($boardData, $listOrder);
-
-    const idx = keys.indexOf(listKey);
-    if (idx >= 0 && columns[idx]) {
-      columns[idx].scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const col = boardContainerEl.querySelector(`[data-list-key="${listKey}"]`);
+    if (col) {
+      col.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }
   }
 
@@ -357,7 +414,7 @@
       focusedCard: $focusedCard,
       confirmingFocusDelete,
       boardData: $boardData,
-      sortedKeys: sortedListKeys($boardData, $listOrder),
+      sortedKeys: visualKeys,
       collapsedLists,
       halfCollapsedLists,
     }, {
@@ -384,13 +441,24 @@
     }
   });
 
+  // Set keyboard focus to match the selected card so arrow nav works after closing the modal.
+  $effect(() => {
+    if ($selectedCard) {
+      for (const listKey of Object.keys($boardData)) {
+        const idx = $boardData[listKey].findIndex(c => c.filePath === $selectedCard!.filePath);
+        if (idx !== -1) {
+          focusedCard.set({ listKey, cardIndex: idx });
+          break;
+        }
+      }
+    } else {
+      focusedCard.set(null);
+    }
+  });
+
   // Sync the board container DOM ref to the drag module for horizontal auto-scroll.
-  // Also scroll past the left padding buffer on initial load.
   $effect(() => {
     setBoardContainer(boardContainerEl);
-    if (boardContainerEl && boardContainerEl.scrollLeft === 0) {
-      boardContainerEl.scrollLeft = 130;
-    }
   });
 
   // Auto-open a card when search query is exactly #<digits> and a unique match exists.
@@ -400,11 +468,10 @@
       return;
     }
     const targetId = Number(q.slice(1));
-    const lists = $boardData;
 
     let found: daedalus.KanbanCard | null = null;
-    for (const key of Object.keys(lists)) {
-      for (const card of lists[key]) {
+    for (const key of Object.keys($boardData)) {
+      for (const card of $boardData[key]) {
         if (card.metadata.id === targetId) {
           found = card;
           break;
@@ -423,10 +490,21 @@
     }
   });
 
-  onMount(initBoard);
+  // Tracks the drag ghost position globally via capture phase so stopPropagation cannot block it.
+  function handleGlobalDragOver(e: DragEvent): void {
+    if (get(dragState)) {
+      dragPos.set({ x: e.clientX, y: e.clientY });
+    }
+  }
+
+  onMount(() => {
+    document.addEventListener("dragover", handleGlobalDragOver, true);
+    initBoard();
+  });
 
   onDestroy(() => {
     stopAutoScroll();
+    document.removeEventListener("dragover", handleGlobalDragOver, true);
     document.removeEventListener('dragover', listDragOverHandler as EventListener);
   });
 
@@ -452,6 +530,107 @@
     oninitboard={initBoard}
   />
 
+  {#snippet renderList(listKey: string)}
+    {#if collapsedLists.has(listKey)}
+      <div class="list-column collapsed" data-list-key={listKey}
+        role="button" tabindex="0" title="Expand list"
+        class:pinned-left={getPinState(listKey) === 'left'}
+        class:pinned-right={getPinState(listKey) === 'right'}
+        class:list-dragging={listDragging === listKey}
+        onclick={() => toggleFullCollapse(listKey)}
+        onkeydown={e => e.key === 'Enter' && toggleFullCollapse(listKey)}
+      >
+        <span class="collapsed-count">{getCountDisplay(listKey, $boardData, $boardConfig)}</span>
+        <span class="collapsed-title">{getDisplayTitle(listKey, $boardConfig)}</span>
+      </div>
+    {:else if halfCollapsedLists.has(listKey)}
+      {@const allItems = $filteredBoardData[listKey] || []}
+      {@const visibleItems = allItems.slice(0, HALF_COLLAPSED_CARD_LIMIT)}
+      {@const remaining = allItems.length - HALF_COLLAPSED_CARD_LIMIT}
+      <div class="list-column half-collapsed" data-list-key={listKey}
+        role="group"
+        class:pinned-left={getPinState(listKey) === 'left'}
+        class:pinned-right={getPinState(listKey) === 'right'}
+        class:list-dragging={listDragging === listKey}
+      >
+        <ListHeader {listKey} locked={lockedLists.has(listKey)}
+          pinState={getPinState(listKey)}
+          hasLeftPin={pinnedLeftLists.size > 0}
+          hasRightPin={pinnedRightLists.size > 0}
+          isLastList={listKey === visualKeys[visualKeys.length - 1]}
+          oncreatecard={() => createCard(listKey)}
+          onfullcollapse={() => toggleFullCollapse(listKey)}
+          onhalfcollapse={() => toggleHalfCollapse(listKey)}
+          onlock={() => toggleLock(listKey)}
+          onpinleft={() => pinList(listKey, "left")}
+          onpinright={() => pinList(listKey, "right")}
+          onunpin={() => unpinList(listKey)}
+          onreload={initBoard}
+          onlistdragstart={() => startListDrag(listKey)}
+          onlistdragend={endListDrag}
+          ondelete={() => deleteList(listKey)}
+        />
+        <div class="list-body half-collapsed-body" role="list">
+          <VirtualList items={visibleItems} component={Card} estimatedHeight={90} listKey={listKey}
+            focusIndex={$focusedCard?.listKey === listKey ? $focusedCard.cardIndex : -1}
+          />
+        </div>
+        {#if remaining > 0}
+          <button class="show-more-bar" title="Expand to show all cards" onclick={() => expandFromHalf(listKey)}>
+            Show {remaining} more
+          </button>
+        {/if}
+      </div>
+    {:else}
+      {@const locked = lockedLists.has(listKey)}
+      <div class="list-column" data-list-key={listKey} role="group"
+        class:pinned-left={getPinState(listKey) === 'left'}
+        class:pinned-right={getPinState(listKey) === 'right'}
+        class:list-full={$dragState
+          && $dragState.sourceListKey !== listKey
+          && isAtLimit(listKey, $boardData, $boardConfig)}
+        class:list-locked={$dragState && locked}
+        class:list-dragging={listDragging === listKey}
+      >
+        <ListHeader {listKey} {locked}
+          pinState={getPinState(listKey)}
+          hasLeftPin={pinnedLeftLists.size > 0}
+          hasRightPin={pinnedRightLists.size > 0}
+          isLastList={listKey === visualKeys[visualKeys.length - 1]}
+          oncreatecard={() => createCard(listKey)}
+          onfullcollapse={() => toggleFullCollapse(listKey)}
+          onhalfcollapse={() => toggleHalfCollapse(listKey)}
+          onlock={() => toggleLock(listKey)}
+          onpinleft={() => pinList(listKey, "left")}
+          onpinright={() => pinList(listKey, "right")}
+          onunpin={() => unpinList(listKey)}
+          onreload={initBoard}
+          onlistdragstart={() => startListDrag(listKey)}
+          onlistdragend={endListDrag}
+          ondelete={() => deleteList(listKey)}
+        />
+        <div class="list-body" role="list"
+          ondragenter={handleDragEnter}
+          ondragover={(e) => handleDragOver(e, listKey)}
+          ondragleave={handleDragLeave}
+          ondrop={(e) => handleDrop(e, listKey, initBoard)}
+        >
+          <VirtualList items={$filteredBoardData[listKey]} component={Card} estimatedHeight={90}
+            listKey={listKey} focusIndex={$focusedCard?.listKey === listKey ? $focusedCard.cardIndex : -1}
+          />
+        </div>
+        <button class="list-footer-add" title="Add card to bottom"
+          onclick={() => createCardBottom(listKey)}
+          ondragenter={handleDragEnter}
+          ondragover={(e) => handleFooterDragOver(e, listKey)}
+          ondrop={(e) => handleDrop(e, listKey, initBoard)}
+        >
+          <Icon name="plus" size={12} />
+        </button>
+      </div>
+    {/if}
+  {/snippet}
+
   {#if error}
     <div class="error">{error}</div>
   {:else if $isLoaded}
@@ -460,90 +639,14 @@
       ondragover={(e) => { if (listDragging) { handleListDragOver(e); } }}
       ondrop={(e) => { if (listDragging) { handleListDrop(e); } }}
     >
-      {#each sortedListKeys($boardData, $listOrder) as listKey}
-        {#if collapsedLists.has(listKey)}
-          <div class="list-column collapsed" role="button" tabindex="0" title="Expand list"
-            class:list-dragging={listDragging === listKey}
-            onclick={() => toggleFullCollapse(listKey)}
-            onkeydown={e => e.key === 'Enter' && toggleFullCollapse(listKey)}
-          >
-            <span class="collapsed-count">{getCountDisplay(listKey, $boardData, $boardConfig)}</span>
-            <span class="collapsed-title">{getDisplayTitle(listKey, $boardConfig)}</span>
-          </div>
-        {:else if halfCollapsedLists.has(listKey)}
-          {@const allItems = $filteredBoardData[listKey] || []}
-          {@const visibleItems = allItems.slice(0, 5)}
-          {@const remaining = allItems.length - 5}
-          <div class="list-column half-collapsed" role="group" class:list-dragging={listDragging === listKey}>
-            <ListHeader {listKey} locked={lockedLists.has(listKey)}
-              oncreatecard={() => createCard(listKey)}
-              onfullcollapse={() => toggleFullCollapse(listKey)}
-              onhalfcollapse={() => toggleHalfCollapse(listKey)}
-              onlock={() => toggleLock(listKey)}
-              onreload={initBoard}
-              onlistdragstart={() => startListDrag(listKey)}
-              onlistdragend={endListDrag}
-              ondelete={() => deleteList(listKey)}
-            />
-            <div class="list-body half-collapsed-body" role="list">
-              <VirtualList items={visibleItems} component={Card} estimatedHeight={90} listKey={listKey}
-                focusIndex={$focusedCard?.listKey === listKey ? $focusedCard.cardIndex : -1}
-              />
-            </div>
-            {#if remaining > 0}
-              <button class="show-more-bar" title="Expand to show all cards" onclick={() => expandFromHalf(listKey)}>
-                Show {remaining} more
-              </button>
-            {/if}
-          </div>
-        {:else}
-          {@const locked = lockedLists.has(listKey)}
-          <div class="list-column" role="group"
-            class:list-full={$dragState
-              && $dragState.sourceListKey !== listKey
-              && isAtLimit(listKey, $boardData, $boardConfig)}
-            class:list-locked={$dragState && locked}
-            class:list-dragging={listDragging === listKey}
-          >
-            <ListHeader {listKey} {locked}
-              oncreatecard={() => createCard(listKey)}
-              onfullcollapse={() => toggleFullCollapse(listKey)}
-              onhalfcollapse={() => toggleHalfCollapse(listKey)}
-              onlock={() => toggleLock(listKey)}
-              onreload={initBoard}
-              onlistdragstart={() => startListDrag(listKey)}
-              onlistdragend={endListDrag}
-              ondelete={() => deleteList(listKey)}
-            />
-            <div class="list-body" role="list"
-              ondragenter={handleDragEnter}
-              ondragover={(e) => handleDragOver(e, listKey)}
-              ondragleave={handleDragLeave}
-              ondrop={(e) => handleDrop(e, listKey, initBoard)}
-            >
-              <VirtualList
-                items={$filteredBoardData[listKey]}
-                component={Card}
-                estimatedHeight={90}
-                listKey={listKey}
-                focusIndex={$focusedCard?.listKey === listKey ? $focusedCard.cardIndex : -1}
-              />
-            </div>
-            <button class="list-footer-add" title="Add card to bottom"
-              onclick={() => createCardBottom(listKey)}
-              ondragenter={handleDragEnter}
-              ondragover={(e) => handleFooterDragOver(e, listKey)}
-              ondrop={(e) => handleDrop(e, listKey, initBoard)}
-            >
-              <Icon name="plus" size={12} />
-            </button>
-          </div>
-        {/if}
+      {#each visualKeys as listKey}
+        {@render renderList(listKey)}
       {/each}
     </div>
   {:else}
     <div class="loading">Loading cards...</div>
   {/if}
+
   {#if $dragState}
     <div class="drag-ghost" style="left: {$dragPos.x + 10}px; top: {$dragPos.y - 20}px">
       {#if $dragState.card.metadata.labels?.length > 0}
@@ -556,6 +659,7 @@
       <div class="ghost-title">{$dragState.card.metadata.title}</div>
     </div>
   {/if}
+
   {#if listDragging}
     <div class="drag-ghost list-drag-ghost" style="left: {$dragPos.x + 10}px; top: {$dragPos.y - 20}px">
       {getDisplayTitle(listDragging, $boardConfig)}
@@ -564,13 +668,16 @@
       <div class="list-drop-line" style="left: {dropLineX}px; top: {dropLineTop}px; height: {dropLineHeight}px"></div>
     {/if}
   {/if}
+
   {#if confirmingFocusDelete}
     <div class="focus-delete-confirm">Press Delete again to confirm, Escape to cancel</div>
   {/if}
+
   <DraftCard />
   <CardDetail />
   <Metrics />
   <Toast />
+
   {#if showKeyboardHelp}
     <KeyboardHelp onclose={() => showKeyboardHelp = false} />
   {/if}
@@ -580,6 +687,7 @@
   {#if showLabelEditor}
     <LabelColorEditor onclose={() => showLabelEditor = false} onreload={initBoard} />
   {/if}
+
 </main>
 
 <style lang="scss">
@@ -609,17 +717,15 @@
     flex: 1;
     display: flex;
     overflow-x: auto;
-    padding: 10px 0 10px 140px;
+    padding: 10px 0;
     gap: 10px;
-    will-change: scroll-position;
 
-    // Right padding collapses in overflow-x containers; use pseudo-element instead
+    &::before,
     &::after {
       content: '';
       flex-shrink: 0;
-      width: 140px;
+      width: 10px;
     }
-
   }
 
   .list-column {
@@ -662,6 +768,22 @@
 
     &.list-dragging {
       opacity: 0.4;
+    }
+
+    &.pinned-left,
+    &.pinned-right {
+      position: sticky;
+      z-index: 2;
+    }
+
+    &.pinned-left {
+      left: 0;
+      box-shadow: 4px 0 8px rgba(0, 0, 0, 0.25);
+    }
+
+    &.pinned-right {
+      right: 0;
+      box-shadow: -4px 0 8px rgba(0, 0, 0, 0.25);
     }
   }
 
@@ -751,21 +873,6 @@
     overflow-y: hidden;
   }
 
-  :global(.list-body.drop-top) {
-    position: relative;
-  }
-
-  :global(.list-body.drop-top::before) {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 6px;
-    right: 6px;
-    height: 3px;
-    background: var(--color-accent);
-    z-index: 2;
-  }
-
   :global(.item-slot.drop-above::before) {
     content: '';
     position: absolute;
@@ -788,7 +895,6 @@
     z-index: 2;
   }
 
-  :global(.list-body.drop-top),
   :global(.item-slot.drop-above),
   :global(.item-slot.drop-below) {
     position: relative;
@@ -845,7 +951,7 @@
     width: 3px;
     background: var(--color-accent);
     border-radius: 2px;
-    z-index: 10000;
+    z-index: 1;
     pointer-events: none;
   }
 

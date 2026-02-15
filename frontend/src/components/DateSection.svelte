@@ -1,4 +1,6 @@
 <script lang="ts">
+  // Sidebar section for editing due date and optional date range using DatePicker dropdowns.
+
   import { toLocalISO } from "../lib/utils";
   import DatePicker from "./DatePicker.svelte";
   import Icon from "./Icon.svelte";
@@ -86,7 +88,7 @@
       <span class="range-text">to</span>
       <DatePicker value={range.end} onselect={d => onRangeDateSelect('end', d)} />
     </div>
-    <button class="date-expand-btn" title="Convert to single date" onclick={removeEndDate}>- End date</button>
+    <button class="date-expand-btn" title="Convert to single date" onclick={removeEndDate}>- Remove end date</button>
   </div>
 {:else if due}
   <div class="sidebar-section">
@@ -97,7 +99,7 @@
       </button>
     </div>
     <DatePicker value={due} onselect={onDueDateSelect} />
-    <button class="date-expand-btn" title="Add an end date to create a range" onclick={addEndDate}>+ End date</button>
+    <button class="date-expand-btn" title="Add an end date to create a range" onclick={addEndDate}>+ Add end date</button>
   </div>
 {:else}
   <div class="sidebar-section">
@@ -120,6 +122,8 @@
   .date-expand-btn {
     all: unset;
     display: block;
+    width: 100%;
+    text-align: center;
     font-size: 0.7rem;
     color: var(--color-text-muted);
     cursor: pointer;

@@ -266,6 +266,15 @@ func (a *App) SaveDarkMode(dark bool) error {
 	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
 }
 
+// SaveBoardTitle sets the board display title and persists to board.yaml.
+func (a *App) SaveBoardTitle(title string) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+	a.board.Config.Title = title
+	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
+}
+
 // SaveListOrder reorders the config Lists array to match the given order and persists to board.yaml.
 func (a *App) SaveListOrder(order []string) error {
 	if a.board == nil {
@@ -374,6 +383,35 @@ func (a *App) SaveHalfCollapsedLists(halfCollapsed []string) error {
 	}
 	for i := range a.board.Config.Lists {
 		a.board.Config.Lists[i].HalfCollapsed = set[a.board.Config.Lists[i].Dir]
+	}
+
+	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
+}
+
+// SavePinnedLists sets the Pinned field on matching entries and persists to board.yaml.
+func (a *App) SavePinnedLists(left []string, right []string) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+
+	leftSet := make(map[string]bool, len(left))
+	for _, dir := range left {
+		leftSet[dir] = true
+	}
+	rightSet := make(map[string]bool, len(right))
+	for _, dir := range right {
+		rightSet[dir] = true
+	}
+
+	for i := range a.board.Config.Lists {
+		dir := a.board.Config.Lists[i].Dir
+		if leftSet[dir] {
+			a.board.Config.Lists[i].Pinned = "left"
+		} else if rightSet[dir] {
+			a.board.Config.Lists[i].Pinned = "right"
+		} else {
+			a.board.Config.Lists[i].Pinned = ""
+		}
 	}
 
 	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)

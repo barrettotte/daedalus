@@ -1,4 +1,6 @@
 <script lang="ts">
+  // Calendar dropdown for selecting a date and optional time, positioned via fixed coordinates to escape overflow clipping.
+
   import { formatISOWithOffset } from "../lib/utils";
 
   let { value = "", onselect }: {
@@ -8,6 +10,11 @@
 
   // Calendar dropdown visibility.
   let open = $state(false);
+
+  // Trigger button ref and computed dropdown position (fixed positioning).
+  let triggerEl: HTMLButtonElement | undefined = $state();
+  let dropdownTop = $state(0);
+  let dropdownLeft = $state(0);
 
   // Currently displayed year, month (0-11), hour (0-23), minute, and timezone offset.
   let viewYear = $state(new Date().getFullYear());
@@ -48,6 +55,7 @@
       const parts = tz.slice(1).split(":");
       tzOffset = tzSign * (parseInt(parts[0]) * 60 + parseInt(parts[1]));
     }
+
     return {
       year: parseInt(m[1]),
       month: parseInt(m[2]) - 1,
@@ -107,8 +115,9 @@
     return `${year}-${m}-${d}`;
   }
 
-  // Formats an ISO string for the trigger display with 12-hour time.
-  function formatTrigger(iso: string): string {
+  // Formats the date portion of an ISO string for the trigger (e.g. "2026-02-15").
+  // Uses parseISO instead of utils.formatDate to avoid browser timezone conversion.
+  function formatTriggerDate(iso: string): string {
     if (!iso) {
       return "Select date";
     }
@@ -119,10 +128,22 @@
     const y = parsed.year;
     const mo = String(parsed.month + 1).padStart(2, "0");
     const d = String(parsed.day).padStart(2, "0");
+    return `${y}-${mo}-${d}`;
+  }
+
+  // Formats the time portion of an ISO string for the trigger (e.g. "12:00 PM").
+  function formatTriggerTime(iso: string): string {
+    if (!iso) {
+      return "";
+    }
+    const parsed = parseISO(iso);
+    if (!parsed) {
+      return "";
+    }
     const h = parsed.hour % 12 || 12;
     const min = String(parsed.minute).padStart(2, "0");
     const ap = parsed.hour >= 12 ? "PM" : "AM";
-    return `${y}-${mo}-${d} ${h}:${min} ${ap}`;
+    return `${h}:${min} ${ap}`;
   }
 
   // Maps UTC offsets (in minutes) to common timezone abbreviations.
@@ -292,8 +313,13 @@
     emitTime();
   }
 
-  // Toggles the calendar dropdown open/closed.
+  // Toggles the calendar dropdown open/closed, computing fixed position from trigger.
   function toggleCalendar(): void {
+    if (!open && triggerEl) {
+      const rect = triggerEl.getBoundingClientRect();
+      dropdownTop = rect.bottom + 4;
+      dropdownLeft = rect.left + rect.width / 2;
+    }
     open = !open;
   }
 
@@ -322,13 +348,16 @@
 </script>
 
 <div class="datepicker">
-  <button class="datepicker-trigger" onclick={toggleCalendar}>
-    {formatTrigger(value)}
+  <button class="datepicker-trigger" bind:this={triggerEl} onclick={toggleCalendar}>
+    <span class="trigger-date">{formatTriggerDate(value)}</span>
+    {#if formatTriggerTime(value)}
+      <span class="trigger-time">{formatTriggerTime(value)}</span>
+    {/if}
   </button>
 
   {#if open}
     <div class="datepicker-backdrop" onclick={onBackdropClick} role="presentation"></div>
-    <div class="datepicker-dropdown">
+    <div class="datepicker-dropdown" style="top: {dropdownTop}px; left: {dropdownLeft}px;">
       <div class="datepicker-nav">
         <button class="datepicker-nav-btn" title="Previous month" onclick={() => changeMonth(-1)}>&lt;</button>
         <span class="datepicker-month-label">{monthNames[viewMonth]} {viewYear}</span>
@@ -381,19 +410,31 @@
   .datepicker-trigger {
     all: unset;
     width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     background: var(--color-bg-base);
     border: 1px solid var(--color-border);
     color: var(--color-text-primary);
-    font-size: 0.75rem;
     padding: 5px 8px;
     border-radius: 4px;
     cursor: pointer;
     box-sizing: border-box;
-    text-align: center;
 
     &:hover {
       border-color: var(--color-text-tertiary);
     }
+  }
+
+  .trigger-date {
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+
+  .trigger-time {
+    font-size: 0.65rem;
+    color: var(--color-text-muted);
+    white-space: nowrap;
   }
 
   .datepicker-backdrop {
@@ -403,9 +444,7 @@
   }
 
   .datepicker-dropdown {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 50%;
+    position: fixed;
     transform: translateX(-50%);
     background: var(--color-bg-elevated);
     border: 1px solid var(--color-border);

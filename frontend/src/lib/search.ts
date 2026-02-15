@@ -1,3 +1,6 @@
+// Search filtering for board cards. 
+// Matches keywords, labels (tag:), and date ranges (created:, due:).
+
 import type { daedalus } from '../../wailsjs/go/models';
 import type { BoardLists } from '../stores/board';
 

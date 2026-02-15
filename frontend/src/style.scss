@@ -1,3 +1,5 @@
+// Global CSS variables, resets, and shared styles for light/dark themes and common UI elements.
+
 :root {
     /* Accent */
     --color-accent: #579dff;
@@ -337,6 +339,8 @@ input[type="number"] {
     resize: vertical;
     box-sizing: border-box;
     line-height: 1.5;
+    white-space: pre;
+    overflow-x: auto;
 
     &:focus {
         border-color: var(--color-accent);

@@ -1,4 +1,6 @@
 <script lang="ts">
+  // Full card editor modal. Inline title/body editing, checklist toggling, and arrow-key navigation.
+
   import {
     selectedCard, draftListKey, updateCardInBoard,
     removeCardFromBoard, boardData, sortedListKeys, listOrder,
@@ -358,18 +360,11 @@
         <div class="header-btns">
           {#if !loading}
             <button class="modal-close" onclick={startEditAll} title="Edit">
-              <svg viewBox="0 0 24 24" width="16" height="16">
-                <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="m15 5 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
+              <Icon name="pencil" size={16} />
             </button>
           {/if}
           <button class="modal-close" onclick={openExternal} title="Open in editor">
-            <svg viewBox="0 0 24 24" width="16" height="16">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <polyline points="15 3 21 3 21 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <line x1="10" y1="14" x2="21" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
+            <Icon name="external-link" size={16} />
           </button>
           <button class="modal-close delete-icon" onclick={() => confirmingDelete = true} title="Delete card">
             <Icon name="trash" size={12} />
@@ -513,6 +508,7 @@
     border-radius: 6px;
     padding: 12px 16px;
     overflow-x: auto;
+    white-space: nowrap;
 
     :global(h1),
     :global(h2),

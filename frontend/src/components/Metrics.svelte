@@ -1,4 +1,6 @@
 <script lang="ts">
+  // Toggleable performance overlay that polls backend metrics (heap, RSS, CPU) and measures frontend FPS and DOM nodes.
+
   import { onMount, onDestroy } from "svelte";
   import { GetMetrics } from "../../wailsjs/go/main/App";
   import { showMetrics, addToast } from "../stores/board";

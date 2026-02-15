@@ -1,4 +1,6 @@
 <script lang="ts">
+  // Modal for creating a new card with title, body, labels, and position selector.
+
   import {
     selectedCard, draftListKey, draftPosition,
     addCardToBoard, boardConfig, boardData, addToast, isAtLimit,
@@ -35,6 +37,19 @@
       return idx + 1;
     }
     return 1;
+  });
+
+  // Speculative ID for the next card (current max + 1).
+  let nextCardId = $derived.by(() => {
+    let max = 0;
+    for (const cards of Object.values($boardData)) {
+      for (const card of cards) {
+        if (card.metadata.id > max) {
+          max = card.metadata.id;
+        }
+      }
+    }
+    return max + 1;
   });
 
   // Derives the list display name from config title or formatted directory name.
@@ -101,6 +116,7 @@
     if (val !== raw) {
       input.value = String(val);
     }
+
     if (val === 1) {
       draftPosition.set("top");
     } else if (val === max) {
@@ -143,13 +159,8 @@
   <div class="modal-backdrop scrollable" role="presentation" use:backdropClose={close} onkeydown={handleKeydown}>
     <div class="modal-dialog size-lg draft-dialog" role="dialog">
       <div class="modal-header draft-header">
-        <div class="draft-header-col">
-          <div class="draft-list-name">
-            Drafting a card in <strong>{draftListDisplayName}</strong>
-          </div>
-          <input class="edit-title-input" type="text" bind:value={draftTitle} placeholder="Card title"
-            onkeydown={e => e.key === 'Enter' && saveDraft()} use:autoFocus
-          />
+        <div class="draft-list-name">
+          Drafting card <span class="draft-card-id">#{nextCardId}</span> in <strong>{draftListDisplayName}</strong>
         </div>
         <div class="header-btns">
           <button class="modal-close" onclick={close} title="Close">
@@ -157,30 +168,29 @@
           </button>
         </div>
       </div>
-      <div class="modal-body">
-        <div class="main-col">
-          <div class="section">
-            <textarea class="edit-body-textarea" bind:value={draftBody} placeholder="Card description (markdown)"></textarea>
+      <div class="draft-body">
+        <input class="edit-title-input" type="text" bind:value={draftTitle} placeholder="Card title"
+          onkeydown={e => e.key === 'Enter' && saveDraft()} use:autoFocus
+        />
+        <textarea class="edit-body-textarea" bind:value={draftBody} placeholder="Card description (markdown)"></textarea>
+      </div>
+      <div class="draft-actions">
+        <div class="position-section">
+          <span class="position-label">Position</span>
+          <div class="position-toggle">
+            <button class="pos-btn" title="Add card to top of list" class:active={$draftPosition === 'top'} onclick={() => draftPosition.set('top')}>Top</button>
+            <button class="pos-btn" title="Add card to bottom of list" class:active={$draftPosition === 'bottom'} onclick={() => draftPosition.set('bottom')}>Bottom</button>
           </div>
-          <div class="draft-actions">
-            <div class="position-section">
-              <span class="position-label">Position</span>
-              <div class="position-toggle">
-                <button class="pos-btn" title="Add card to top of list" class:active={$draftPosition === 'top'} onclick={() => draftPosition.set('top')}>Top</button>
-                <button class="pos-btn" title="Add card to bottom of list" class:active={$draftPosition === 'bottom'} onclick={() => draftPosition.set('bottom')}>Bottom</button>
-              </div>
-              <div class="position-specific-row">
-                <input class="position-input" type="number" min="1" max={draftListCount + 1} value={positionDisplayValue} oninput={handlePositionInput}/>
-                <span class="position-hint">of {draftListCount + 1}</span>
-              </div>
-            </div>
-            <div class="draft-btns">
-              <button class="save-btn" onclick={saveDraft} disabled={saving || !draftTitle.trim()}>
-                {saving ? "Saving..." : "Save"}
-              </button>
-              <button class="cancel-btn" onclick={close}>Cancel</button>
-            </div>
+          <div class="position-specific-row">
+            <input class="position-input" type="number" min="1" max={draftListCount + 1} value={positionDisplayValue} oninput={handlePositionInput}/>
+            <span class="position-hint">of {draftListCount + 1}</span>
           </div>
+        </div>
+        <div class="draft-btns">
+          <button class="save-btn" onclick={saveDraft} disabled={saving || !draftTitle.trim()}>
+            {saving ? "Saving..." : "Save"}
+          </button>
+          <button class="cancel-btn" onclick={close}>Cancel</button>
         </div>
       </div>
     </div>
@@ -193,18 +203,8 @@
   }
 
   .draft-header {
-    align-items: flex-start;
-    gap: 12px;
     border-bottom: none;
-    padding: 16px 16px 12px 20px;
-  }
-
-  .draft-header-col {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+    padding: 16px 20px 0 20px;
   }
 
   .draft-list-name {
@@ -216,9 +216,20 @@
     }
   }
 
+  .draft-card-id {
+    color: var(--color-text-muted);
+    font-family: monospace;
+    font-size: 0.75rem;
+  }
+
+  .draft-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 20px 0 20px;
+  }
+
   .edit-title-input {
-    flex: 1;
-    min-width: 0;
     background: var(--color-bg-base);
     border: 1px solid var(--color-accent);
     color: var(--color-text-primary);
@@ -235,6 +246,7 @@
     display: flex;
     align-items: flex-end;
     gap: 8px;
+    padding: 16px 20px 20px 20px;
   }
 
   .position-section {

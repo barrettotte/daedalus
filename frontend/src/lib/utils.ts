@@ -1,5 +1,10 @@
+// Shared utilities: date formatting, label colors, display helpers, and Svelte actions.
+
 import type { ActionReturn } from "svelte/action";
 import type { BoardLists, BoardConfigMap } from "../stores/board";
+
+// Max cards shown in half-collapsed lists before the "Show N more" button.
+export const HALF_COLLAPSED_CARD_LIMIT = 5;
 
 // Returns a color for a label - custom override if set, otherwise a deterministic HSL hash.
 export function labelColor(label: string, customColors?: Record<string, string>): string {

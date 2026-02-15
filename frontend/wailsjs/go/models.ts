@@ -7,6 +7,7 @@ export namespace daedalus {
 	    collapsed?: boolean;
 	    halfCollapsed?: boolean;
 	    locked?: boolean;
+	    pinned?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ListEntry(source);
@@ -20,9 +21,11 @@ export namespace daedalus {
 	        this.collapsed = source["collapsed"];
 	        this.halfCollapsed = source["halfCollapsed"];
 	        this.locked = source["locked"];
+	        this.pinned = source["pinned"];
 	    }
 	}
 	export class BoardConfig {
+	    title?: string;
 	    lists?: ListEntry[];
 	    labelColors?: Record<string, string>;
 	    labelsExpanded?: boolean;
@@ -35,6 +38,7 @@ export namespace daedalus {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.title = source["title"];
 	        this.lists = this.convertValues(source["lists"], ListEntry);
 	        this.labelColors = source["labelColors"];
 	        this.labelsExpanded = source["labelsExpanded"];

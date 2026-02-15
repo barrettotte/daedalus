@@ -1,8 +1,10 @@
 <script lang="ts">
+  // Card preview shown in list columns. Displays title, labels, badges, and handles drag-start.
+
   import Icon from "./Icon.svelte";
   import { selectedCard, labelsExpanded, labelColors, dragState, addToast } from "../stores/board";
   import { SaveLabelsExpanded } from "../../wailsjs/go/main/App";
-  import { labelColor, formatDate } from "../lib/utils";
+  import { labelColor, formatDate, formatDateTime } from "../lib/utils";
   import type { daedalus } from "../../wailsjs/go/models";
 
   let { card, listKey = "", focused = false }: { card: daedalus.KanbanCard; listKey?: string; focused?: boolean } = $props();
@@ -58,6 +60,7 @@
   tabindex="0" ondragstart={handleDragStart} ondragend={handleDragEnd} onclick={openDetail} 
   onkeydown={e => e.key === 'Enter' && openDetail()}
 >
+  <span class="card-id">#{meta.id}</span>
   {#if meta.labels && meta.labels.length > 0}
     <div class="labels">
       {#each meta.labels as label}
@@ -74,18 +77,11 @@
 
   <div class="badges">
     {#if hasDescription}
-      <svg class="badge-icon desc-icon" viewBox="0 0 24 24">
-        <line x1="4" y1="6" x2="20" y2="6" stroke="currentColor" stroke-width="2"/>
-        <line x1="4" y1="12" x2="16" y2="12" stroke="currentColor" stroke-width="2"/>
-        <line x1="4" y1="18" x2="12" y2="18" stroke="currentColor" stroke-width="2"/>
-      </svg>
+      <span class="badge-icon desc-icon"><Icon name="description" size={12} /></span>
     {/if}
     {#if meta.due}
-      <span class="badge">
-        <svg class="badge-icon" viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
-          <polyline points="12 6 12 12 16 14" fill="none" stroke="currentColor" stroke-width="2"/>
-        </svg>
+      <span class="badge" title={formatDateTime(meta.due)}>
+        <Icon name="clock" size={12} />
         {meta.due.slice(0, 10)}
       </span>
     {/if}
@@ -97,23 +93,13 @@
     {/if}
     {#if meta.counter}
       <span class="badge" class:counter-done={counterComplete}>
-        <svg class="badge-icon" viewBox="0 0 24 24">
-          <line x1="4" y1="9" x2="20" y2="9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <line x1="4" y1="15" x2="20" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <line x1="9" y1="4" x2="9" y2="20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <line x1="15" y1="4" x2="15" y2="20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
+        <Icon name="counter" size={12} />
         {meta.counter.current}/{meta.counter.max}
       </span>
     {/if}
     {#if meta.range}
-      <span class="badge">
-        <svg class="badge-icon" viewBox="0 0 24 24">
-          <rect x="3" y="4" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
-          <line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="2"/>
-          <line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" stroke-width="2"/>
-          <line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" stroke-width="2"/>
-        </svg>
+      <span class="badge" title="{formatDateTime(meta.range.start)} - {formatDateTime(meta.range.end)}">
+        <Icon name="calendar" size={12} />
         {formatDate(meta.range.start)} - {formatDate(meta.range.end)}
       </span>
     {/if}
@@ -132,6 +118,8 @@
     cursor: pointer;
     text-align: left;
     contain: content;
+    position: relative;
+    outline: none;
 
     &:hover {
       background: var(--color-bg-surface-hover);
@@ -155,11 +143,21 @@
     word-break: break-word;
   }
 
+  .card-id {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    font-size: 0.6rem;
+    color: var(--color-text-muted);
+    font-family: monospace;
+  }
+
   .labels {
     display: flex;
     gap: 4px;
     flex-wrap: wrap;
     margin: 2px 0 0 0;
+    padding-right: 32px;
   }
 
   .label {
@@ -202,13 +200,11 @@
   }
 
   .badge-icon {
-    width: 12px;
-    height: 12px;
+    display: inline-flex;
     flex-shrink: 0;
   }
 
   .desc-icon {
-    color: var(--color-text-muted);
-    opacity: 0.6;
+    color: var(--color-text-tertiary);
   }
 </style>

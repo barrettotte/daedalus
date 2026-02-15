@@ -1,5 +1,9 @@
+// Board-level keyboard shortcut handler. 
+// Maps keys to card/list navigation, modal opening, and search.
+
 import type { daedalus } from '../../wailsjs/go/models';
 import type { BoardLists, FocusState } from '../stores/board';
+import { HALF_COLLAPSED_CARD_LIMIT } from './utils';
 
 // Snapshot of board state needed for keyboard shortcut resolution.
 export interface KeyboardState {
@@ -78,8 +82,12 @@ export function handleBoardKeydown(e: KeyboardEvent, state: KeyboardState, actio
     return;
   }
 
-  // Skip when modal is open (CardDetail handles its own keys)
+  // Skip when modal is open (CardDetail handles its own keys).
+  // Clear focus on Escape so the highlight disappears when the modal closes.
   if (state.selectedCard || state.draftListKey) {
+    if (e.key === "Escape") {
+      actions.setFocusedCard(null);
+    }
     return;
   }
 
@@ -140,7 +148,8 @@ export function handleBoardKeydown(e: KeyboardEvent, state: KeyboardState, actio
       }
     } else if (e.key === "ArrowDown") {
       const cards = state.boardData[focus.listKey] || [];
-      const maxIndex = state.halfCollapsedLists.has(focus.listKey) ? Math.min(4, cards.length - 1) : cards.length - 1;
+      const maxIndex = state.halfCollapsedLists.has(focus.listKey)
+        ? Math.min(HALF_COLLAPSED_CARD_LIMIT - 1, cards.length - 1) : cards.length - 1;
 
       if (focus.cardIndex < maxIndex) {
         actions.setFocusedCard({ listKey: focus.listKey, cardIndex: focus.cardIndex + 1 });
@@ -173,8 +182,7 @@ export function handleBoardKeydown(e: KeyboardEvent, state: KeyboardState, actio
   // Enter - open focused card
   if (e.key === "Enter" && state.focusedCard) {
     e.preventDefault();
-    const cards = state.boardData[state.focusedCard.listKey] || [];
-    const card = cards[state.focusedCard.cardIndex];
+    const card = (state.boardData[state.focusedCard.listKey] || [])[state.focusedCard.cardIndex];
 
     if (card) {
       actions.openCard(card);
@@ -193,8 +201,7 @@ export function handleBoardKeydown(e: KeyboardEvent, state: KeyboardState, actio
   // E - open focused card in edit mode
   if (e.key === "e" && !e.ctrlKey && !e.metaKey && state.focusedCard) {
     e.preventDefault();
-    const cards = state.boardData[state.focusedCard.listKey] || [];
-    const card = cards[state.focusedCard.cardIndex];
+    const card = (state.boardData[state.focusedCard.listKey] || [])[state.focusedCard.cardIndex];
 
     if (card) {
       actions.openCardEdit(card);

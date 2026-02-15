@@ -1,5 +1,6 @@
 <script lang="ts">
   // About modal showing app information - version, stack, and project links.
+
   import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
   import Icon from "./Icon.svelte";
   import { backdropClose } from "../lib/utils";

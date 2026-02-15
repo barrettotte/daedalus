@@ -1,3 +1,5 @@
+// Svelte stores for board state, card data, config, and derived views (filtering, sorting, toasts).
+
 import { writable, derived } from 'svelte/store';
 import type { Writable, Readable } from 'svelte/store';
 import type { daedalus } from '../../wailsjs/go/models';
@@ -35,6 +37,7 @@ export interface Toast {
 }
 
 export const boardData: Writable<BoardLists> = writable({});
+export const boardTitle: Writable<string> = writable("Daedalus");
 export const boardConfig: Writable<BoardConfigMap> = writable({});
 export const labelColors: Writable<Record<string, string>> = writable({});
 export const boardPath: Writable<string> = writable("");
@@ -182,13 +185,14 @@ export const filteredBoardData: Readable<BoardLists> = derived([boardData, searc
 
 export const toasts: Writable<Toast[]> = writable([]);
 let toastId = 0;
+const DEFAULT_TOAST_DURATION = 4000;
 
 // Adds a toast notification that auto-dismisses after a timeout.
-export function addToast(message: string, duration: number = 4000): void {
+export function addToast(message: string, duration: number = DEFAULT_TOAST_DURATION): void {
     const id = ++toastId;
     toasts.update(t => [...t, { id, message }]);
 
     setTimeout(() => {
-        toasts.update(t => t.filter(item => item.id !== id));
+      toasts.update(t => t.filter(item => item.id !== id));
     }, duration);
 }

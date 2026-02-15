@@ -1,3 +1,6 @@
+// Drag-and-drop logic for cards and lists. 
+// Handles indicators, validation, auto-scroll, and drop execution.
+
 import { get, writable } from "svelte/store";
 import type { Writable } from "svelte/store";
 import {
@@ -12,6 +15,10 @@ export const dragPos: Writable<{ x: number; y: number }> = writable({ x: 0, y: 0
 
 // Reference to the board container element for horizontal auto-scroll.
 let boardContainerEl: HTMLDivElement | undefined;
+
+// Auto-scroll edge detection zone (px) and scroll speed (px/frame).
+const AUTO_SCROLL_EDGE = 40;
+const AUTO_SCROLL_SPEED = 10;
 
 // Auto-scroll state (module-level, not reactive).
 let autoScrollRaf: number | null = null;
@@ -35,7 +42,7 @@ export function getBoardContainer(): HTMLDivElement | undefined {
 // Clears drop indicator classes from tracked elements.
 export function clearDropIndicators(): void {
   for (const el of activeIndicators) {
-    el.classList.remove("drop-above", "drop-below", "drop-top", "drop-bottom");
+    el.classList.remove("drop-above", "drop-below", "drop-bottom");
   }
   activeIndicators.clear();
 }
@@ -44,6 +51,23 @@ export function clearDropIndicators(): void {
 function addIndicator(el: Element, cls: string): void {
   el.classList.add(cls);
   activeIndicators.add(el);
+}
+
+// Checks whether a drag into listKey is blocked by lock or limit rules. Returns true if blocked.
+function isDragBlocked(drag: { sourceListKey: string } | null, listKey: string): boolean {
+  if (!drag) {
+    return false;
+  }
+  const lists = get(boardData);
+  const config = get(boardConfig);
+
+  if (isLocked(drag.sourceListKey, config) || isLocked(listKey, config)) {
+    return true;
+  }
+  if (drag.sourceListKey !== listKey && isAtLimit(listKey, lists, config)) {
+    return true;
+  }
+  return false;
 }
 
 // Allows the element to be a valid drop target.
@@ -63,17 +87,7 @@ export function handleDragOver(e: DragEvent, listKey: string): void {
     return;
   }
 
-  const lists = get(boardData);
-  const config = get(boardConfig);
-  // Block drags from or into locked lists.
-  if (isLocked(drag.sourceListKey, config) || isLocked(listKey, config)) {
-    e.dataTransfer!.dropEffect = "none";
-    clearDropIndicators();
-    return;
-  }
-
-  // Block cross-list drops into lists that are at their card limit.
-  if (drag.sourceListKey !== listKey && isAtLimit(listKey, lists, config)) {
+  if (isDragBlocked(drag, listKey)) {
     e.dataTransfer!.dropEffect = "none";
     clearDropIndicators();
     return;
@@ -81,6 +95,8 @@ export function handleDragOver(e: DragEvent, listKey: string): void {
 
   e.dataTransfer!.dropEffect = "move";
   clearDropIndicators();
+
+  const lists = get(boardData);
 
   // Find the closest item-slot under the cursor
   const slot = (e.target as HTMLElement).closest("[data-card-id]");
@@ -118,14 +134,17 @@ export function handleDragOver(e: DragEvent, listKey: string): void {
       }
     }
   } else {
-    // No card under cursor. Determine if near top or bottom of the list
+    // No card under cursor. Determine if near top or bottom of the list.
     const listBody = e.currentTarget as HTMLElement;
     const rect = listBody.getBoundingClientRect();
     const cards = lists[listKey] || [];
 
     if (cards.length > 0 && e.clientY < rect.top + rect.height / 3) {
       dropTarget.set({ listKey, cardId: cards[0].metadata.id, position: "above" });
-      addIndicator(listBody, "drop-top");
+      const firstSlot = listBody.querySelector("[data-card-id]");
+      if (firstSlot) {
+        addIndicator(firstSlot, "drop-above");
+      }
     } else {
       dropTarget.set({ listKey, cardId: null, position: "below" });
     }
@@ -222,7 +241,6 @@ export async function handleDrop(e: DragEvent, listKey: string, onError: () => v
         const listCards = bLists[listKey];
         if (listCards) {
           const idx = listCards.findIndex(c => c.metadata.id === drag.card.metadata.id);
-
           if (idx !== -1) {
             listCards[idx] = {
               ...listCards[idx],
@@ -251,17 +269,7 @@ export function handleHeaderDragOver(e: DragEvent, listKey: string): void {
     return;
   }
 
-  const lists = get(boardData);
-  const config = get(boardConfig);
-  // Block drags from or into locked lists.
-  if (isLocked(drag.sourceListKey, config) || isLocked(listKey, config)) {
-    e.dataTransfer!.dropEffect = "none";
-    clearDropIndicators();
-    return;
-  }
-
-  // Block cross-list drops into lists that are at their card limit.
-  if (drag.sourceListKey !== listKey && isAtLimit(listKey, lists, config)) {
+  if (isDragBlocked(drag, listKey)) {
     e.dataTransfer!.dropEffect = "none";
     clearDropIndicators();
     return;
@@ -269,6 +277,8 @@ export function handleHeaderDragOver(e: DragEvent, listKey: string): void {
 
   e.dataTransfer!.dropEffect = "move";
   clearDropIndicators();
+
+  const lists = get(boardData);
   const cards = lists[listKey] || [];
   if (cards.length > 0) {
     dropTarget.set({ listKey, cardId: cards[0].metadata.id, position: "above" });
@@ -276,12 +286,12 @@ export function handleHeaderDragOver(e: DragEvent, listKey: string): void {
     dropTarget.set({ listKey, cardId: null, position: "below" });
   }
 
-  // Show indicator at the top of the list body
+  // Show indicator on the first card slot.
   const listCol = (e.currentTarget as HTMLElement).closest(".list-column");
   if (listCol) {
-    const listBody = listCol.querySelector(".list-body");
-    if (listBody) {
-      addIndicator(listBody, "drop-top");
+    const firstSlot = listCol.querySelector("[data-card-id]");
+    if (firstSlot) {
+      addIndicator(firstSlot, "drop-above");
     }
   }
 }
@@ -297,17 +307,7 @@ export function handleFooterDragOver(e: DragEvent, listKey: string): void {
     return;
   }
 
-  const lists = get(boardData);
-  const config = get(boardConfig);
-  // Block drags from or into locked lists.
-  if (isLocked(drag.sourceListKey, config) || isLocked(listKey, config)) {
-    e.dataTransfer!.dropEffect = "none";
-    clearDropIndicators();
-    return;
-  }
-
-  // Block cross-list drops into lists that are at their card limit.
-  if (drag.sourceListKey !== listKey && isAtLimit(listKey, lists, config)) {
+  if (isDragBlocked(drag, listKey)) {
     e.dataTransfer!.dropEffect = "none";
     clearDropIndicators();
     return;
@@ -321,8 +321,6 @@ export function handleFooterDragOver(e: DragEvent, listKey: string): void {
 
 // Updates auto-scroll speeds based on cursor proximity to viewport edges.
 export function handleAutoScroll(e: DragEvent): void {
-  const edgeSize = 40;
-  const speed = 10;
   let hSpeed = 0;
   let vSpeed = 0;
   let vContainer: Element | null = null;
@@ -330,23 +328,22 @@ export function handleAutoScroll(e: DragEvent): void {
   // Horizontal scroll
   if (boardContainerEl) {
     const rect = boardContainerEl.getBoundingClientRect();
-    if (e.clientX < rect.left + edgeSize) {
-      hSpeed = -speed;
-    } else if (e.clientX > rect.right - edgeSize) {
-      hSpeed = speed;
+    if (e.clientX < rect.left + AUTO_SCROLL_EDGE) {
+      hSpeed = -AUTO_SCROLL_SPEED;
+    } else if (e.clientX > rect.right - AUTO_SCROLL_EDGE) {
+      hSpeed = AUTO_SCROLL_SPEED;
     }
   }
 
   // Vertical scroll
   const target = e.target as HTMLElement;
   vContainer = target.closest(".virtual-scroll-container") || (e.currentTarget as HTMLElement).querySelector(".virtual-scroll-container");
-
   if (vContainer) {
     const rect = vContainer.getBoundingClientRect();
-    if (e.clientY < rect.top + edgeSize) {
-      vSpeed = -speed;
-    } else if (e.clientY > rect.bottom - edgeSize) {
-      vSpeed = speed;
+    if (e.clientY < rect.top + AUTO_SCROLL_EDGE) {
+      vSpeed = -AUTO_SCROLL_SPEED;
+    } else if (e.clientY > rect.bottom - AUTO_SCROLL_EDGE) {
+      vSpeed = AUTO_SCROLL_SPEED;
     }
   }
 

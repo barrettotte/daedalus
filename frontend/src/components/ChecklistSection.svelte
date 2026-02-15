@@ -1,4 +1,6 @@
 <script lang="ts">
+  // Collapsible checklist with progress bar and click-to-toggle items.
+
   import Icon from "./Icon.svelte";
   import type { daedalus } from "../../wailsjs/go/models";
 

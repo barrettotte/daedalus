@@ -1,4 +1,6 @@
 <script lang="ts">
+  // List column header with inline title editing, card count, drag handle, and a three-dot menu for list operations.
+
   import { boardConfig, boardData, boardPath, addToast, isAtLimit, listOrder } from "../stores/board";
   import { SaveListConfig, OpenFileExternal, SaveListOrder } from "../../wailsjs/go/main/App";
   import {
@@ -13,10 +15,17 @@
   let {
     listKey,
     locked = false,
+    pinState = null,
+    hasLeftPin = false,
+    hasRightPin = false,
+    isLastList = false,
     oncreatecard,
     onfullcollapse,
     onhalfcollapse,
     onlock,
+    onpinleft,
+    onpinright,
+    onunpin,
     onreload,
     onlistdragstart,
     onlistdragend,
@@ -24,10 +33,17 @@
   }: {
     listKey: string;
     locked?: boolean;
+    pinState?: "left" | "right" | null;
+    hasLeftPin?: boolean;
+    hasRightPin?: boolean;
+    isLastList?: boolean;
     oncreatecard: () => void;
     onfullcollapse: () => void;
     onhalfcollapse: () => void;
     onlock: () => void;
+    onpinleft: () => void;
+    onpinright: () => void;
+    onunpin: () => void;
     onreload: () => void;
     onlistdragstart: () => void;
     onlistdragend: () => void;
@@ -41,6 +57,7 @@
   let confirmingDelete = $state(false);
   let menuOpen = $state(false);
   let menuRef: HTMLDivElement | undefined = $state();
+  let menuFlip = $derived(pinState === 'right' || isLastList);
   let movingPosition = $state(false);
   let movePositionValue = $state(1);
 
@@ -197,42 +214,37 @@
   ondragover={(e) => handleHeaderDragOver(e, listKey)}
   ondrop={(e) => handleDrop(e, listKey, onreload)}
 >
-  <div class="list-drag-handle" draggable="true" role="button" tabindex="0" aria-label="Drag to reorder list" ondragstart={(e) => {
-      // WebKitGTK requires setData for the drop event to fire
-      e.dataTransfer!.setData('text/plain', listKey);
-      e.dataTransfer!.effectAllowed = 'move';
+  {#if !pinState}
+    <div class="list-drag-handle" draggable="true" role="button" tabindex="0"
+      aria-label="Drag to reorder list" ondragstart={(e) => {
 
-      const ghost = document.createElement('div');
-      ghost.style.cssText = 'width:1px;height:1px;opacity:0';
-      document.body.appendChild(ghost);
+        // WebKitGTK requires setData for the drop event to fire
+        e.dataTransfer!.setData('text/plain', listKey);
+        e.dataTransfer!.effectAllowed = 'move';
 
-      e.dataTransfer!.setDragImage(ghost, 0, 0);
-      requestAnimationFrame(() => document.body.removeChild(ghost));
-      onlistdragstart();
-    }}
-    ondragend={onlistdragend}
-    title="Drag to reorder"
-  >
-    <svg viewBox="0 0 24 24" width="10" height="10">
-      <circle cx="8" cy="4" r="1.5" fill="currentColor"/>
-      <circle cx="16" cy="4" r="1.5" fill="currentColor"/>
-      <circle cx="8" cy="10" r="1.5" fill="currentColor"/>
-      <circle cx="16" cy="10" r="1.5" fill="currentColor"/>
-      <circle cx="8" cy="16" r="1.5" fill="currentColor"/>
-      <circle cx="16" cy="16" r="1.5" fill="currentColor"/>
-      <circle cx="8" cy="22" r="1.5" fill="currentColor"/>
-      <circle cx="16" cy="22" r="1.5" fill="currentColor"/>
-    </svg>
-  </div>
+        const ghost = document.createElement('div');
+        ghost.style.cssText = 'width:1px;height:1px;opacity:0';
+        document.body.appendChild(ghost);
+
+        e.dataTransfer!.setDragImage(ghost, 0, 0);
+        requestAnimationFrame(() => document.body.removeChild(ghost));
+        onlistdragstart();
+      }}
+      ondragend={onlistdragend}
+      title="Drag to reorder"
+    >
+      <Icon name="drag-handle" size={10} />
+    </div>
+  {/if}
   {#if editingTitle}
     <input class="edit-title-input" type="text" bind:value={editTitleValue} onblur={saveTitle} onkeydown={handleTitleKeydown} use:autoFocus/>
   {:else}
-    <button class="list-title-btn" title="Click to edit list name" onclick={startEditTitle}>
+    <button class="list-title-btn" title={locked ? "" : "Click to edit list name"} onclick={() => !locked && startEditTitle()}>
+      {#if pinState}
+        <span class="pin-icon"><Icon name="pin" size={11} /></span>
+      {/if}
       {#if locked}
-        <svg class="lock-icon" viewBox="0 0 24 24" width="11" height="11">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="2"/>
-          <path d="M7 11V7a5 5 0 0 1 10 0v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
+        <span class="lock-icon"><Icon name="lock" size={11} /></span>
       {/if}
       {getDisplayTitle(listKey, $boardConfig)}
     </button>
@@ -256,49 +268,27 @@
     {/if}
     <div class="menu-wrapper" bind:this={menuRef}>
       <button class="collapse-btn" onclick={() => menuOpen = !menuOpen} title="More actions">
-        <svg viewBox="0 0 24 24" width="12" height="12">
-          <circle cx="5" cy="12" r="1.5" fill="currentColor"/>
-          <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
-          <circle cx="19" cy="12" r="1.5" fill="currentColor"/>
-        </svg>
+        <Icon name="menu-dots" size={12} />
       </button>
       {#if menuOpen}
-        <div class="header-menu">
+        <div class="header-menu" class:menu-flip={menuFlip}>
           <button class="menu-item" title="Show first 5 cards, minimize the rest" onclick={() => { menuOpen = false; onhalfcollapse(); }}>
             <Icon name="chevron-down" size={12} />
             Half collapse
           </button>
           <button class="menu-item" title="Collapse to a vertical title bar" onclick={() => { menuOpen = false; onfullcollapse(); }}>
-            <svg viewBox="0 0 24 24" width="12" height="12">
-              <polyline points="6 7 12 13 18 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <polyline points="6 13 12 19 18 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
+            <Icon name="chevron-double-down" size={12} />
             Full collapse
           </button>
           <div class="menu-divider"></div>
-          <button class="menu-item" title="Open this list's directory in your file manager"
-            onclick={() => { menuOpen = false; openInExplorer(); }}
-          >
-            <svg viewBox="0 0 24 24" width="12" height="12">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              />
-            </svg>
+          <button class="menu-item" title="Open this list's directory in your file manager" onclick={() => { menuOpen = false; openInExplorer(); }}>
+            <Icon name="folder" size={12} />
             Open in explorer
           </button>
-          <button class="menu-item"
-            title={locked ? "Allow cards to be moved in and out" : "Prevent cards from being moved in or out"}
+          <button class="menu-item" title={locked ? "Allow cards to be moved in and out" : "Prevent cards from being moved in or out"}
             onclick={() => { menuOpen = false; onlock(); }}
           >
-            <svg viewBox="0 0 24 24" width="12" height="12">
-              {#if locked}
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="2"/>
-                <path d="M7 11V7a5 5 0 0 1 5-5v0M12 2a5 5 0 0 1 5 5v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              {:else}
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              {/if}
-            </svg>
+            <Icon name={locked ? "lock-open" : "lock"} size={12} />
             {locked ? "Unlock list" : "Lock list"}
           </button>
           {#if movingPosition}
@@ -314,6 +304,26 @@
               <Icon name="move" size={12} />
               Move to position
             </button>
+          {/if}
+          <div class="menu-divider"></div>
+          {#if pinState}
+            <button class="menu-item" title="Return this list to the scrollable area" onclick={() => { menuOpen = false; onunpin(); }}>
+              <Icon name="unpin" size={12} style="opacity: 0.6" />
+              Unpin
+            </button>
+          {:else}
+            {#if !hasLeftPin}
+              <button class="menu-item" title="Pin this list to the left edge" onclick={() => { menuOpen = false; onpinleft(); }}>
+                <Icon name="pin" size={12} style="transform: rotate(-20deg)" />
+                Pin to left
+              </button>
+            {/if}
+            {#if !hasRightPin}
+              <button class="menu-item" title="Pin this list to the right edge" onclick={() => { menuOpen = false; onpinright(); }}>
+                <Icon name="pin" size={12} style="transform: rotate(20deg)" />
+                Pin to right
+              </button>
+            {/if}
           {/if}
           <div class="menu-divider"></div>
           {#if confirmingDelete}
@@ -373,6 +383,11 @@
     top: 100%;
     left: 0;
     z-index: 100;
+
+    &.menu-flip {
+      left: auto;
+      right: 0;
+    }
     background: var(--color-bg-surface);
     border: 1px solid var(--color-border-medium);
     border-radius: 6px;
@@ -454,7 +469,9 @@
     gap: 4px;
   }
 
-  .lock-icon {
+  .lock-icon,
+  .pin-icon {
+    display: inline-flex;
     flex-shrink: 0;
     color: var(--color-text-muted);
   }

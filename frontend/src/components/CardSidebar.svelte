@@ -1,4 +1,6 @@
 <script lang="ts">
+  // Card detail sidebar. Shows move-to-list dropdown, labels, dates, counter, and timestamps.
+
   import {
     selectedCard, boardConfig, boardData, sortedListKeys, listOrder,
     moveCardInBoard, computeListOrder, addToast, isAtLimit, isLocked, labelColors,
@@ -23,6 +25,15 @@
       range: { start: string; end: string } | null,
     ) => void;
   } = $props();
+
+  let dropdownEl: HTMLElement | undefined = $state();
+
+  // Closes the move dropdown when clicking outside of it.
+  function handleWindowClick(e: MouseEvent): void {
+    if (moveDropdownOpen && dropdownEl && !dropdownEl.contains(e.target as Node)) {
+      moveDropdownOpen = false;
+    }
+  }
 
   // Extracts the raw directory name from the selected card's file path.
   let cardListKey = $derived.by(() => {
@@ -83,6 +94,25 @@
 
     try {
       const result = await MoveCard(originalPath, targetListKey, newListOrder);
+
+      // Sync the filePath in boardData so derived lookups match the new selectedCard.
+      if (result.filePath !== originalPath) {
+        boardData.update(lists => {
+          const targetCards = lists[targetListKey];
+          if (targetCards) {
+            const idx = targetCards.findIndex(c => c.metadata.id === result.metadata.id);
+            if (idx !== -1) {
+              targetCards[idx] = {
+                ...targetCards[idx],
+                filePath: result.filePath,
+                listName: result.listName,
+              } as daedalus.KanbanCard;
+            }
+          }
+          return lists;
+        });
+      }
+
       selectedCard.set(result);
     } catch (err) {
       addToast(`Failed to move card: ${err}`);
@@ -92,13 +122,14 @@
   }
 </script>
 
+<svelte:window onclick={handleWindowClick} />
 <div class="sidebar">
   <div class="sidebar-section">
     <h4 class="sidebar-title">
       Card #{meta.id}
       {#if cardPosition}<span class="position-hint">{cardPosition}</span>{/if}
     </h4>
-    <div class="move-dropdown">
+    <div class="move-dropdown" bind:this={dropdownEl}>
       <button class="move-trigger" title="Move card to a different list" onclick={() => moveDropdownOpen = !moveDropdownOpen}>
         <span>{listDisplayName}</span>
         <svg class="move-chevron" class:open={moveDropdownOpen} viewBox="0 0 16 16" width="12" height="12">
@@ -110,8 +141,7 @@
         <div class="move-menu">
           {#each sortedListKeys($boardData, $listOrder) as key}
             {@const locked = isLocked(key, $boardConfig)}
-            {@const full = key !== cardListKey
-              && isAtLimit(key, $boardData, $boardConfig)}
+            {@const full = key !== cardListKey && isAtLimit(key, $boardData, $boardConfig)}
             {@const blocked = (key !== cardListKey && (full || locked))
               || (key === cardListKey && locked)
               || sourceLocked}
@@ -139,7 +169,7 @@
       <h4 class="sidebar-title">Labels</h4>
       <div class="sidebar-labels">
         {#each meta.labels as label}
-          <span class="label" style="background: {labelColor(label, $labelColors)}">
+          <span class="label" title={label} style="background: {labelColor(label, $labelColors)}">
             {label}
           </span>
         {/each}
@@ -157,17 +187,20 @@
     </div>
   {/if}
 
-  {#if meta.updated && meta.updated !== meta.created}
-    <div class="sidebar-section">
-      <h4 class="sidebar-title">Updated</h4>
-      <div class="sidebar-value">{formatDateTime(meta.updated)}</div>
+  <div class="sidebar-section">
+    <h4 class="sidebar-title">Updated</h4>
+    <div class="sidebar-value">
+      {formatDateTime(meta.updated && meta.updated !== meta.created ? meta.updated : meta.created)}
     </div>
-  {/if}
+  </div>
+
 </div>
 
 <style lang="scss">
   .sidebar {
     flex: 0 0 200px;
+    min-width: 0;
+    overflow: hidden;
   }
 
   .position-hint {
@@ -186,11 +219,15 @@
   .label {
     font-size: 0.7rem;
     font-weight: 600;
-    padding: 4px 0;
+    padding: 4px 8px;
     border-radius: 3px;
     color: #fff;
     text-align: center;
     flex: 0 0 calc(50% - 2px);
+    box-sizing: border-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .move-dropdown {

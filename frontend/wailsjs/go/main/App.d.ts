@@ -23,6 +23,8 @@ export function RemoveLabel(arg1:string):Promise<void>;
 
 export function RenameLabel(arg1:string,arg2:string):Promise<void>;
 
+export function SaveBoardTitle(arg1:string):Promise<void>;
+
 export function SaveCard(arg1:string,arg2:daedalus.CardMetadata,arg3:string):Promise<daedalus.KanbanCard>;
 
 export function SaveCollapsedLists(arg1:Array<string>):Promise<void>;
@@ -40,5 +42,7 @@ export function SaveListConfig(arg1:string,arg2:string,arg3:number):Promise<void
 export function SaveListOrder(arg1:Array<string>):Promise<void>;
 
 export function SaveLockedLists(arg1:Array<string>):Promise<void>;
+
+export function SavePinnedLists(arg1:Array<string>,arg2:Array<string>):Promise<void>;
 
 export function SaveShowYearProgress(arg1:boolean):Promise<void>;

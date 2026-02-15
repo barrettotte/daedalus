@@ -1,5 +1,6 @@
 <script lang="ts">
   // Keyboard shortcut help overlay, toggled by the ? key.
+
   import Icon from "./Icon.svelte";
   import { backdropClose } from "../lib/utils";
 

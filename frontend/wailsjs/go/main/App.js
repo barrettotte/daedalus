@@ -42,6 +42,10 @@ export function RenameLabel(arg1, arg2) {
   return window['go']['main']['App']['RenameLabel'](arg1, arg2);
 }
 
+export function SaveBoardTitle(arg1) {
+  return window['go']['main']['App']['SaveBoardTitle'](arg1);
+}
+
 export function SaveCard(arg1, arg2, arg3) {
   return window['go']['main']['App']['SaveCard'](arg1, arg2, arg3);
 }
@@ -76,6 +80,10 @@ export function SaveListOrder(arg1) {
 
 export function SaveLockedLists(arg1) {
   return window['go']['main']['App']['SaveLockedLists'](arg1);
+}
+
+export function SavePinnedLists(arg1, arg2) {
+  return window['go']['main']['App']['SavePinnedLists'](arg1, arg2);
 }
 
 export function SaveShowYearProgress(arg1) {

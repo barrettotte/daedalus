@@ -15,10 +15,12 @@ type ListEntry struct {
 	Collapsed     bool   `yaml:"collapsed,omitempty" json:"collapsed,omitempty"`
 	HalfCollapsed bool   `yaml:"half_collapsed,omitempty" json:"halfCollapsed,omitempty"`
 	Locked        bool   `yaml:"locked,omitempty" json:"locked,omitempty"`
+	Pinned        string `yaml:"pinned,omitempty" json:"pinned,omitempty"`
 }
 
 // BoardConfig holds board-level configuration loaded from board.yaml.
 type BoardConfig struct {
+	Title          string            `yaml:"title,omitempty" json:"title,omitempty"`
 	Lists          []ListEntry       `yaml:"lists,omitempty" json:"lists,omitempty"`
 	LabelColors    map[string]string `yaml:"label_colors,omitempty" json:"labelColors,omitempty"`
 	LabelsExpanded *bool             `yaml:"labels_expanded,omitempty" json:"labelsExpanded,omitempty"`

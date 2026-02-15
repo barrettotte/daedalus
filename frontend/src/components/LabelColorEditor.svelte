@@ -1,5 +1,6 @@
 <script lang="ts">
   // Modal for managing labels - colors, custom picker, and deletion.
+
   import { boardData, labelColors, addToast } from "../stores/board";
   import { SaveLabelColors, RemoveLabel, RenameLabel } from "../../wailsjs/go/main/App";
   import { labelColor, autoFocus as autoFocusInput, backdropClose } from "../lib/utils";
@@ -239,10 +240,7 @@
                   <div class="actions-inner">
                     {#if isCustom}
                       <button class="reset-btn" onclick={() => resetColor(name)} title="Reset color">
-                        <svg viewBox="0 0 24 24" width="10" height="10">
-                          <path d="M23 4v6h-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
+                        <Icon name="refresh" size={10} />
                       </button>
                     {/if}
                     {#if confirmingDelete === name}

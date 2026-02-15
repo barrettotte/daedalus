@@ -1,9 +1,12 @@
 <script lang="ts">
+  // Top navigation bar with board title, search, label editor, and toggle buttons for dark mode, metrics, and help.
+
   import {
-    searchQuery, filteredBoardData, boardData, showMetrics, addToast,
+    searchQuery, filteredBoardData, boardData, boardTitle, showMetrics, addToast,
   } from "../stores/board";
   import type { daedalus } from "../../wailsjs/go/models";
-  import { SaveShowYearProgress, SaveDarkMode } from "../../wailsjs/go/main/App";
+  import { SaveShowYearProgress, SaveDarkMode, SaveBoardTitle } from "../../wailsjs/go/main/App";
+  import { autoFocus } from "../lib/utils";
   import Icon from "./Icon.svelte";
 
   let {
@@ -25,6 +28,32 @@
   } = $props();
 
   let searchInputEl: HTMLInputElement | undefined = $state(undefined);
+  let editingTitle = $state(false);
+  let editTitleValue = $state("");
+
+  // Opens the board title for inline editing.
+  function startEditTitle(): void {
+    editTitleValue = $boardTitle;
+    editingTitle = true;
+  }
+
+  // Saves the edited board title, defaulting to "Daedalus" if blank.
+  function saveTitle(): void {
+    editingTitle = false;
+    const newTitle = editTitleValue.trim() || "Daedalus";
+    boardTitle.set(newTitle);
+    SaveBoardTitle(newTitle === "Daedalus" ? "" : newTitle)
+      .catch(e => addToast(`Failed to save board title: ${e}`));
+  }
+
+  // Handles keydown on the title input.
+  function handleTitleKeydown(e: KeyboardEvent): void {
+    if (e.key === "Enter") {
+      saveTitle();
+    } else if (e.key === "Escape") {
+      editingTitle = false;
+    }
+  }
 
   // Computes year progress percentage, day of year, and remaining time from a timestamp.
   function computeYearInfo(now: Date): { pct: string; remaining: string; dayOfYear: number } {
@@ -123,7 +152,13 @@
 </script>
 
 <div class="top-bar">
-  <h1>Daedalus</h1>
+  {#if editingTitle}
+    <input class="board-title-input" type="text" bind:value={editTitleValue} onblur={saveTitle} onkeydown={handleTitleKeydown} use:autoFocus/>
+  {:else}
+    <button class="board-title" onclick={startEditTitle} title="Click to edit board title">
+      {$boardTitle}
+    </button>
+  {/if}
   <div class="top-bar-actions">
     {#if searchOpen}
       <div class="search-bar" role="toolbar" aria-label="Search" tabindex="-1"
@@ -152,76 +187,25 @@
       </button>
     {/if}
     <button class="top-btn" onclick={() => showLabelEditor = true} title="Label manager">
-      <svg viewBox="0 0 24 24" width="14" height="14">
-        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"
-          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-        />
-        <line x1="7" y1="7" x2="7.01" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      </svg>
+      <Icon name="tag" size={14} />
     </button>
     <button class="top-btn" onclick={oninitboard} title="Reload board">
-      <svg viewBox="0 0 24 24" width="14" height="14">
-        <path d="M23 4v6h-6" fill="none" stroke="currentColor" stroke-width="2"
-          stroke-linecap="round" stroke-linejoin="round"
-        />
-        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" fill="none" stroke="currentColor"
-          stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-        />
-      </svg>
+      <Icon name="refresh" size={14} />
     </button>
     <button class="top-btn" class:active={showYearProgress} onclick={toggleYearProgress} title="Year progress">
-      <svg viewBox="0 0 24 24" width="14" height="14">
-        <path d="M6 2h12v6l-4 4 4 4v6H6v-6l4-4-4-4V2z" fill="none" stroke="currentColor"
-          stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-        />
-      </svg>
+      <Icon name="hourglass" size={14} />
     </button>
-    <button class="top-btn" onclick={toggleDarkMode}
-      title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-    >
-      {#if darkMode}
-        <svg viewBox="0 0 24 24" width="14" height="14">
-          <circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="2"/>
-          <line x1="12" y1="1" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <line x1="12" y1="21" x2="12" y2="23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <line x1="1" y1="12" x2="3" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <line x1="21" y1="12" x2="23" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-      {:else}
-        <svg viewBox="0 0 24 24" width="14" height="14">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"
-            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-          />
-        </svg>
-      {/if}
+    <button class="top-btn" onclick={toggleDarkMode} title={darkMode ? "Switch to light mode" : "Switch to dark mode"}>
+      <Icon name={darkMode ? "sun" : "moon"} size={14} />
     </button>
     <button class="top-btn" class:active={$showMetrics} onclick={() => showMetrics.update(v => !v)} title="Toggle metrics">
-      <svg viewBox="0 0 24 24" width="14" height="14">
-        <rect x="18" y="3" width="4" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
-        <rect x="10" y="8" width="4" height="13" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
-        <rect x="2" y="13" width="4" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
-      </svg>
+      <Icon name="chart-bar" size={14} />
     </button>
     <button class="top-btn" onclick={() => showKeyboardHelp = true} title="Keyboard shortcuts (?)">
-      <svg viewBox="0 0 24 24" width="14" height="14">
-        <rect x="2" y="4" width="20" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
-        <line x1="6" y1="10" x2="6" y2="10.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        <line x1="10" y1="10" x2="10" y2="10.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        <line x1="14" y1="10" x2="14" y2="10.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        <line x1="18" y1="10" x2="18" y2="10.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        <line x1="8" y1="16" x2="16" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      </svg>
+      <Icon name="keyboard" size={14} />
     </button>
     <button class="top-btn" onclick={() => showAbout = true} title="About">
-      <svg viewBox="0 0 24 24" width="14" height="14">
-        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
-        <line x1="12" y1="16" x2="12" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        <line x1="12" y1="8" x2="12.01" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      </svg>
+      <Icon name="info" size={14} />
     </button>
   </div>
 </div>
@@ -244,6 +228,33 @@
     align-items: center;
     padding: 0 20px;
     border-bottom: 1px solid #000;
+  }
+
+  .board-title {
+    all: unset;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+
+    &:hover {
+      background: var(--overlay-hover);
+    }
+  }
+
+  .board-title-input {
+    background: var(--color-bg-base);
+    border: 1px solid var(--color-accent);
+    color: var(--color-text-primary);
+    font-size: 1.1rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    outline: none;
+    width: 180px;
+    font-family: inherit;
   }
 
   .year-bar {

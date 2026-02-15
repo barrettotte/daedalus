@@ -4,6 +4,7 @@ import (
 	"context"
 	"daedalus/pkg/daedalus"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -59,15 +60,27 @@ func (a *App) LoadBoard(path string) *BoardResponse {
 	if path == "" {
 		path = "./tmp/kanban"
 	}
-	fmt.Printf("Scanning board at: %s\n", path)
+	slog.Info("scanning board", "path", path)
 
+	start := time.Now()
 	state, err := daedalus.ScanBoard(path)
 	if err != nil {
-		fmt.Printf("Error scanning board: %v\n", err)
+		slog.Error("board scan failed", "path", path, "error", err)
 		return nil
 	}
 	a.board = state
-	fmt.Printf("Scan Complete. MaxID: %d\n", state.MaxID)
+
+	numCards := 0
+	for _, cards := range state.Lists {
+		numCards += len(cards)
+	}
+	slog.Info("board scan complete",
+		"duration", time.Since(start),
+		"lists", len(state.Lists),
+		"cards", numCards,
+		"maxID", state.MaxID,
+		"totalBytes", state.TotalFileBytes,
+	)
 
 	// Merge discovered list dirs into config array:
 	// keep existing entries in order, append new dirs alphabetically, remove stale entries.
@@ -94,9 +107,11 @@ func (a *App) LoadBoard(path string) *BoardResponse {
 	for _, dir := range newDirs {
 		merged = append(merged, daedalus.ListEntry{Dir: dir})
 	}
+	if len(newDirs) > 0 {
+		slog.Debug("discovered new list directories", "dirs", newDirs)
+	}
 
 	state.Config.Lists = merged
-
 	absRoot, _ := filepath.Abs(state.RootPath)
 
 	return &BoardResponse{
@@ -124,7 +139,12 @@ func (a *App) SaveListConfig(dirName string, title string, limit int) error {
 		})
 	}
 
-	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
+	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
+		slog.Error("failed to save list config", "dir", dirName, "error", err)
+		return err
+	}
+	slog.Info("list config saved", "dir", dirName, "title", title, "limit", limit)
+	return nil
 }
 
 // SaveLabelsExpanded persists the label collapsed/expanded state to board.yaml.
@@ -133,7 +153,13 @@ func (a *App) SaveLabelsExpanded(expanded bool) error {
 		return fmt.Errorf("board not loaded")
 	}
 	a.board.Config.LabelsExpanded = &expanded
-	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
+
+	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
+		slog.Error("failed to save labels expanded", "error", err)
+		return err
+	}
+	slog.Debug("labels expanded state saved", "expanded", expanded)
+	return nil
 }
 
 // SaveShowYearProgress persists the year progress bar visibility to board.yaml.
@@ -142,7 +168,13 @@ func (a *App) SaveShowYearProgress(show bool) error {
 		return fmt.Errorf("board not loaded")
 	}
 	a.board.Config.ShowYearProgress = &show
-	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
+
+	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
+		slog.Error("failed to save year progress", "error", err)
+		return err
+	}
+	slog.Debug("year progress state saved", "show", show)
+	return nil
 }
 
 // SaveLabelColors persists custom label color overrides to board.yaml.
@@ -151,16 +183,19 @@ func (a *App) SaveLabelColors(colors map[string]string) error {
 		return fmt.Errorf("board not loaded")
 	}
 	a.board.Config.LabelColors = colors
-	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
+
+	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
+		slog.Error("failed to save label colors", "error", err)
+		return err
+	}
+	slog.Debug("label colors saved", "count", len(colors))
+	return nil
 }
 
-// RemoveLabel strips a label from every card that has it, writing each affected card to disk,
-// and removes any custom color for that label from board.yaml.
-func (a *App) RemoveLabel(label string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
-	}
-
+// updateCardsWithLabel finds every card containing the given label, applies transformFn to modify
+// the card's labels, writes the updated card to disk, and returns the count of affected cards.
+func (a *App) updateCardsWithLabel(label string, transformFn func(labels []string, idx int) []string) (int, error) {
+	affected := 0
 	for listKey, cards := range a.board.Lists {
 		for i, card := range cards {
 			idx := -1
@@ -174,31 +209,51 @@ func (a *App) RemoveLabel(label string) error {
 				continue
 			}
 
-			// Remove label from slice
-			card.Metadata.Labels = append(card.Metadata.Labels[:idx], card.Metadata.Labels[idx+1:]...)
+			card.Metadata.Labels = transformFn(card.Metadata.Labels, idx)
 			now := time.Now()
 			card.Metadata.Updated = &now
 
 			body, err := daedalus.ReadCardContent(card.FilePath)
 			if err != nil {
-				return fmt.Errorf("reading card %s: %w", card.FilePath, err)
+				return affected, fmt.Errorf("reading card %s: %w", card.FilePath, err)
 			}
 			if err := daedalus.WriteCardFile(card.FilePath, card.Metadata, body); err != nil {
-				return fmt.Errorf("writing card %s: %w", card.FilePath, err)
+				return affected, fmt.Errorf("writing card %s: %w", card.FilePath, err)
 			}
 
 			a.board.Lists[listKey][i] = card
+			affected++
 		}
+	}
+	return affected, nil
+}
+
+// RemoveLabel strips a label from every card that has it, writing each affected card to disk,
+// and removes any custom color for that label from board.yaml.
+func (a *App) RemoveLabel(label string) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+	slog.Info("removing label from all cards", "label", label)
+
+	affected, err := a.updateCardsWithLabel(label, func(labels []string, idx int) []string {
+		return append(labels[:idx], labels[idx+1:]...)
+	})
+	if err != nil {
+		slog.Error("failed during label removal", "label", label, "error", err)
+		return err
 	}
 
 	// Remove custom color if set
 	if a.board.Config.LabelColors != nil {
 		delete(a.board.Config.LabelColors, label)
 		if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
+			slog.Error("failed to save config after label removal", "label", label, "error", err)
 			return fmt.Errorf("saving board config: %w", err)
 		}
 	}
 
+	slog.Info("label removed", "label", label, "cardsAffected", affected)
 	return nil
 }
 
@@ -209,37 +264,18 @@ func (a *App) RenameLabel(oldName string, newName string) error {
 		return fmt.Errorf("board not loaded")
 	}
 	if oldName == "" || newName == "" || oldName == newName {
+		slog.Warn("invalid label rename parameters", "old", oldName, "new", newName)
 		return fmt.Errorf("invalid label names")
 	}
+	slog.Info("renaming label", "old", oldName, "new", newName)
 
-	for listKey, cards := range a.board.Lists {
-		for i, card := range cards {
-			idx := -1
-
-			for j, l := range card.Metadata.Labels {
-				if l == oldName {
-					idx = j
-					break
-				}
-			}
-			if idx == -1 {
-				continue
-			}
-
-			card.Metadata.Labels[idx] = newName
-			now := time.Now()
-			card.Metadata.Updated = &now
-
-			body, err := daedalus.ReadCardContent(card.FilePath)
-			if err != nil {
-				return fmt.Errorf("reading card %s: %w", card.FilePath, err)
-			}
-			if err := daedalus.WriteCardFile(card.FilePath, card.Metadata, body); err != nil {
-				return fmt.Errorf("writing card %s: %w", card.FilePath, err)
-			}
-
-			a.board.Lists[listKey][i] = card
-		}
+	affected, err := a.updateCardsWithLabel(oldName, func(labels []string, idx int) []string {
+		labels[idx] = newName
+		return labels
+	})
+	if err != nil {
+		slog.Error("failed during label rename", "old", oldName, "new", newName, "error", err)
+		return err
 	}
 
 	// Migrate custom color if set
@@ -249,11 +285,13 @@ func (a *App) RenameLabel(oldName string, newName string) error {
 			a.board.Config.LabelColors[newName] = color
 
 			if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
+				slog.Error("failed to save config after label rename", "error", err)
 				return fmt.Errorf("saving board config: %w", err)
 			}
 		}
 	}
 
+	slog.Info("label renamed", "old", oldName, "new", newName, "cardsAffected", affected)
 	return nil
 }
 
@@ -263,7 +301,12 @@ func (a *App) SaveDarkMode(dark bool) error {
 		return fmt.Errorf("board not loaded")
 	}
 	a.board.Config.DarkMode = &dark
-	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
+	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
+		slog.Error("failed to save dark mode", "error", err)
+		return err
+	}
+	slog.Debug("dark mode saved", "dark", dark)
+	return nil
 }
 
 // SaveBoardTitle sets the board display title and persists to board.yaml.
@@ -272,7 +315,13 @@ func (a *App) SaveBoardTitle(title string) error {
 		return fmt.Errorf("board not loaded")
 	}
 	a.board.Config.Title = title
-	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
+
+	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
+		slog.Error("failed to save board title", "error", err)
+		return err
+	}
+	slog.Info("board title saved", "title", title)
+	return nil
 }
 
 // SaveListOrder reorders the config Lists array to match the given order and persists to board.yaml.
@@ -305,7 +354,12 @@ func (a *App) SaveListOrder(order []string) error {
 	}
 
 	a.board.Config.Lists = reordered
-	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
+	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
+		slog.Error("failed to save list order", "error", err)
+		return err
+	}
+	slog.Info("list order saved", "count", len(reordered))
+	return nil
 }
 
 // DeleteList removes an entire list directory and cleans up all config references.
@@ -316,26 +370,29 @@ func (a *App) DeleteList(listDirName string) error {
 
 	// Reject names with path separators or traversal
 	if strings.ContainsAny(listDirName, "/\\") || strings.Contains(listDirName, "..") {
+		slog.Warn("rejected invalid list name", "name", listDirName)
 		return fmt.Errorf("invalid list name")
 	}
 
 	// Verify list exists in memory
 	cards, ok := a.board.Lists[listDirName]
 	if !ok {
+		slog.Warn("attempted to delete non-existent list", "name", listDirName)
 		return fmt.Errorf("list not found: %s", listDirName)
 	}
+
+	slog.Info("deleting list", "name", listDirName, "cards", len(cards))
 
 	// Sum file bytes for metrics update
 	var totalBytes int64
 	for _, card := range cards {
-		if info, err := os.Stat(card.FilePath); err == nil {
-			totalBytes += info.Size()
-		}
+		totalBytes += getFileSize(card.FilePath)
 	}
 
 	// Remove directory from disk
 	dirPath := filepath.Join(a.board.RootPath, listDirName)
 	if err := os.RemoveAll(dirPath); err != nil {
+		slog.Error("failed to remove list directory", "name", listDirName, "path", dirPath, "error", err)
 		return fmt.Errorf("removing list directory: %w", err)
 	}
 
@@ -351,41 +408,47 @@ func (a *App) DeleteList(listDirName string) error {
 		a.board.Config.Lists = append(a.board.Config.Lists[:idx], a.board.Config.Lists[idx+1:]...)
 	}
 
+	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
+		slog.Error("failed to save config after list deletion", "name", listDirName, "error", err)
+		return err
+	}
+	slog.Info("list deleted", "name", listDirName, "cardsRemoved", len(cards), "bytesFreed", totalBytes)
+	return nil
+}
+
+// saveListBoolFlags builds a set from dirs, applies setFn to each list config entry, and persists to board.yaml.
+func (a *App) saveListBoolFlags(dirs []string, setFn func(*daedalus.ListEntry, bool)) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+	set := make(map[string]bool, len(dirs))
+	for _, dir := range dirs {
+		set[dir] = true
+	}
+	for i := range a.board.Config.Lists {
+		setFn(&a.board.Config.Lists[i], set[a.board.Config.Lists[i].Dir])
+	}
 	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
 }
 
 // SaveCollapsedLists sets the Collapsed flag on matching entries and persists to board.yaml.
 func (a *App) SaveCollapsedLists(collapsed []string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if err := a.saveListBoolFlags(collapsed, func(e *daedalus.ListEntry, v bool) { e.Collapsed = v }); err != nil {
+		slog.Error("failed to save collapsed lists", "error", err)
+		return err
 	}
-
-	set := make(map[string]bool, len(collapsed))
-	for _, dir := range collapsed {
-		set[dir] = true
-	}
-	for i := range a.board.Config.Lists {
-		a.board.Config.Lists[i].Collapsed = set[a.board.Config.Lists[i].Dir]
-	}
-
-	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
+	slog.Debug("collapsed lists saved", "count", len(collapsed))
+	return nil
 }
 
 // SaveHalfCollapsedLists sets the HalfCollapsed flag on matching entries and persists to board.yaml.
 func (a *App) SaveHalfCollapsedLists(halfCollapsed []string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if err := a.saveListBoolFlags(halfCollapsed, func(e *daedalus.ListEntry, v bool) { e.HalfCollapsed = v }); err != nil {
+		slog.Error("failed to save half-collapsed lists", "error", err)
+		return err
 	}
-
-	set := make(map[string]bool, len(halfCollapsed))
-	for _, dir := range halfCollapsed {
-		set[dir] = true
-	}
-	for i := range a.board.Config.Lists {
-		a.board.Config.Lists[i].HalfCollapsed = set[a.board.Config.Lists[i].Dir]
-	}
-
-	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
+	slog.Debug("half-collapsed lists saved", "count", len(halfCollapsed))
+	return nil
 }
 
 // SavePinnedLists sets the Pinned field on matching entries and persists to board.yaml.
@@ -414,24 +477,22 @@ func (a *App) SavePinnedLists(left []string, right []string) error {
 		}
 	}
 
-	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
+	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
+		slog.Error("failed to save pinned lists", "error", err)
+		return err
+	}
+	slog.Debug("pinned lists saved", "left", len(left), "right", len(right))
+	return nil
 }
 
 // SaveLockedLists sets the Locked flag on matching entries and persists to board.yaml.
 func (a *App) SaveLockedLists(locked []string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if err := a.saveListBoolFlags(locked, func(e *daedalus.ListEntry, v bool) { e.Locked = v }); err != nil {
+		slog.Error("failed to save locked lists", "error", err)
+		return err
 	}
-
-	set := make(map[string]bool, len(locked))
-	for _, dir := range locked {
-		set[dir] = true
-	}
-	for i := range a.board.Config.Lists {
-		a.board.Config.Lists[i].Locked = set[a.board.Config.Lists[i].Dir]
-	}
-
-	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
+	slog.Info("locked lists saved", "count", len(locked))
+	return nil
 }
 
 // isListLocked returns true if the given list directory is marked as locked in the config.
@@ -440,17 +501,28 @@ func isListLocked(config *daedalus.BoardConfig, dir string) bool {
 	return idx >= 0 && config.Lists[idx].Locked
 }
 
+// getFileSize returns the size of a file in bytes, or 0 if the file cannot be stat'd.
+func getFileSize(path string) int64 {
+	if info, err := os.Stat(path); err == nil {
+		return info.Size()
+	}
+	return 0
+}
+
 // validatePath resolves a file path to absolute and verifies it is within the board root.
 func (a *App) validatePath(filePath string) (string, error) {
 	absPath, err := filepath.Abs(filePath)
 	if err != nil {
+		slog.Warn("path resolution failed", "path", filePath, "error", err)
 		return "", fmt.Errorf("invalid path")
 	}
 	absRoot, err := filepath.Abs(a.board.RootPath)
 	if err != nil {
+		slog.Error("board root path resolution failed", "root", a.board.RootPath, "error", err)
 		return "", fmt.Errorf("invalid root path")
 	}
 	if !strings.HasPrefix(absPath, absRoot+string(filepath.Separator)) {
+		slog.Warn("path traversal rejected", "path", absPath, "root", absRoot)
 		return "", fmt.Errorf("path outside board directory")
 	}
 	return absPath, nil
@@ -476,10 +548,16 @@ func (a *App) OpenFileExternal(filePath string) error {
 	case "windows":
 		cmd = exec.Command("cmd", "/c", "start", "", absPath)
 	default:
+		slog.Error("unsupported platform for external open", "os", runtime.GOOS)
 		return fmt.Errorf("unsupported platform")
 	}
 
-	return cmd.Start()
+	if err := cmd.Start(); err != nil {
+		slog.Error("failed to open file externally", "path", absPath, "error", err)
+		return err
+	}
+	slog.Debug("opened file externally", "path", absPath)
+	return nil
 }
 
 // GetCardContent returns the full markdown body of a card file
@@ -512,25 +590,19 @@ func (a *App) SaveCard(filePath string, metadata daedalus.CardMetadata, body str
 		metadata.Created = &now
 	}
 
-	// Capture old file size before writing for incremental update
-	var oldSize int64
-	if info, err := os.Stat(absPath); err == nil {
-		oldSize = info.Size()
-	}
+	oldSize := getFileSize(absPath)
 
 	if err := daedalus.WriteCardFile(absPath, metadata, body); err != nil {
+		slog.Error("failed to write card", "id", metadata.ID, "file", absPath, "error", err)
 		return nil, fmt.Errorf("writing card file: %w", err)
 	}
 
-	// Update cached total file size
-	if info, err := os.Stat(absPath); err == nil {
-		a.board.TotalFileBytes += info.Size() - oldSize
-	}
+	a.board.TotalFileBytes += getFileSize(absPath) - oldSize
 
 	// Generate preview from body (first ~150 chars)
 	preview := body
-	if len(preview) > 150 {
-		preview = preview[:150]
+	if len(preview) > daedalus.PreviewMaxLen {
+		preview = preview[:daedalus.PreviewMaxLen]
 	}
 
 	updatedCard := daedalus.KanbanCard{
@@ -545,10 +617,12 @@ func (a *App) SaveCard(filePath string, metadata daedalus.CardMetadata, body str
 			if card.FilePath == absPath {
 				updatedCard.ListName = card.ListName
 				a.board.Lists[listName][i] = updatedCard
+				slog.Info("card saved", "id", metadata.ID, "list", listName, "title", metadata.Title)
 				return &updatedCard, nil
 			}
 		}
 	}
+	slog.Info("card saved", "id", metadata.ID, "title", metadata.Title)
 	return &updatedCard, nil
 }
 
@@ -563,11 +637,13 @@ func (a *App) CreateCard(listDirName string, title string, body string, position
 
 	cards, ok := a.board.Lists[listDirName]
 	if !ok {
+		slog.Error("cannot create card in non-existent list", "list", listDirName)
 		return nil, fmt.Errorf("list not found: %s", listDirName)
 	}
 
 	a.board.MaxID++
 	newID := a.board.MaxID
+	slog.Debug("assigning new card ID", "id", newID, "previousMaxID", newID-1)
 
 	// Determine list_order and insertion index based on position.
 	// Numeric strings (e.g. "3") insert at that 0-based index with a midpoint list_order.
@@ -614,18 +690,16 @@ func (a *App) CreateCard(listDirName string, title string, body string, position
 
 	filePath := filepath.Join(a.board.RootPath, listDirName, fmt.Sprintf("%d.md", newID))
 	if err := daedalus.WriteCardFile(filePath, meta, fullBody); err != nil {
+		slog.Error("failed to write new card", "id", newID, "list", listDirName, "error", err)
 		return nil, fmt.Errorf("writing new card: %w", err)
 	}
 
-	// Update cached total file size
-	if info, err := os.Stat(filePath); err == nil {
-		a.board.TotalFileBytes += info.Size()
-	}
+	a.board.TotalFileBytes += getFileSize(filePath)
 
 	// Generate preview from body (first ~150 chars)
 	preview := body
-	if len(preview) > 150 {
-		preview = preview[:150]
+	if len(preview) > daedalus.PreviewMaxLen {
+		preview = preview[:daedalus.PreviewMaxLen]
 	}
 
 	card := daedalus.KanbanCard{
@@ -642,6 +716,7 @@ func (a *App) CreateCard(listDirName string, title string, body string, position
 	updated = append(updated, cards[insertIdx:]...)
 	a.board.Lists[listDirName] = updated
 
+	slog.Info("card created", "id", newID, "list", listDirName, "title", title, "position", position)
 	return &card, nil
 }
 
@@ -657,28 +732,27 @@ func (a *App) DeleteCard(filePath string) error {
 		return err
 	}
 
-	// Capture file size before removal for TotalFileBytes bookkeeping
-	var fileSize int64
-	if info, err := os.Stat(absPath); err == nil {
-		fileSize = info.Size()
-	}
+	removedBytes := getFileSize(absPath)
 
 	if err := os.Remove(absPath); err != nil {
+		slog.Error("failed to remove card file", "path", absPath, "error", err)
 		return fmt.Errorf("removing card file: %w", err)
 	}
 
-	a.board.TotalFileBytes -= fileSize
+	a.board.TotalFileBytes -= removedBytes
 
 	// Remove card from in-memory lists
 	for listName, cards := range a.board.Lists {
 		for i, card := range cards {
 			if card.FilePath == absPath {
 				a.board.Lists[listName] = append(cards[:i], cards[i+1:]...)
+				slog.Info("card deleted", "id", card.Metadata.ID, "list", listName, "bytesFreed", removedBytes)
 				return nil
 			}
 		}
 	}
 
+	slog.Warn("deleted card file not found in memory", "path", absPath)
 	return nil
 }
 
@@ -696,6 +770,7 @@ func (a *App) MoveCard(filePath string, targetListDirName string, newListOrder f
 
 	// Validate target list exists
 	if _, ok := a.board.Lists[targetListDirName]; !ok {
+		slog.Error("move target list not found", "target", targetListDirName)
 		return nil, fmt.Errorf("target list not found: %s", targetListDirName)
 	}
 
@@ -717,14 +792,17 @@ func (a *App) MoveCard(filePath string, targetListDirName string, newListOrder f
 		}
 	}
 	if !found {
+		slog.Error("card not found in any list", "path", absPath)
 		return nil, fmt.Errorf("card not found in any list")
 	}
 
 	// Block moves into or out of locked lists.
 	if isListLocked(a.board.Config, sourceListKey) {
+		slog.Warn("move blocked by locked source list", "source", sourceListKey)
 		return nil, fmt.Errorf("source list is locked")
 	}
 	if isListLocked(a.board.Config, targetListDirName) {
+		slog.Warn("move blocked by locked target list", "target", targetListDirName)
 		return nil, fmt.Errorf("target list is locked")
 	}
 
@@ -733,6 +811,7 @@ func (a *App) MoveCard(filePath string, targetListDirName string, newListOrder f
 	// Read card body from disk
 	body, err := daedalus.ReadCardContent(absPath)
 	if err != nil {
+		slog.Error("failed to read card content for move", "path", absPath, "error", err)
 		return nil, fmt.Errorf("reading card content: %w", err)
 	}
 
@@ -750,6 +829,7 @@ func (a *App) MoveCard(filePath string, targetListDirName string, newListOrder f
 	if crossList {
 		// Move file to new directory
 		if err := os.Rename(absPath, newPath); err != nil {
+			slog.Error("failed to move card file", "from", absPath, "to", newPath, "error", err)
 			return nil, fmt.Errorf("moving card file: %w", err)
 		}
 		card.FilePath = newPath
@@ -758,6 +838,7 @@ func (a *App) MoveCard(filePath string, targetListDirName string, newListOrder f
 
 	// Write updated frontmatter
 	if err := daedalus.WriteCardFile(card.FilePath, card.Metadata, body); err != nil {
+		slog.Error("failed to write card after move", "path", card.FilePath, "error", err)
 		return nil, fmt.Errorf("writing card file: %w", err)
 	}
 
@@ -768,6 +849,11 @@ func (a *App) MoveCard(filePath string, targetListDirName string, newListOrder f
 	// Insert at sorted position in target list
 	a.board.Lists[targetListDirName] = insertSorted(a.board.Lists[targetListDirName], card)
 
+	if crossList {
+		slog.Info("card moved", "id", card.Metadata.ID, "from", sourceListKey, "to", targetListDirName)
+	} else {
+		slog.Debug("card reordered", "id", card.Metadata.ID, "list", sourceListKey, "order", newListOrder)
+	}
 	return &card, nil
 }
 

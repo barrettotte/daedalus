@@ -2,6 +2,9 @@ package daedalus
 
 import "time"
 
+// PreviewMaxLen is the maximum character length for card body previews.
+const PreviewMaxLen = 150
+
 // BoardState holds runtime data in memory
 type BoardState struct {
 	Lists          map[string][]KanbanCard

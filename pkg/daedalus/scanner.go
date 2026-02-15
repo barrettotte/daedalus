@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -71,7 +72,7 @@ func ScanBoard(rootPath string) (*BoardState, error) {
 func scanList(listPath, realName, displayName string) ([]KanbanCard, int, int64) {
 	files, err := os.ReadDir(listPath)
 	if err != nil {
-		fmt.Printf("Error reading list %s: %v\n", realName, err)
+		slog.Error("failed to read list directory", "list", realName, "path", listPath, "error", err)
 		return nil, 0, 0
 	}
 
@@ -88,13 +89,14 @@ func scanList(listPath, realName, displayName string) ([]KanbanCard, int, int64)
 
 			meta, preview, err := parseFileHeader(fullPath)
 			if err != nil {
-				fmt.Printf("Skipping invalid file %s: %v\n", file.Name(), err)
+				slog.Warn("skipping invalid card file", "file", file.Name(), "list", realName, "error", err)
 				continue
 			}
 
 			// set ID if missing from frontmatter
 			if meta.ID == 0 {
 				meta.ID = idFromFileName
+				slog.Debug("card ID missing from frontmatter, using filename", "file", file.Name(), "id", idFromFileName)
 			}
 			if meta.ID > localMaxID {
 				localMaxID = meta.ID
@@ -121,7 +123,38 @@ func scanList(listPath, realName, displayName string) ([]KanbanCard, int, int64)
 		return cards[i].Metadata.ID < cards[j].Metadata.ID
 	})
 
+	slog.Debug("list scanned", "list", realName, "cards", len(cards), "maxID", localMaxID, "bytes", localBytes)
 	return cards, localMaxID, localBytes
+}
+
+// scanCardFile reads a card file line by line, calling onFrontmatter for lines inside the --- delimiters
+// and onBody for lines after the frontmatter block. Callbacks return false to stop scanning early.
+func scanCardFile(s *bufio.Scanner, onFrontmatter, onBody func(line string) bool) {
+	inFrontmatter := false
+	dashCount := 0
+	for s.Scan() {
+		line := s.Text()
+		if strings.TrimSpace(line) == "---" {
+			dashCount++
+			if dashCount == 1 {
+				inFrontmatter = true
+				continue
+			}
+			if dashCount == 2 {
+				inFrontmatter = false
+				continue
+			}
+		}
+		if inFrontmatter {
+			if onFrontmatter != nil && !onFrontmatter(line) {
+				return
+			}
+		} else if dashCount >= 2 {
+			if onBody != nil && !onBody(line) {
+				return
+			}
+		}
+	}
 }
 
 // parseFileHeader reads frontmatter and first few lines of card body
@@ -132,47 +165,31 @@ func parseFileHeader(path string) (CardMetadata, string, error) {
 	}
 	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
 	var frontmatterBuf bytes.Buffer
 	var bodyPreviewBuf bytes.Buffer
-
-	inFrontmatter := false
-	dashCount := 0
 	bodyLines := 0
 
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		if strings.TrimSpace(line) == "---" {
-			dashCount++
-
-			if dashCount == 1 {
-				inFrontmatter = true
-				continue
-			}
-			if dashCount == 2 {
-				inFrontmatter = false
-				continue
-			}
-		}
-
-		if inFrontmatter {
+	scanCardFile(bufio.NewScanner(file),
+		func(line string) bool {
 			frontmatterBuf.WriteString(line + "\n")
-		} else if dashCount >= 2 {
-			// in body, only read a few lines for the preview
+			return true
+		},
+		func(line string) bool {
 			bodyLines++
 			if bodyLines > 20 {
-				break
+				return false
 			}
-			if bodyPreviewBuf.Len() < 150 {
+			if bodyPreviewBuf.Len() < PreviewMaxLen {
 				bodyPreviewBuf.WriteString(line + "\n")
 			}
-		}
-	}
+			return true
+		},
+	)
 
 	var meta CardMetadata
 	if frontmatterBuf.Len() > 0 {
 		if err := yaml.Unmarshal(frontmatterBuf.Bytes(), &meta); err != nil {
+			slog.Warn("failed to parse card frontmatter", "path", path, "error", err)
 			return CardMetadata{}, "", fmt.Errorf("yaml parse error: %w", err)
 		}
 	}
@@ -201,6 +218,7 @@ func readRawFrontmatter(path string) (map[string]interface{}, error) {
 
 	raw := make(map[string]interface{})
 	if err := yaml.Unmarshal([]byte(parts[1]), &raw); err != nil {
+		slog.Warn("failed to parse existing frontmatter", "path", path, "error", err)
 		return nil, fmt.Errorf("yaml parse error: %w", err)
 	}
 	return raw, nil
@@ -306,43 +324,32 @@ func WriteCardFile(path string, meta CardMetadata, body string) error {
 	buf.WriteString("---\n")
 	buf.WriteString(body)
 
-	return os.WriteFile(path, buf.Bytes(), 0644)
+	if err := os.WriteFile(path, buf.Bytes(), 0644); err != nil {
+		slog.Error("failed to write card file", "path", path, "error", err)
+		return err
+	}
+	return nil
 }
 
 // ReadCardContent reads a card file and returns the full markdown body (after frontmatter)
 func ReadCardContent(path string) (string, error) {
 	file, err := os.Open(path)
 	if err != nil {
+		slog.Error("failed to open card file", "path", path, "error", err)
 		return "", err
 	}
 	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
+	s := bufio.NewScanner(file)
 	var bodyBuf bytes.Buffer
 
-	inFrontmatter := false
-	dashCount := 0
+	scanCardFile(s, nil, func(line string) bool {
+		bodyBuf.WriteString(line + "\n")
+		return true
+	})
 
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		if strings.TrimSpace(line) == "---" {
-			dashCount++
-			if dashCount == 1 {
-				inFrontmatter = true
-				continue
-			}
-			if dashCount == 2 {
-				inFrontmatter = false
-				continue
-			}
-		}
-		if !inFrontmatter && dashCount >= 2 {
-			bodyBuf.WriteString(line + "\n")
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
+	if err := s.Err(); err != nil {
+		slog.Error("error reading card file", "path", path, "error", err)
 		return "", err
 	}
 	return bodyBuf.String(), nil

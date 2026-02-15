@@ -1,5 +1,5 @@
 .PHONY: \
-	dev build test \
+	dev build test lint fmt \
 	clean \
 	frontend-install frontend-dev frontend-build frontend-check
 
@@ -11,6 +11,13 @@ build:
 
 test:
 	go test -v ./...
+
+lint:
+	gofmt -l . ./pkg/daedalus/
+	go vet ./...
+
+fmt:
+	gofmt -w . ./pkg/daedalus/
 
 clean:
 	rm -rf build/bin

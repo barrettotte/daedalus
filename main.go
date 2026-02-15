@@ -2,6 +2,8 @@ package main
 
 import (
 	"embed"
+	"log/slog"
+	"os"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -12,6 +14,13 @@ import (
 var assets embed.FS
 
 func main() {
+	// Set up structured logging. DAEDALUS_DEBUG=1 enables debug-level output.
+	level := slog.LevelInfo
+	if os.Getenv("DAEDALUS_DEBUG") == "1" {
+		level = slog.LevelDebug
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
+
 	app := NewApp()
 	err := wails.Run(&options.App{
 		Title:     "daedalus",
@@ -32,6 +41,6 @@ func main() {
 	})
 
 	if err != nil {
-		println("Error:", err.Error())
+		slog.Error("wails runtime failed", "error", err)
 	}
 }

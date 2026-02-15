@@ -5,8 +5,8 @@ import type { daedalus } from '../../wailsjs/go/models';
 // Map of list directory names to their sorted card arrays.
 export type BoardLists = Record<string, daedalus.KanbanCard[]>;
 
-// Map of list directory names to their config (title, limit).
-export type BoardConfigMap = Record<string, { title: string; limit: number }>;
+// Map of list directory names to their config (title, limit, locked).
+export type BoardConfigMap = Record<string, { title: string; limit: number; locked: boolean }>;
 
 // Keyboard focus position on the board (list + index within that list).
 export interface FocusState {
@@ -147,6 +147,11 @@ export function isAtLimit(listKey: string, lists: BoardLists, config: BoardConfi
     return false;
   }
   return (lists[listKey]?.length || 0) >= cfg.limit;
+}
+
+// Returns true when a list is locked (no cards can be moved in or out).
+export function isLocked(listKey: string, config: BoardConfigMap): boolean {
+  return config[listKey]?.locked || false;
 }
 
 // Sort lists by custom order first, then alphabetically for any remaining keys.

@@ -1004,6 +1004,98 @@ func TestDeleteList_CleansConfigLists(t *testing.T) {
 	}
 }
 
+// SaveLockedLists should persist the Locked flag to board.yaml and reload correctly.
+func TestSaveLockedLists_Success(t *testing.T) {
+	app, root := setupTestBoardMulti(t)
+
+	locked := []string{"open"}
+	if err := app.SaveLockedLists(locked); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	config, err := daedalus.LoadBoardConfig(root)
+	if err != nil {
+		t.Fatalf("error loading config: %v", err)
+	}
+	idx := daedalus.FindListEntry(config.Lists, "open")
+	if idx < 0 {
+		t.Fatal("expected config entry for open")
+	}
+	if !config.Lists[idx].Locked {
+		t.Error("expected open to be locked")
+	}
+
+	doneIdx := daedalus.FindListEntry(config.Lists, "done")
+	if doneIdx >= 0 && config.Lists[doneIdx].Locked {
+		t.Error("expected done to NOT be locked")
+	}
+
+	// Clear and verify
+	if err := app.SaveLockedLists(nil); err != nil {
+		t.Fatalf("unexpected error clearing: %v", err)
+	}
+
+	config, err = daedalus.LoadBoardConfig(root)
+	if err != nil {
+		t.Fatalf("error loading config: %v", err)
+	}
+	idx = daedalus.FindListEntry(config.Lists, "open")
+	if idx < 0 {
+		t.Fatal("expected config entry for open after clear")
+	}
+	if config.Lists[idx].Locked {
+		t.Error("expected open to not be locked after clearing")
+	}
+}
+
+// SaveLockedLists should return an error when no board has been loaded.
+func TestSaveLockedLists_BoardNotLoaded(t *testing.T) {
+	app := NewApp()
+	err := app.SaveLockedLists([]string{"open"})
+	if err == nil {
+		t.Fatal("expected error when board not loaded")
+	}
+	if err.Error() != "board not loaded" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// MoveCard should reject moves out of a locked source list.
+func TestMoveCard_LockedSource(t *testing.T) {
+	app, _ := setupTestBoardMulti(t)
+
+	if err := app.SaveLockedLists([]string{"open"}); err != nil {
+		t.Fatalf("unexpected error locking: %v", err)
+	}
+
+	cardPath := app.board.Lists["open"][0].FilePath
+	_, err := app.MoveCard(cardPath, "done", 0)
+	if err == nil {
+		t.Fatal("expected error for locked source list")
+	}
+	if !strings.Contains(err.Error(), "locked") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// MoveCard should reject moves into a locked target list.
+func TestMoveCard_LockedTarget(t *testing.T) {
+	app, _ := setupTestBoardMulti(t)
+
+	if err := app.SaveLockedLists([]string{"done"}); err != nil {
+		t.Fatalf("unexpected error locking: %v", err)
+	}
+
+	cardPath := app.board.Lists["open"][0].FilePath
+	_, err := app.MoveCard(cardPath, "done", 0)
+	if err == nil {
+		t.Fatal("expected error for locked target list")
+	}
+	if !strings.Contains(err.Error(), "locked") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
 // MoveCard should return an error when the card is not found in any list.
 func TestMoveCard_CardNotFound(t *testing.T) {
 	app, root := setupTestBoardMulti(t)

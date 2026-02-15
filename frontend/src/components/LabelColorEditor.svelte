@@ -200,11 +200,11 @@
   }
 </script>
 
-<div class="editor-backdrop" role="presentation" onclick={handleBackdropClick}>
-  <div class="editor-modal" role="dialog">
-    <div class="editor-header">
-      <h2 class="editor-title">Label Manager</h2>
-      <button class="editor-close" onclick={onclose} title="Close">
+<div class="modal-backdrop centered z-high" role="presentation" onclick={handleBackdropClick}>
+  <div class="modal-dialog size-md" role="dialog">
+    <div class="modal-header">
+      <h2 class="modal-title">Label Manager</h2>
+      <button class="modal-close" onclick={onclose} title="Close">
         <svg viewBox="0 0 24 24" width="16" height="16">
           <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
           <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -315,62 +315,6 @@
 </div>
 
 <style lang="scss">
-  .editor-backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: var(--overlay-backdrop);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000;
-  }
-
-  .editor-modal {
-    background: var(--color-bg-elevated);
-    border-radius: 8px;
-    max-width: 480px;
-    width: 90%;
-    color: var(--color-text-secondary);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
-    text-align: left;
-  }
-
-  .editor-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px 20px 12px 20px;
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .editor-title {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--color-text-primary);
-  }
-
-  .editor-close {
-    background: var(--overlay-hover);
-    border: none;
-    color: var(--color-text-secondary);
-    cursor: pointer;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    &:hover {
-      background: var(--overlay-hover-strong);
-      color: var(--color-text-primary);
-    }
-  }
-
   .editor-body {
     padding: 12px 20px 20px 20px;
     max-height: 60vh;

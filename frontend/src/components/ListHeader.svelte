@@ -11,18 +11,22 @@
 
   let {
     listKey,
+    locked = false,
     oncreatecard,
     onfullcollapse,
     onhalfcollapse,
+    onlock,
     onreload,
     onlistdragstart,
     onlistdragend,
     ondelete,
   }: {
     listKey: string;
+    locked?: boolean;
     oncreatecard: () => void;
     onfullcollapse: () => void;
     onhalfcollapse: () => void;
+    onlock: () => void;
     onreload: () => void;
     onlistdragstart: () => void;
     onlistdragend: () => void;
@@ -223,6 +227,12 @@
     <input class="edit-title-input" type="text" bind:value={editTitleValue} onblur={saveTitle} onkeydown={handleTitleKeydown} use:autoFocus/>
   {:else}
     <button class="list-title-btn" title="Click to edit list name" onclick={startEditTitle}>
+      {#if locked}
+        <svg class="lock-icon" viewBox="0 0 24 24" width="11" height="11">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      {/if}
       {getDisplayTitle(listKey, $boardConfig)}
     </button>
   {/if}
@@ -279,6 +289,21 @@
               />
             </svg>
             Open in explorer
+          </button>
+          <button class="menu-item"
+            title={locked ? "Allow cards to be moved in and out" : "Prevent cards from being moved in or out"}
+            onclick={() => { menuOpen = false; onlock(); }}
+          >
+            <svg viewBox="0 0 24 24" width="12" height="12">
+              {#if locked}
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="2"/>
+                <path d="M7 11V7a5 5 0 0 1 5-5v0M12 2a5 5 0 0 1 5 5v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              {:else}
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              {/if}
+            </svg>
+            {locked ? "Unlock list" : "Lock list"}
           </button>
           {#if movingPosition}
             <div class="menu-item move-position-row">
@@ -441,6 +466,14 @@
     flex: 1;
     text-align: left;
     min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .lock-icon {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
   }
 
   .count-btn {

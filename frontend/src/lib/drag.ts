@@ -2,7 +2,7 @@ import { get, writable } from "svelte/store";
 import type { Writable } from "svelte/store";
 import {
   boardData, boardConfig, dragState, dropTarget,
-  moveCardInBoard, computeListOrder, isAtLimit, addToast,
+  moveCardInBoard, computeListOrder, isAtLimit, isLocked, addToast,
 } from "../stores/board";
 import { MoveCard } from "../../wailsjs/go/main/App";
 import type { daedalus } from "../../wailsjs/go/models";
@@ -65,6 +65,12 @@ export function handleDragOver(e: DragEvent, listKey: string): void {
 
   const lists = get(boardData);
   const config = get(boardConfig);
+  // Block drags from or into locked lists.
+  if (isLocked(drag.sourceListKey, config) || isLocked(listKey, config)) {
+    e.dataTransfer!.dropEffect = "none";
+    clearDropIndicators();
+    return;
+  }
 
   // Block cross-list drops into lists that are at their card limit.
   if (drag.sourceListKey !== listKey && isAtLimit(listKey, lists, config)) {
@@ -152,6 +158,12 @@ export async function handleDrop(e: DragEvent, listKey: string, onError: () => v
   }
   const lists = get(boardData);
   const config = get(boardConfig);
+
+  // Block moves from or into locked lists.
+  if (isLocked(drag.sourceListKey, config) || isLocked(listKey, config)) {
+    addToast("List is locked");
+    return;
+  }
 
   // Block cross-list moves into lists at their card limit.
   if (drag.sourceListKey !== listKey && isAtLimit(listKey, lists, config)) {
@@ -241,6 +253,12 @@ export function handleHeaderDragOver(e: DragEvent, listKey: string): void {
 
   const lists = get(boardData);
   const config = get(boardConfig);
+  // Block drags from or into locked lists.
+  if (isLocked(drag.sourceListKey, config) || isLocked(listKey, config)) {
+    e.dataTransfer!.dropEffect = "none";
+    clearDropIndicators();
+    return;
+  }
 
   // Block cross-list drops into lists that are at their card limit.
   if (drag.sourceListKey !== listKey && isAtLimit(listKey, lists, config)) {
@@ -281,6 +299,12 @@ export function handleFooterDragOver(e: DragEvent, listKey: string): void {
 
   const lists = get(boardData);
   const config = get(boardConfig);
+  // Block drags from or into locked lists.
+  if (isLocked(drag.sourceListKey, config) || isLocked(listKey, config)) {
+    e.dataTransfer!.dropEffect = "none";
+    clearDropIndicators();
+    return;
+  }
 
   // Block cross-list drops into lists that are at their card limit.
   if (drag.sourceListKey !== listKey && isAtLimit(listKey, lists, config)) {

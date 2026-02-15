@@ -4,14 +4,14 @@
   import { WindowSetTitle } from "../wailsjs/runtime/runtime";
   import {
     LoadBoard, SaveLabelsExpanded, SaveShowYearProgress,
-    SaveCollapsedLists, SaveHalfCollapsedLists, SaveDarkMode, DeleteCard,
-    SaveListOrder, DeleteList,
+    SaveCollapsedLists, SaveHalfCollapsedLists, SaveLockedLists,
+    SaveDarkMode, DeleteCard, SaveListOrder, DeleteList,
   } from "../wailsjs/go/main/App";
   import {
     boardData, boardConfig, boardPath, sortedListKeys, isLoaded,
     selectedCard, draftListKey, draftPosition, showMetrics,
     labelsExpanded, labelColors, dragState, dropTarget, focusedCard, openInEditMode,
-    removeCardFromBoard, addToast, isAtLimit, listOrder,
+    removeCardFromBoard, addToast, isAtLimit, isLocked, listOrder,
     searchQuery, filteredBoardData,
   } from "./stores/board";
   import type { daedalus } from "../wailsjs/go/models";
@@ -35,6 +35,7 @@
   let error = $state("");
   let collapsedLists = $state(new SvelteSet<string>());
   let halfCollapsedLists = $state(new SvelteSet<string>());
+  let lockedLists = $state(new SvelteSet<string>());
   let showKeyboardHelp = $state(false);
   let showAbout = $state(false);
   let showLabelEditor = $state(false);
@@ -177,6 +178,24 @@
     SaveHalfCollapsedLists([...halfCollapsedLists]).catch(e => addToast(`Failed to save half-collapsed state: ${e}`));
   }
 
+  // Toggles a list's locked state and persists to board.yaml.
+  function toggleLock(listKey: string): void {
+    if (lockedLists.has(listKey)) {
+      lockedLists.delete(listKey);
+    } else {
+      lockedLists.add(listKey);
+    }
+
+    boardConfig.update(c => {
+      if (c[listKey]) {
+        c[listKey] = { ...c[listKey], locked: lockedLists.has(listKey) };
+      }
+      return c;
+    });
+
+    SaveLockedLists([...lockedLists]).catch(e => addToast(`Failed to save locked state: ${e}`));
+  }
+
   // Document-level dragover handler active only during list drags.
   // Updates ghost position, allows drops everywhere, and auto-scrolls at edges.
   function listDragOverHandler(e: DragEvent): void {
@@ -316,14 +335,19 @@
       const entries: any[] = (response.config?.lists as any) || [];
       listOrder.set(entries.map((e: any) => e.dir));
 
-      const configMap: Record<string, { title: string; limit: number }> = {};
+      const configMap: Record<string, { title: string; limit: number; locked: boolean }> = {};
       for (const entry of entries) {
-        configMap[entry.dir] = { title: entry.title || '', limit: entry.limit || 0 };
+        configMap[entry.dir] = {
+          title: entry.title || '',
+          limit: entry.limit || 0,
+          locked: entry.locked || false,
+        };
       }
       boardConfig.set(configMap);
 
       collapsedLists = new SvelteSet(entries.filter((e: any) => e.collapsed).map((e: any) => e.dir));
       halfCollapsedLists = new SvelteSet(entries.filter((e: any) => e.halfCollapsed).map((e: any) => e.dir));
+      lockedLists = new SvelteSet(entries.filter((e: any) => e.locked).map((e: any) => e.dir));
 
       labelColors.set(response.config?.labelColors || {});
 
@@ -800,10 +824,11 @@
           {@const visibleItems = allItems.slice(0, 5)}
           {@const remaining = allItems.length - 5}
           <div class="list-column half-collapsed" role="group" class:list-dragging={listDragging === listKey}>
-            <ListHeader {listKey}
+            <ListHeader {listKey} locked={lockedLists.has(listKey)}
               oncreatecard={() => createCard(listKey)}
               onfullcollapse={() => toggleFullCollapse(listKey)}
               onhalfcollapse={() => toggleHalfCollapse(listKey)}
+              onlock={() => toggleLock(listKey)}
               onreload={initBoard}
               onlistdragstart={() => startListDrag(listKey)}
               onlistdragend={endListDrag}
@@ -821,16 +846,19 @@
             {/if}
           </div>
         {:else}
+          {@const locked = lockedLists.has(listKey)}
           <div class="list-column" role="group"
             class:list-full={$dragState
               && $dragState.sourceListKey !== listKey
               && isAtLimit(listKey, $boardData, $boardConfig)}
+            class:list-locked={$dragState && locked}
             class:list-dragging={listDragging === listKey}
           >
-            <ListHeader {listKey}
+            <ListHeader {listKey} {locked}
               oncreatecard={() => createCard(listKey)}
               onfullcollapse={() => toggleFullCollapse(listKey)}
               onhalfcollapse={() => toggleHalfCollapse(listKey)}
+              onlock={() => toggleLock(listKey)}
               onreload={initBoard}
               onlistdragstart={() => startListDrag(listKey)}
               onlistdragend={endListDrag}
@@ -842,7 +870,11 @@
               ondragleave={handleDragLeave}
               ondrop={(e) => handleDrop(e, listKey, initBoard)}
             >
-              <VirtualList items={$filteredBoardData[listKey]} component={Card} estimatedHeight={90} listKey={listKey}
+              <VirtualList
+                items={$filteredBoardData[listKey]}
+                component={Card}
+                estimatedHeight={90}
+                listKey={listKey}
                 focusIndex={$focusedCard?.listKey === listKey ? $focusedCard.cardIndex : -1}
               />
             </div>
@@ -1123,6 +1155,11 @@
     }
 
     &.list-full {
+      opacity: 0.5;
+      pointer-events: auto;
+    }
+
+    &.list-locked {
       opacity: 0.5;
       pointer-events: auto;
     }

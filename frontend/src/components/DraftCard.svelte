@@ -155,13 +155,13 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if $draftListKey}
-  <div class="backdrop" role="presentation"
+  <div class="modal-backdrop scrollable" role="presentation"
     onmousedown={handleBackdropMousedown}
     onmouseup={handleBackdropMouseup}
     onkeydown={handleKeydown}
   >
-    <div class="modal" role="dialog">
-      <div class="modal-header">
+    <div class="modal-dialog size-lg draft-dialog" role="dialog">
+      <div class="modal-header draft-header">
         <div class="draft-header-col">
           <div class="draft-list-name">
             Drafting a card in <strong>{draftListDisplayName}</strong>
@@ -171,7 +171,7 @@
           />
         </div>
         <div class="header-btns">
-          <button class="header-btn" onclick={close} title="Close">
+          <button class="modal-close" onclick={close} title="Close">
             <svg viewBox="0 0 24 24" width="16" height="16">
               <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -212,38 +212,14 @@
 {/if}
 
 <style lang="scss">
-  .backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: var(--overlay-backdrop);
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    z-index: 1000;
-    padding-top: 48px;
-    overflow-y: auto;
-  }
-
-  .modal {
-    background: var(--color-bg-elevated);
-    border-radius: 8px;
-    max-width: 720px;
-    width: 95%;
-    position: relative;
-    color: var(--color-text-secondary);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
-      Roboto, Oxygen, Ubuntu, sans-serif;
+  .draft-dialog {
     margin-bottom: 48px;
-    text-align: left;
   }
 
-  .modal-header {
-    display: flex;
+  .draft-header {
     align-items: flex-start;
     gap: 12px;
+    border-bottom: none;
     padding: 16px 16px 12px 20px;
   }
 
@@ -266,24 +242,6 @@
     display: flex;
     gap: 4px;
     flex-shrink: 0;
-  }
-
-  .header-btn {
-    background: var(--overlay-hover);
-    border: none;
-    color: var(--color-text-secondary);
-    cursor: pointer;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    &:hover {
-      background: var(--overlay-hover-strong);
-      color: var(--color-text-primary);
-    }
   }
 
   .draft-header-col {

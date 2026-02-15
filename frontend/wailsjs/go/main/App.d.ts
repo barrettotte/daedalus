@@ -39,4 +39,6 @@ export function SaveListConfig(arg1:string,arg2:string,arg3:number):Promise<void
 
 export function SaveListOrder(arg1:Array<string>):Promise<void>;
 
+export function SaveLockedLists(arg1:Array<string>):Promise<void>;
+
 export function SaveShowYearProgress(arg1:boolean):Promise<void>;

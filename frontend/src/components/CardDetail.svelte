@@ -361,9 +361,9 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if $selectedCard && meta}
-  <div class="backdrop" bind:this={backdropEl} role="presentation" onmousedown={handleBackdropMousedown} onmouseup={handleBackdropMouseup} onkeydown={handleKeydown}>
-    <div class="modal" role="dialog">
-      <div class="modal-header">
+  <div class="modal-backdrop scrollable" bind:this={backdropEl} role="presentation" onmousedown={handleBackdropMousedown} onmouseup={handleBackdropMouseup} onkeydown={handleKeydown}>
+    <div class="modal-dialog size-lg card-detail-dialog" role="dialog">
+      <div class="modal-header card-detail-header">
         {#if editingTitle}
           <input class="edit-title-input" type="text" bind:value={editTitle} onblur={blurTitle}
             onkeydown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} use:autoFocus
@@ -373,21 +373,21 @@
         {/if}
         <div class="header-btns">
           {#if !loading}
-            <button class="header-btn" onclick={startEditAll} title="Edit">
+            <button class="modal-close" onclick={startEditAll} title="Edit">
               <svg viewBox="0 0 24 24" width="16" height="16">
                 <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 <path d="m15 5 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </button>
           {/if}
-          <button class="header-btn" onclick={openExternal} title="Open in editor">
+          <button class="modal-close" onclick={openExternal} title="Open in editor">
             <svg viewBox="0 0 24 24" width="16" height="16">
               <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               <polyline points="15 3 21 3 21 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               <line x1="10" y1="14" x2="21" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </button>
-          <button class="header-btn delete-icon" onclick={() => confirmingDelete = true} title="Delete card">
+          <button class="modal-close delete-icon" onclick={() => confirmingDelete = true} title="Delete card">
             <svg viewBox="0 0 24 24" width="16" height="16">
               <polyline points="3 6 5 6 21 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
@@ -395,7 +395,7 @@
               />
             </svg>
           </button>
-          <button class="header-btn" onclick={close} title="Close">
+          <button class="modal-close" onclick={close} title="Close">
             <svg viewBox="0 0 24 24" width="16" height="16">
               <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -448,38 +448,15 @@
 {/if}
 
 <style lang="scss">
-  .backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: var(--overlay-backdrop);
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    z-index: 1000;
-    padding-top: 48px;
-    overflow-y: auto;
-  }
-
-  .modal {
-    background: var(--color-bg-elevated);
-    border-radius: 8px;
-    max-width: 720px;
-    width: 95%;
-    position: relative;
-    color: var(--color-text-secondary);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+  .card-detail-dialog {
     margin-bottom: 48px;
-    text-align: left;
+    position: relative;
   }
 
-  /* Header */
-  .modal-header {
-    display: flex;
+  .card-detail-header {
     align-items: flex-start;
     gap: 12px;
+    border-bottom: none;
     padding: 16px 16px 12px 20px;
   }
 
@@ -500,24 +477,6 @@
     display: flex;
     gap: 4px;
     flex-shrink: 0;
-  }
-
-  .header-btn {
-    background: var(--overlay-hover);
-    border: none;
-    color: var(--color-text-secondary);
-    cursor: pointer;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    &:hover {
-      background: var(--overlay-hover-strong);
-      color: var(--color-text-primary);
-    }
   }
 
   .clickable {

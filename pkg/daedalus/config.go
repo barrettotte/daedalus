@@ -14,6 +14,7 @@ type ListEntry struct {
 	Limit         int    `yaml:"limit,omitempty" json:"limit,omitempty"`
 	Collapsed     bool   `yaml:"collapsed,omitempty" json:"collapsed,omitempty"`
 	HalfCollapsed bool   `yaml:"half_collapsed,omitempty" json:"halfCollapsed,omitempty"`
+	Locked        bool   `yaml:"locked,omitempty" json:"locked,omitempty"`
 }
 
 // BoardConfig holds board-level configuration loaded from board.yaml.

@@ -6,6 +6,7 @@ export namespace daedalus {
 	    limit?: number;
 	    collapsed?: boolean;
 	    halfCollapsed?: boolean;
+	    locked?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new ListEntry(source);
@@ -18,6 +19,7 @@ export namespace daedalus {
 	        this.limit = source["limit"];
 	        this.collapsed = source["collapsed"];
 	        this.halfCollapsed = source["halfCollapsed"];
+	        this.locked = source["locked"];
 	    }
 	}
 	export class BoardConfig {

@@ -74,6 +74,10 @@ export function SaveListOrder(arg1) {
   return window['go']['main']['App']['SaveListOrder'](arg1);
 }
 
+export function SaveLockedLists(arg1) {
+  return window['go']['main']['App']['SaveLockedLists'](arg1);
+}
+
 export function SaveShowYearProgress(arg1) {
   return window['go']['main']['App']['SaveShowYearProgress'](arg1);
 }

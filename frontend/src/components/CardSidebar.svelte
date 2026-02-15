@@ -1,11 +1,11 @@
 <script lang="ts">
   import {
     selectedCard, boardConfig, boardData, sortedListKeys, listOrder,
-    moveCardInBoard, computeListOrder, addToast, isAtLimit, labelColors,
+    moveCardInBoard, computeListOrder, addToast, isAtLimit, isLocked, labelColors,
   } from "../stores/board";
   import { MoveCard, LoadBoard } from "../../wailsjs/go/main/App";
   import {
-    formatListName, formatDateTime, labelColor, toLocalISO,
+    getDisplayTitle, formatDateTime, labelColor, toLocalISO,
   } from "../lib/utils";
   import type { daedalus } from "../../wailsjs/go/models";
   import DatePicker from "./DatePicker.svelte";
@@ -52,7 +52,7 @@
     if (!cardListKey) {
       return "";
     }
-    return getListDisplayName(cardListKey);
+    return getDisplayTitle(cardListKey, $boardConfig);
   });
 
   // Derives the card's 1-based position and list size from boardData.
@@ -88,15 +88,6 @@
     const pct = ((current - start) / range) * 100;
     return Math.max(0, Math.min(100, pct));
   });
-
-  // Resolves a list key to its display name via config title or formatted dir name.
-  function getListDisplayName(listKey: string): string {
-    const cfg = $boardConfig[listKey];
-    if (cfg && cfg.title) {
-      return cfg.title;
-    }
-    return formatListName(listKey);
-  }
 
   // Whether the counter counts down (start > max).
   let countingDown = $derived(meta.counter ? (meta.counter.start || 0) > meta.counter.max : false);
@@ -245,6 +236,10 @@
     if (!$selectedCard || targetListKey === cardListKey) {
       return;
     }
+    if (isLocked(cardListKey, $boardConfig) || isLocked(targetListKey, $boardConfig)) {
+      addToast("List is locked");
+      return;
+    }
     if (isAtLimit(targetListKey, $boardData, $boardConfig)) {
       addToast("List is at its card limit");
       return;
@@ -282,15 +277,27 @@
         </svg>
       </button>
       {#if moveDropdownOpen}
+        {@const sourceLocked = isLocked(cardListKey, $boardConfig)}
         <div class="move-menu">
           {#each sortedListKeys($boardData, $listOrder) as key}
+            {@const locked = isLocked(key, $boardConfig)}
             {@const full = key !== cardListKey
               && isAtLimit(key, $boardData, $boardConfig)}
-            <button class="move-option" class:active={key === cardListKey} class:disabled={full}
-              disabled={full} onclick={() => { moveDropdownOpen = false; moveToList(key); }}
+            {@const blocked = (key !== cardListKey && (full || locked))
+              || (key === cardListKey && locked)
+              || sourceLocked}
+            <button class="move-option"
+              class:active={key === cardListKey}
+              class:disabled={blocked}
+              disabled={blocked}
+              onclick={() => { moveDropdownOpen = false; moveToList(key); }}
             >
-              {getListDisplayName(key)}
-              {#if full} <span class="move-full">(full)</span>{/if}
+              {getDisplayTitle(key, $boardConfig)}
+              {#if locked}
+                <span class="move-full">(locked)</span>
+              {:else if full}
+                <span class="move-full">(full)</span>
+              {/if}
             </button>
           {/each}
         </div>

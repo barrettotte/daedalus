@@ -379,6 +379,29 @@ func (a *App) SaveHalfCollapsedLists(halfCollapsed []string) error {
 	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
 }
 
+// SaveLockedLists sets the Locked flag on matching entries and persists to board.yaml.
+func (a *App) SaveLockedLists(locked []string) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+
+	set := make(map[string]bool, len(locked))
+	for _, dir := range locked {
+		set[dir] = true
+	}
+	for i := range a.board.Config.Lists {
+		a.board.Config.Lists[i].Locked = set[a.board.Config.Lists[i].Dir]
+	}
+
+	return daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config)
+}
+
+// isListLocked returns true if the given list directory is marked as locked in the config.
+func isListLocked(config *daedalus.BoardConfig, dir string) bool {
+	idx := daedalus.FindListEntry(config.Lists, dir)
+	return idx >= 0 && config.Lists[idx].Locked
+}
+
 // validatePath resolves a file path to absolute and verifies it is within the board root.
 func (a *App) validatePath(filePath string) (string, error) {
 	absPath, err := filepath.Abs(filePath)
@@ -657,6 +680,14 @@ func (a *App) MoveCard(filePath string, targetListDirName string, newListOrder f
 	}
 	if !found {
 		return nil, fmt.Errorf("card not found in any list")
+	}
+
+	// Block moves into or out of locked lists.
+	if isListLocked(a.board.Config, sourceListKey) {
+		return nil, fmt.Errorf("source list is locked")
+	}
+	if isListLocked(a.board.Config, targetListDirName) {
+		return nil, fmt.Errorf("target list is locked")
 	}
 
 	card := a.board.Lists[sourceListKey][sourceIdx]

@@ -34,11 +34,11 @@
   ];
 </script>
 
-<div class="help-backdrop" role="presentation" onclick={handleBackdropClick}>
-  <div class="help-modal" role="dialog">
-    <div class="help-header">
-      <h2 class="help-title">Keyboard Shortcuts</h2>
-      <button class="help-close" onclick={onclose} title="Close">
+<div class="modal-backdrop centered z-high" role="presentation" onclick={handleBackdropClick}>
+  <div class="modal-dialog size-md" role="dialog">
+    <div class="modal-header">
+      <h2 class="modal-title">Keyboard Shortcuts</h2>
+      <button class="modal-close" onclick={onclose} title="Close">
         <svg viewBox="0 0 24 24" width="16" height="16">
           <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
           <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -58,62 +58,6 @@
 </div>
 
 <style lang="scss">
-  .help-backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: var(--overlay-backdrop);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000;
-  }
-
-  .help-modal {
-    background: var(--color-bg-elevated);
-    border-radius: 8px;
-    max-width: 480px;
-    width: 90%;
-    color: var(--color-text-secondary);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
-    text-align: left;
-  }
-
-  .help-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px 20px 12px 20px;
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .help-title {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--color-text-primary);
-  }
-
-  .help-close {
-    background: var(--overlay-hover);
-    border: none;
-    color: var(--color-text-secondary);
-    cursor: pointer;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    &:hover {
-      background: var(--overlay-hover-strong);
-      color: var(--color-text-primary);
-    }
-  }
-
   .help-body {
     display: grid;
     grid-template-columns: auto 1fr;

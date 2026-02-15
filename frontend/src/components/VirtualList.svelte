@@ -44,7 +44,7 @@
   let { items = [], estimatedHeight = 90, component, listKey = "", focusIndex = -1 }: {
     items: daedalus.KanbanCard[];
     estimatedHeight?: number;
-    component: Component<any>;
+    component: Component<{ card: daedalus.KanbanCard; listKey?: string; focused?: boolean }>;
     listKey?: string;
     focusIndex?: number;
   } = $props();

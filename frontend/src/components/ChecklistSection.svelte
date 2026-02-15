@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "./Icon.svelte";
   import type { daedalus } from "../../wailsjs/go/models";
 
   let { checklist, ontoggle }: {
@@ -26,13 +27,12 @@
 </script>
 
 <button class="section-header" title="Toggle checklist" onclick={() => expanded = !expanded}>
-  <svg class="chevron" class:collapsed={!expanded} viewBox="0 0 24 24">
-    <polyline points="6 9 12 15 18 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  </svg>
-  <svg class="section-icon" viewBox="0 0 24 24">
-    <polyline points="9 11 12 14 22 4" fill="none" stroke="currentColor" stroke-width="2"/>
-    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" fill="none" stroke="currentColor" stroke-width="2"/>
-  </svg>
+  <span class="chevron" class:collapsed={!expanded}>
+    <Icon name="chevron-down" size={12} />
+  </span>
+  <span class="section-icon">
+    <Icon name="checklist" size={16} />
+  </span>
   <h3 class="section-title">Checklist</h3>
   <div class="checklist-bar">
     <div class="progress-fill" class:complete={checkPct === 100} style="width: {checkPct}%"></div>
@@ -88,8 +88,8 @@
   }
 
   .chevron {
-    width: 16px;
-    height: 16px;
+    display: flex;
+    align-items: center;
     color: var(--color-text-muted);
     flex-shrink: 0;
     transition: transform 0.15s;
@@ -100,8 +100,8 @@
   }
 
   .section-icon {
-    width: 20px;
-    height: 20px;
+    display: flex;
+    align-items: center;
     color: var(--color-text-secondary);
     flex-shrink: 0;
   }
@@ -129,17 +129,6 @@
 
     &.all-done {
       color: var(--color-success);
-    }
-  }
-
-  .progress-fill {
-    height: 100%;
-    background: var(--color-accent);
-    border-radius: 4px;
-    transition: width 0.3s;
-
-    &.complete {
-      background: var(--color-success);
     }
   }
 

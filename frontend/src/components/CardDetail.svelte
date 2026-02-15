@@ -8,10 +8,11 @@
     GetCardContent, SaveCard, OpenFileExternal, DeleteCard,
   } from "../../wailsjs/go/main/App";
   import { marked } from "marked";
-  import { autoFocus } from "../lib/utils";
+  import { autoFocus, backdropClose } from "../lib/utils";
   import type { daedalus } from "../../wailsjs/go/models";
   import ChecklistSection from "./ChecklistSection.svelte";
   import CardSidebar from "./CardSidebar.svelte";
+  import Icon from "./Icon.svelte";
 
   let bodyHtml = $state("");
   let rawBody = $state("");
@@ -258,23 +259,6 @@
     }
   }
 
-  // Tracks whether mousedown started on the backdrop, so drags from inside the
-  // modal that end on the backdrop don't accidentally close it.
-  let mouseDownOnBackdrop = false;
-
-  // Records that mousedown landed directly on the backdrop.
-  function handleBackdropMousedown(e: MouseEvent): void {
-    mouseDownOnBackdrop = e.target === e.currentTarget;
-  }
-
-  // Closes the modal only if both mousedown and mouseup targeted the backdrop.
-  function handleBackdropMouseup(e: MouseEvent): void {
-    if (mouseDownOnBackdrop && e.target === e.currentTarget) {
-      close();
-    }
-    mouseDownOnBackdrop = false;
-  }
-
   // Loads card content when a different card is selected. Skips reload when
   // the same card is updated (e.g. checklist toggle, counter change).
   $effect(() => {
@@ -361,7 +345,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if $selectedCard && meta}
-  <div class="modal-backdrop scrollable" bind:this={backdropEl} role="presentation" onmousedown={handleBackdropMousedown} onmouseup={handleBackdropMouseup} onkeydown={handleKeydown}>
+  <div class="modal-backdrop scrollable" bind:this={backdropEl} role="presentation" use:backdropClose={close} onkeydown={handleKeydown}>
     <div class="modal-dialog size-lg card-detail-dialog" role="dialog">
       <div class="modal-header card-detail-header">
         {#if editingTitle}
@@ -388,18 +372,10 @@
             </svg>
           </button>
           <button class="modal-close delete-icon" onclick={() => confirmingDelete = true} title="Delete card">
-            <svg viewBox="0 0 24 24" width="16" height="16">
-              <polyline points="3 6 5 6 21 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              />
-            </svg>
+            <Icon name="trash" size={12} />
           </button>
           <button class="modal-close" onclick={close} title="Close">
-            <svg viewBox="0 0 24 24" width="16" height="16">
-              <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
+            <Icon name="close" size={16} />
           </button>
         </div>
       </div>
@@ -473,12 +449,6 @@
     text-align: left;
   }
 
-  .header-btns {
-    display: flex;
-    gap: 4px;
-    flex-shrink: 0;
-  }
-
   .clickable {
     cursor: pointer;
 
@@ -504,13 +474,6 @@
     font-family: inherit;
   }
 
-  /* Body layout */
-  .modal-body {
-    display: flex;
-    gap: 16px;
-    padding: 0 20px 20px 20px;
-  }
-
   .main-col {
     flex: 1;
     min-width: 0;
@@ -519,27 +482,6 @@
   /* Sections */
   .section {
     margin-bottom: 20px;
-  }
-
-  /* Edit textarea */
-  .edit-body-textarea {
-    width: 100%;
-    min-height: 200px;
-    background: var(--color-bg-base);
-    border: 1px solid var(--color-border);
-    color: var(--color-text-secondary);
-    font-size: 0.9rem;
-    font-family: monospace;
-    padding: 12px;
-    border-radius: 6px;
-    outline: none;
-    resize: vertical;
-    box-sizing: border-box;
-    line-height: 1.5;
-
-    &:focus {
-      border-color: var(--color-accent);
-    }
   }
 
   .edit-footer {
@@ -657,21 +599,6 @@
       border: none;
       border-top: 1px solid var(--color-border);
       margin: 16px 0;
-    }
-  }
-
-  .cancel-btn {
-    background: var(--overlay-hover);
-    color: var(--color-text-secondary);
-    border: none;
-    padding: 8px 16px;
-    border-radius: 4px;
-    font-size: 0.85rem;
-    cursor: pointer;
-
-    &:hover {
-      background: var(--overlay-hover-strong);
-      color: var(--color-text-primary);
     }
   }
 

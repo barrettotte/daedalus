@@ -4,7 +4,8 @@
     addCardToBoard, boardConfig, boardData, addToast, isAtLimit,
   } from "../stores/board";
   import { CreateCard } from "../../wailsjs/go/main/App";
-  import { formatListName, autoFocus } from "../lib/utils";
+  import { formatListName, autoFocus, backdropClose } from "../lib/utils";
+  import Icon from "./Icon.svelte";
 
   // Draft mode state for creating new cards before they exist on disk
   let draftTitle = $state("");
@@ -123,22 +124,6 @@
     }
   }
 
-  // Tracks whether mousedown started on the backdrop.
-  let mouseDownOnBackdrop = false;
-
-  // Records that mousedown landed directly on the backdrop.
-  function handleBackdropMousedown(e: MouseEvent): void {
-    mouseDownOnBackdrop = e.target === e.currentTarget;
-  }
-
-  // Closes the modal only if both mousedown and mouseup targeted the backdrop.
-  function handleBackdropMouseup(e: MouseEvent): void {
-    if (mouseDownOnBackdrop && e.target === e.currentTarget) {
-      close();
-    }
-    mouseDownOnBackdrop = false;
-  }
-
   // Resets draft fields only on transition from null to non-null (new draft started).
   let prevDraftListKey: string | null = null;
   $effect(() => {
@@ -155,11 +140,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if $draftListKey}
-  <div class="modal-backdrop scrollable" role="presentation"
-    onmousedown={handleBackdropMousedown}
-    onmouseup={handleBackdropMouseup}
-    onkeydown={handleKeydown}
-  >
+  <div class="modal-backdrop scrollable" role="presentation" use:backdropClose={close} onkeydown={handleKeydown}>
     <div class="modal-dialog size-lg draft-dialog" role="dialog">
       <div class="modal-header draft-header">
         <div class="draft-header-col">
@@ -172,10 +153,7 @@
         </div>
         <div class="header-btns">
           <button class="modal-close" onclick={close} title="Close">
-            <svg viewBox="0 0 24 24" width="16" height="16">
-              <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
+            <Icon name="close" size={16} />
           </button>
         </div>
       </div>
@@ -192,9 +170,7 @@
                 <button class="pos-btn" title="Add card to bottom of list" class:active={$draftPosition === 'bottom'} onclick={() => draftPosition.set('bottom')}>Bottom</button>
               </div>
               <div class="position-specific-row">
-                <input class="position-input" type="number" min="1" max={draftListCount + 1}
-                  value={positionDisplayValue} oninput={handlePositionInput}
-                />
+                <input class="position-input" type="number" min="1" max={draftListCount + 1} value={positionDisplayValue} oninput={handlePositionInput}/>
                 <span class="position-hint">of {draftListCount + 1}</span>
               </div>
             </div>
@@ -221,27 +197,6 @@
     gap: 12px;
     border-bottom: none;
     padding: 16px 16px 12px 20px;
-  }
-
-  .modal-body {
-    display: flex;
-    gap: 16px;
-    padding: 0 20px 20px 20px;
-  }
-
-  .main-col {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .section {
-    margin-bottom: 20px;
-  }
-
-  .header-btns {
-    display: flex;
-    gap: 4px;
-    flex-shrink: 0;
   }
 
   .draft-header-col {
@@ -274,26 +229,6 @@
     outline: none;
     box-sizing: border-box;
     font-family: inherit;
-  }
-
-  .edit-body-textarea {
-    width: 100%;
-    min-height: 200px;
-    background: var(--color-bg-base);
-    border: 1px solid var(--color-border);
-    color: var(--color-text-secondary);
-    font-size: 0.9rem;
-    font-family: monospace;
-    padding: 12px;
-    border-radius: 6px;
-    outline: none;
-    resize: vertical;
-    box-sizing: border-box;
-    line-height: 1.5;
-
-    &:focus {
-      border-color: var(--color-accent);
-    }
   }
 
   .draft-actions {
@@ -345,17 +280,8 @@
     border-radius: 4px;
     outline: none;
     text-align: center;
-    appearance: textfield;
-    -moz-appearance: textfield;
-
     &:focus {
       border-color: var(--color-accent);
-    }
-
-    &::-webkit-inner-spin-button,
-    &::-webkit-outer-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
     }
   }
 
@@ -403,18 +329,4 @@
     }
   }
 
-  .cancel-btn {
-    background: var(--overlay-hover);
-    color: var(--color-text-secondary);
-    border: none;
-    padding: 8px 16px;
-    border-radius: 4px;
-    font-size: 0.85rem;
-    cursor: pointer;
-
-    &:hover {
-      background: var(--overlay-hover-strong);
-      color: var(--color-text-primary);
-    }
-  }
 </style>

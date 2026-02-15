@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from "./Icon.svelte";
   import { selectedCard, labelsExpanded, labelColors, dragState, addToast } from "../stores/board";
   import { SaveLabelsExpanded } from "../../wailsjs/go/main/App";
   import { labelColor, formatDate } from "../lib/utils";
@@ -90,10 +91,7 @@
     {/if}
     {#if hasChecklist}
       <span class="badge" class:checklist-done={checklistComplete}>
-        <svg class="badge-icon" viewBox="0 0 24 24">
-          <polyline points="9 11 12 14 22 4" fill="none" stroke="currentColor" stroke-width="2"/>
-          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" fill="none" stroke="currentColor" stroke-width="2"/>
-        </svg>
+        <Icon name="checklist" size={16} />
         {checkedCount}/{meta.checklist!.length}
       </span>
     {/if}

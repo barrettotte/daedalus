@@ -1,13 +1,9 @@
 <script lang="ts">
   // Keyboard shortcut help overlay, toggled by the ? key.
-  let { onclose }: { onclose: () => void } = $props();
+  import Icon from "./Icon.svelte";
+  import { backdropClose } from "../lib/utils";
 
-  // Closes the overlay when clicking the backdrop.
-  function handleBackdropClick(e: MouseEvent): void {
-    if (e.target === e.currentTarget) {
-      onclose();
-    }
-  }
+  let { onclose }: { onclose: () => void } = $props();
 
   const sections = [
     { title: "Board Navigation", items: [
@@ -34,17 +30,15 @@
   ];
 </script>
 
-<div class="modal-backdrop centered z-high" role="presentation" onclick={handleBackdropClick}>
+<div class="modal-backdrop centered z-high" role="presentation" use:backdropClose={onclose}>
   <div class="modal-dialog size-md" role="dialog">
     <div class="modal-header">
       <h2 class="modal-title">Keyboard Shortcuts</h2>
       <button class="modal-close" onclick={onclose} title="Close">
-        <svg viewBox="0 0 24 24" width="16" height="16">
-          <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
+        <Icon name="close" size={16} />
       </button>
     </div>
+
     <div class="help-body">
       {#each sections as section, i}
         <h3 class="section-heading" class:first={i === 0}>{section.title}</h3>
@@ -54,6 +48,7 @@
         {/each}
       {/each}
     </div>
+
   </div>
 </div>
 

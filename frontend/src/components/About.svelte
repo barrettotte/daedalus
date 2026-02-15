@@ -1,15 +1,10 @@
 <script lang="ts">
   // About modal showing app information - version, stack, and project links.
   import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
+  import Icon from "./Icon.svelte";
+  import { backdropClose } from "../lib/utils";
 
   let { onclose }: { onclose: () => void } = $props();
-
-  // Closes the modal when clicking the backdrop.
-  function handleBackdropClick(e: MouseEvent): void {
-    if (e.target === e.currentTarget) {
-      onclose();
-    }
-  }
 
   const info = [
     { label: "Repository", value: "github.com/barrettotte/daedalus", href: "https://github.com/barrettotte/daedalus" },
@@ -19,15 +14,12 @@
   ];
 </script>
 
-<div class="modal-backdrop centered z-high" role="presentation" onclick={handleBackdropClick}>
+<div class="modal-backdrop centered z-high" role="presentation" use:backdropClose={onclose}>
   <div class="modal-dialog size-sm about-modal" role="dialog">
     <div class="modal-header">
       <h2 class="modal-title">About</h2>
       <button class="modal-close" onclick={onclose} title="Close">
-        <svg viewBox="0 0 24 24" width="16" height="16">
-          <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
+        <Icon name="close" size={16} />
       </button>
     </div>
     <div class="about-body">

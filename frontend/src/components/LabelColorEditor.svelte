@@ -2,7 +2,8 @@
   // Modal for managing labels - colors, custom picker, and deletion.
   import { boardData, labelColors, addToast } from "../stores/board";
   import { SaveLabelColors, RemoveLabel, RenameLabel } from "../../wailsjs/go/main/App";
-  import { labelColor, autoFocus as autoFocusInput } from "../lib/utils";
+  import { labelColor, autoFocus as autoFocusInput, backdropClose } from "../lib/utils";
+  import Icon from "./Icon.svelte";
 
   let { onclose, onreload }: { onclose: () => void; onreload: () => Promise<void> } = $props();
 
@@ -48,13 +49,6 @@
     };
 
     return `#${f(0)}${f(8)}${f(4)}`;
-  }
-
-  // Closes the modal when clicking the backdrop.
-  function handleBackdropClick(e: MouseEvent): void {
-    if (e.target === e.currentTarget) {
-      onclose();
-    }
   }
 
   // Assigns a custom color to a label and persists to board.yaml.
@@ -139,6 +133,7 @@
         }
         return colors;
       });
+
       if (activeLabel === oldName) {
         activeLabel = newName;
       }
@@ -200,15 +195,12 @@
   }
 </script>
 
-<div class="modal-backdrop centered z-high" role="presentation" onclick={handleBackdropClick}>
+<div class="modal-backdrop centered z-high" role="presentation" use:backdropClose={onclose}>
   <div class="modal-dialog size-md" role="dialog">
     <div class="modal-header">
       <h2 class="modal-title">Label Manager</h2>
       <button class="modal-close" onclick={onclose} title="Close">
-        <svg viewBox="0 0 24 24" width="16" height="16">
-          <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
+        <Icon name="close" size={16} />
       </button>
     </div>
     <div class="editor-body">
@@ -234,15 +226,11 @@
                       onkeydown={handleRenameKeydown} use:autoFocusInput
                     />
                   {:else}
-                    <button class="label-name-btn"
-                      onclick={() => startEditing(name)}
-                    >{name}</button>
+                    <button class="label-name-btn" onclick={() => startEditing(name)}>{name}</button>
                   {/if}
                 </td>
                 <td class="col-color">
-                  <button class="color-swatch-btn" style="background: {labelColor(name, $labelColors)}"
-                    onclick={() => togglePicker(name)} title="Edit color"
-                  ></button>
+                  <button class="color-swatch-btn" style="background: {labelColor(name, $labelColors)}" onclick={() => togglePicker(name)} title="Edit color"></button>
                 </td>
                 <td class="col-cards">
                   <span class="card-count">{count}</span>
@@ -258,19 +246,10 @@
                       </button>
                     {/if}
                     {#if confirmingDelete === name}
-                      <button class="delete-btn confirming" onclick={() => deleteLabel(name)}
-                        title="Click again to confirm"
-                      >
-                        confirm?
-                      </button>
+                      <button class="delete-btn confirming" onclick={() => deleteLabel(name)} title="Click again to confirm">confirm?</button>
                     {:else}
                       <button class="delete-btn" onclick={() => { confirmingDelete = name; }} title="Delete label from all cards">
-                        <svg viewBox="0 0 24 24" width="12" height="12">
-                          <polyline points="3 6 5 6 21 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                          />
-                        </svg>
+                        <Icon name="trash" size={12} />
                       </button>
                     {/if}
                   </div>

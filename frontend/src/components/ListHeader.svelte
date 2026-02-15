@@ -8,6 +8,7 @@
   import {
     handleDragEnter, handleHeaderDragOver, handleDrop,
   } from "../lib/drag";
+  import Icon from "./Icon.svelte";
 
   let {
     listKey,
@@ -238,10 +239,7 @@
   {/if}
   <div class="header-right">
     <button class="collapse-btn" onclick={oncreatecard} title="Add card">
-      <svg viewBox="0 0 24 24" width="12" height="12">
-        <line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        <line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      </svg>
+      <Icon name="plus" size={12} />
     </button>
     {#if editingLimit}
       <input class="edit-limit-input" type="number" min="0" bind:value={editLimitValue}
@@ -267,9 +265,7 @@
       {#if menuOpen}
         <div class="header-menu">
           <button class="menu-item" title="Show first 5 cards, minimize the rest" onclick={() => { menuOpen = false; onhalfcollapse(); }}>
-            <svg viewBox="0 0 24 24" width="12" height="12">
-              <polyline points="6 9 12 15 18 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
+            <Icon name="chevron-down" size={12} />
             Half collapse
           </button>
           <button class="menu-item" title="Collapse to a vertical title bar" onclick={() => { menuOpen = false; onfullcollapse(); }}>
@@ -307,11 +303,7 @@
           </button>
           {#if movingPosition}
             <div class="menu-item move-position-row">
-              <svg viewBox="0 0 24 24" width="12" height="12">
-                <polyline points="5 9 2 12 5 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <polyline points="19 9 22 12 19 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <line x1="2" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              </svg>
+              <Icon name="move" size={12} />
               <span>Position</span>
               <input class="move-position-input" type="number" min="1" max={$listOrder.length}
                 bind:value={movePositionValue} onblur={commitMovePosition} onkeydown={handleMoveKeydown} use:autoFocus
@@ -319,11 +311,7 @@
             </div>
           {:else}
             <button class="menu-item" title="Move list to a specific position (1-{$listOrder.length})" onclick={startMovePosition}>
-              <svg viewBox="0 0 24 24" width="12" height="12">
-                <polyline points="5 9 2 12 5 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <polyline points="19 9 22 12 19 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <line x1="2" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              </svg>
+              <Icon name="move" size={12} />
               Move to position
             </button>
           {/if}
@@ -334,12 +322,7 @@
             </button>
           {:else}
             <button class="menu-item menu-item-danger" title="Remove this list and all its cards" onclick={() => { confirmingDelete = true; }}>
-              <svg viewBox="0 0 24 24" width="12" height="12">
-                <polyline points="3 6 5 6 21 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                />
-              </svg>
+              <Icon name="trash" size={12} />
               Delete list
             </button>
           {/if}
@@ -515,15 +498,6 @@
     outline: none;
     width: 40px;
     text-align: center;
-    appearance: textfield;
-    -moz-appearance: textfield;
-
-    &::-webkit-inner-spin-button,
-    &::-webkit-outer-spin-button {
-      appearance: none;
-      -webkit-appearance: none;
-      margin: 0;
-    }
   }
 
   .edit-title-input {
@@ -550,15 +524,6 @@
     outline: none;
     width: 60px;
     text-align: center;
-    appearance: textfield;
-    -moz-appearance: textfield;
     flex-shrink: 0;
-
-    &::-webkit-inner-spin-button,
-    &::-webkit-outer-spin-button {
-      appearance: none;
-      -webkit-appearance: none;
-      margin: 0;
-    }
   }
 </style>

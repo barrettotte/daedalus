@@ -106,6 +106,36 @@ export function toLocalISO(dt: Date): string {
   );
 }
 
+// Svelte action that closes a modal when clicking the backdrop. Uses mousedown/mouseup
+// to prevent accidental closes when a click starts inside the modal and drags to the backdrop.
+export function backdropClose(node: HTMLElement, onclose: () => void): ActionReturn<() => void> {
+  let mouseDownOnBackdrop = false;
+
+  function handleMousedown(e: MouseEvent): void {
+    mouseDownOnBackdrop = e.target === e.currentTarget;
+  }
+
+  function handleMouseup(e: MouseEvent): void {
+    if (mouseDownOnBackdrop && e.target === e.currentTarget) {
+      onclose();
+    }
+    mouseDownOnBackdrop = false;
+  }
+
+  node.addEventListener("mousedown", handleMousedown);
+  node.addEventListener("mouseup", handleMouseup);
+
+  return {
+    update(newOnclose: () => void) {
+      onclose = newOnclose;
+    },
+    destroy() {
+      node.removeEventListener("mousedown", handleMousedown);
+      node.removeEventListener("mouseup", handleMouseup);
+    },
+  };
+}
+
 // Svelte action that focuses and selects the content of an input on mount.
 export function autoFocus(node: HTMLInputElement | HTMLTextAreaElement): ActionReturn {
   node.focus();

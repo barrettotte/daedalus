@@ -263,10 +263,29 @@ export namespace main {
 	        this.processCPU = source["processCPU"];
 	    }
 	}
+	export class LoadProfile {
+	    configMs: number;
+	    scanMs: number;
+	    mergeMs: number;
+	    totalMs: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new LoadProfile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.configMs = source["configMs"];
+	        this.scanMs = source["scanMs"];
+	        this.mergeMs = source["mergeMs"];
+	        this.totalMs = source["totalMs"];
+	    }
+	}
 	export class BoardResponse {
 	    lists: Record<string, Array<daedalus.KanbanCard>>;
 	    config?: daedalus.BoardConfig;
 	    boardPath: string;
+	    profile: LoadProfile;
 	
 	    static createFrom(source: any = {}) {
 	        return new BoardResponse(source);
@@ -277,6 +296,7 @@ export namespace main {
 	        this.lists = this.convertValues(source["lists"], Array<daedalus.KanbanCard>, true);
 	        this.config = this.convertValues(source["config"], daedalus.BoardConfig);
 	        this.boardPath = source["boardPath"];
+	        this.profile = this.convertValues(source["profile"], LoadProfile);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

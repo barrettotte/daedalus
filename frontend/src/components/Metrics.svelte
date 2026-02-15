@@ -3,7 +3,7 @@
 
   import { onMount, onDestroy } from "svelte";
   import { GetMetrics } from "../../wailsjs/go/main/App";
-  import { showMetrics, addToast } from "../stores/board";
+  import { showMetrics, loadProfile, addToast } from "../stores/board";
   import type { main } from "../../wailsjs/go/models";
 
   let metrics: main.AppMetrics | null = $state(null);
@@ -77,6 +77,29 @@
     <div class="metrics-row"><span class="label" title="Number of cards">Cards</span><span>{metrics.numCards}</span></div>
     <div class="metrics-row"><span class="label" title="Highest card ID">Max ID</span><span>{metrics.maxID}</span></div>
     <div class="metrics-row"><span class="label" title="Total size of all markdown cards">MD size</span><span>{metrics.fileSizeMB.toFixed(1)} MB</span></div>
+    {#if $loadProfile}
+      <div class="metrics-divider"></div>
+      <div class="metrics-row">
+        <span class="label" title="Time to load board.yaml config">Config</span>
+        <span>{$loadProfile.configMs.toFixed(1)} ms</span>
+      </div>
+      <div class="metrics-row">
+        <span class="label" title="Parallel directory scan and card parsing">Scan</span>
+        <span>{$loadProfile.scanMs.toFixed(1)} ms</span>
+      </div>
+      <div class="metrics-row">
+        <span class="label" title="Reconcile disk directories with saved config">Merge</span>
+        <span>{$loadProfile.mergeMs.toFixed(1)} ms</span>
+      </div>
+      <div class="metrics-row">
+        <span class="label" title="JSON serialization and Wails IPC to frontend">Transfer</span>
+        <span>{$loadProfile.transferMs.toFixed(1)} ms</span>
+      </div>
+      <div class="metrics-row">
+        <span class="label" title="Total round-trip from frontend request to render-ready">Load total</span>
+        <span>{($loadProfile.totalMs + $loadProfile.transferMs).toFixed(1)} ms</span>
+      </div>
+    {/if}
   </div>
 {/if}
 

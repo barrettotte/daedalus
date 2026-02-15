@@ -13,7 +13,7 @@
     boardData, boardTitle, boardConfig, boardPath, sortedListKeys, isLoaded,
     selectedCard, draftListKey, draftPosition,
     labelsExpanded, labelColors, dragState, dropTarget, focusedCard, openInEditMode,
-    removeCardFromBoard, addToast, isAtLimit, isLocked, listOrder,
+    removeCardFromBoard, addToast, isAtLimit, isLocked, listOrder, loadProfile,
     searchQuery, filteredBoardData,
   } from "./stores/board";
   import type { daedalus } from "../wailsjs/go/models";
@@ -293,7 +293,9 @@
   async function initBoard(): Promise<void> {
     error = "";
     try {
+      const t0 = performance.now();
       const response = await LoadBoard("");
+      const roundTripMs = performance.now() - t0;
       boardData.set(response.lists);
       boardPath.set(response.boardPath || "");
 
@@ -334,6 +336,16 @@
         darkMode = response.config.darkMode;
       }
       document.documentElement.classList.toggle("light", !darkMode);
+
+      const p = response.profile;
+      loadProfile.set({
+        configMs: p?.configMs ?? 0,
+        scanMs: p?.scanMs ?? 0,
+        mergeMs: p?.mergeMs ?? 0,
+        totalMs: p?.totalMs ?? 0,
+        transferMs: Math.max(0, roundTripMs - (p?.totalMs ?? 0)),
+      });
+
       isLoaded.set(true);
 
     } catch (e) {

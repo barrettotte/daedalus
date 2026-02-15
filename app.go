@@ -20,6 +20,15 @@ type BoardResponse struct {
 	Lists     map[string][]daedalus.KanbanCard `json:"lists"`
 	Config    *daedalus.BoardConfig            `json:"config"`
 	BoardPath string                           `json:"boardPath"`
+	Profile   LoadProfile                      `json:"profile"`
+}
+
+// LoadProfile holds timing data for each phase of board loading.
+type LoadProfile struct {
+	ConfigMs float64 `json:"configMs"`
+	ScanMs   float64 `json:"scanMs"`
+	MergeMs  float64 `json:"mergeMs"`
+	TotalMs  float64 `json:"totalMs"`
 }
 
 // AppMetrics holds runtime performance metrics for the frontend overlay
@@ -84,6 +93,7 @@ func (a *App) LoadBoard(path string) *BoardResponse {
 
 	// Merge discovered list dirs into config array:
 	// keep existing entries in order, append new dirs alphabetically, remove stale entries.
+	mergeStart := time.Now()
 	diskDirs := make(map[string]bool)
 	for dirName := range state.Lists {
 		diskDirs[dirName] = true
@@ -112,12 +122,27 @@ func (a *App) LoadBoard(path string) *BoardResponse {
 	}
 
 	state.Config.Lists = merged
+	mergeDuration := time.Since(mergeStart)
 	absRoot, _ := filepath.Abs(state.RootPath)
+
+	profile := LoadProfile{
+		ConfigMs: float64(state.ConfigLoadTime.Microseconds()) / 1000,
+		ScanMs:   float64(state.ScanTime.Microseconds()) / 1000,
+		MergeMs:  float64(mergeDuration.Microseconds()) / 1000,
+		TotalMs:  float64(time.Since(start).Microseconds()) / 1000,
+	}
+	slog.Info("load profile",
+		"configMs", profile.ConfigMs,
+		"scanMs", profile.ScanMs,
+		"mergeMs", profile.MergeMs,
+		"totalMs", profile.TotalMs,
+	)
 
 	return &BoardResponse{
 		Lists:     state.Lists,
 		Config:    state.Config,
 		BoardPath: absRoot,
+		Profile:   profile,
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -33,12 +34,15 @@ func ScanBoard(rootPath string) (*BoardState, error) {
 		return nil, err
 	}
 
+	configStart := time.Now()
 	config, err := LoadBoardConfig(absRoot)
 	if err != nil {
 		return nil, fmt.Errorf("loading board config: %w", err)
 	}
 	state.Config = config
+	state.ConfigLoadTime = time.Since(configStart)
 
+	scanStart := time.Now()
 	var wg sync.WaitGroup
 	var mutex sync.Mutex // protect state writes
 
@@ -65,6 +69,7 @@ func ScanBoard(rootPath string) (*BoardState, error) {
 		}
 	}
 	wg.Wait()
+	state.ScanTime = time.Since(scanStart)
 	return state, nil
 }
 

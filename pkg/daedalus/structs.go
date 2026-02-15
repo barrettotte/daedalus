@@ -12,6 +12,8 @@ type BoardState struct {
 	RootPath       string
 	Config         *BoardConfig
 	TotalFileBytes int64
+	ConfigLoadTime time.Duration
+	ScanTime       time.Duration
 }
 
 // KanbanCard is the object sent to the frontend

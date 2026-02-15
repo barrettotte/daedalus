@@ -126,6 +126,37 @@
     }
   }
 
+  // Saves or clears the card icon and persists to disk.
+  async function saveIcon(icon: string): Promise<void> {
+    const updatedMeta = { ...meta!, icon } as daedalus.CardMetadata;
+    const fullBody = `# ${meta!.title}\n\n${rawBody}`;
+
+    try {
+      const result = await SaveCard($selectedCard!.filePath, updatedMeta, fullBody);
+      updateCardInBoard(result);
+      selectedCard.set(result);
+    } catch (e) {
+      addToast(`Failed to save icon: ${e}`);
+    }
+  }
+
+  // Saves or clears the estimated time and persists to disk.
+  async function saveEstimate(estimate: number | null): Promise<void> {
+    const updatedMeta = {
+      ...meta!,
+      estimate: estimate ?? undefined,
+    } as daedalus.CardMetadata;
+    const fullBody = `# ${meta!.title}\n\n${rawBody}`;
+
+    try {
+      const result = await SaveCard($selectedCard!.filePath, updatedMeta, fullBody);
+      updateCardInBoard(result);
+      selectedCard.set(result);
+    } catch (e) {
+      addToast(`Failed to save estimate: ${e}`);
+    }
+  }
+
   // Saves due date and/or date range changes and persists to disk.
   async function saveDates(due: string | null, range: { start: string; end: string } | null): Promise<void> {
     const updatedMeta = {
@@ -411,7 +442,10 @@
           {/if}
         </div>
 
-        <CardSidebar {meta} bind:moveDropdownOpen onsavecounter={saveCounter} onsavedates={saveDates}/>
+        <CardSidebar {meta} bind:moveDropdownOpen
+          onsavecounter={saveCounter} onsavedates={saveDates}
+          onsaveestimate={saveEstimate} onsaveicon={saveIcon}
+        />
       </div>
       {/if}
     </div>

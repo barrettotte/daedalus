@@ -9,9 +9,15 @@ export function DeleteCard(arg1:string):Promise<void>;
 
 export function DeleteList(arg1:string):Promise<void>;
 
+export function DownloadIcon(arg1:string):Promise<string>;
+
 export function GetCardContent(arg1:string):Promise<string>;
 
+export function GetIconContent(arg1:string):Promise<string>;
+
 export function GetMetrics():Promise<main.AppMetrics>;
+
+export function ListIcons():Promise<Array<string>>;
 
 export function LoadBoard(arg1:string):Promise<main.BoardResponse>;
 
@@ -28,6 +34,8 @@ export function SaveBoardTitle(arg1:string):Promise<void>;
 export function SaveCard(arg1:string,arg2:daedalus.CardMetadata,arg3:string):Promise<daedalus.KanbanCard>;
 
 export function SaveCollapsedLists(arg1:Array<string>):Promise<void>;
+
+export function SaveCustomIcon(arg1:string,arg2:string):Promise<void>;
 
 export function SaveDarkMode(arg1:boolean):Promise<void>;
 

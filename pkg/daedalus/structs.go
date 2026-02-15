@@ -35,6 +35,7 @@ type CardMetadata struct {
 	Range     *DateRange      `yaml:"range,omitempty" json:"range,omitempty"`
 	Labels    []string        `yaml:"labels,omitempty" json:"labels"`
 	Icon      string          `yaml:"icon,omitempty" json:"icon"`
+	Estimate  *float64        `yaml:"estimate,omitempty" json:"estimate,omitempty"`
 	Counter   *Counter        `yaml:"counter,omitempty" json:"counter,omitempty"`
 	Checklist []CheckListItem `yaml:"checklist,omitempty" json:"checklist,omitempty"`
 }

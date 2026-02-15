@@ -15,6 +15,9 @@ I really don't care for the obsessive customization and installing a bunch of co
 I've used dataviews, bases, and the Kanban plugin, but none of them accomplished exactly what I want.
 So this was built specifically as a complementary application to Obsidian.
 
+Additionally, my single board on Trello was using ~3GB of RAM which is stupid.
+So this is meant to be a lightweight and fast replacement.
+
 The user is put in charge of data retention. 
 This is meant for programmers, so setup a cron job or something to export somewhere external.
 
@@ -53,6 +56,12 @@ Card body...
 
 Lists are directories named `##___list_name` (ex: `00___open`, `10___in_progress`).
 The prefix controls sort order.
+
+## Custom Icons
+
+Custom icons on cards/lists are completely optional so this app does not ship with any to save size.
+Users can supply their own icons from sites like https://lucide.dev/icons/categories and they will be
+included with the user's kanban board data.
 
 ## Development
 

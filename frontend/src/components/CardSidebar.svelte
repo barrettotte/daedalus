@@ -2,20 +2,25 @@
   // Card detail sidebar. Shows move-to-list dropdown, labels, dates, counter, and timestamps.
 
   import {
-    selectedCard, boardConfig, boardData, sortedListKeys, listOrder,
+    selectedCard, boardConfig, boardData, boardPath, sortedListKeys, listOrder,
     moveCardInBoard, computeListOrder, addToast, isAtLimit, isLocked, labelColors,
   } from "../stores/board";
   import { MoveCard, LoadBoard } from "../../wailsjs/go/main/App";
-  import { getDisplayTitle, formatDateTime, labelColor } from "../lib/utils";
+  import { getDisplayTitle, formatDateTime, labelColor, autoFocus } from "../lib/utils";
   import type { daedalus } from "../../wailsjs/go/models";
   import CounterControl from "./CounterControl.svelte";
   import DateSection from "./DateSection.svelte";
+  import Icon from "./Icon.svelte";
+  import CardIcon from "./CardIcon.svelte";
+  import IconPicker from "./IconPicker.svelte";
 
   let {
     meta,
     moveDropdownOpen = $bindable(false),
     onsavecounter,
     onsavedates,
+    onsaveestimate,
+    onsaveicon,
   }: {
     meta: daedalus.CardMetadata;
     moveDropdownOpen?: boolean;
@@ -24,14 +29,49 @@
       due: string | null,
       range: { start: string; end: string } | null,
     ) => void;
+    onsaveestimate?: (estimate: number | null) => void;
+    onsaveicon?: (icon: string) => void;
   } = $props();
 
-  let dropdownEl: HTMLElement | undefined = $state();
+  let iconPickerOpen = $state(false);
 
-  // Closes the move dropdown when clicking outside of it.
+  let editingEstimate = $state(false);
+  let estimateInput = $state("");
+
+  // Opens the estimate field for inline editing.
+  function startEditEstimate(): void {
+    estimateInput = meta.estimate != null ? String(meta.estimate) : "";
+    editingEstimate = true;
+  }
+
+  // Saves the estimate on blur. Empty or zero clears it.
+  function blurEstimate(): void {
+    editingEstimate = false;
+    const val = parseFloat(estimateInput);
+    if (isNaN(val) || val <= 0) {
+      if (meta.estimate != null) {
+        onsaveestimate?.(null);
+      }
+    } else if (val !== meta.estimate) {
+      onsaveestimate?.(val);
+    }
+  }
+
+  let dropdownEl: HTMLElement | undefined = $state();
+  let iconSectionEl: HTMLElement | undefined = $state();
+
+  // Closes dropdowns/pickers when clicking outside of them.
   function handleWindowClick(e: MouseEvent): void {
-    if (moveDropdownOpen && dropdownEl && !dropdownEl.contains(e.target as Node)) {
+    const target = e.target as Node;
+    // Ignore clicks on elements removed from DOM by a reactive branch swap
+    if (!target.isConnected) {
+      return;
+    }
+    if (moveDropdownOpen && dropdownEl && !dropdownEl.contains(target)) {
       moveDropdownOpen = false;
+    }
+    if (iconPickerOpen && iconSectionEl && !iconSectionEl.contains(target)) {
+      iconPickerOpen = false;
     }
   }
 
@@ -112,8 +152,8 @@
           return lists;
         });
       }
-
       selectedCard.set(result);
+
     } catch (err) {
       addToast(`Failed to move card: ${err}`);
       const response = await LoadBoard("");
@@ -145,10 +185,7 @@
             {@const blocked = (key !== cardListKey && (full || locked))
               || (key === cardListKey && locked)
               || sourceLocked}
-            <button class="move-option"
-              class:active={key === cardListKey}
-              class:disabled={blocked}
-              disabled={blocked}
+            <button class="move-option" class:active={key === cardListKey} class:disabled={blocked} disabled={blocked}
               onclick={() => { moveDropdownOpen = false; moveToList(key); }}
             >
               {getDisplayTitle(key, $boardConfig)}
@@ -168,7 +205,7 @@
     <div class="sidebar-section">
       <h4 class="sidebar-title">Labels</h4>
       <div class="sidebar-labels">
-        {#each meta.labels as label}
+        {#each [...meta.labels].sort() as label}
           <span class="label" title={label} style="background: {labelColor(label, $labelColors)}">
             {label}
           </span>
@@ -177,7 +214,72 @@
     </div>
   {/if}
 
+  {#if meta.icon || iconPickerOpen}
+    <div class="sidebar-section" bind:this={iconSectionEl}>
+      <div class="icon-header">
+        <h4 class="sidebar-title">Icon</h4>
+        <div class="icon-header-right">
+          {#if meta.icon && !iconPickerOpen}
+            <button class="icon-header-btn" title="Change icon" onclick={() => iconPickerOpen = true}>
+              <Icon name="pencil" size={12} />
+            </button>
+          {/if}
+          <button class="icon-header-btn remove" title="Remove icon" onclick={() => { iconPickerOpen = false; onsaveicon?.(""); }}>
+            <Icon name="trash" size={12} />
+          </button>
+        </div>
+      </div>
+      {#if meta.icon && !iconPickerOpen}
+        <button class="icon-current" title={`${$boardPath}/assets/icons/${meta.icon}`} onclick={() => iconPickerOpen = true}>
+          <CardIcon name={meta.icon} size={20} />
+          <span class="icon-name">{meta.icon}</span>
+        </button>
+      {:else}
+        <IconPicker currentIcon={meta.icon || ""}
+          onselect={(name) => { iconPickerOpen = false; onsaveicon?.(name); }}
+        />
+      {/if}
+    </div>
+  {:else}
+    <div class="sidebar-section" bind:this={iconSectionEl}>
+      <button class="add-counter-btn" onclick={() => iconPickerOpen = true}>+ Add icon</button>
+    </div>
+  {/if}
+
   <DateSection due={meta.due} range={meta.range} onsave={onsavedates} />
+
+  {#if meta.estimate != null || editingEstimate}
+    <div class="sidebar-section">
+      <div class="estimate-header">
+        <h4 class="sidebar-title">Estimate</h4>
+        {#if !editingEstimate}
+          <button class="estimate-remove" title="Remove estimate" onclick={() => onsaveestimate?.(null)}>
+            <Icon name="trash" size={12} />
+          </button>
+        {/if}
+      </div>
+      {#if editingEstimate}
+        <div class="estimate-input-row">
+          <input class="estimate-input" type="number" step="0.5" min="0"
+            bind:value={estimateInput}
+            onblur={blurEstimate}
+            onkeydown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            use:autoFocus
+          />
+          <span class="estimate-suffix">hour(s)</span>
+        </div>
+      {:else}
+        <button class="estimate-value" onclick={startEditEstimate}>
+          {meta.estimate}h
+        </button>
+      {/if}
+    </div>
+  {:else}
+    <div class="sidebar-section">
+      <button class="add-counter-btn" onclick={startEditEstimate}>+ Add estimate</button>
+    </div>
+  {/if}
+
   <CounterControl counter={meta.counter} onsave={onsavecounter} />
 
   {#if meta.created}
@@ -306,6 +408,120 @@
   .move-full {
     font-size: 0.7rem;
     color: var(--color-text-muted);
+  }
+
+  .icon-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+
+    .sidebar-title {
+      margin: 0;
+    }
+  }
+
+  .icon-header-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .icon-header-btn {
+    all: unset;
+    display: flex;
+    align-items: center;
+    color: var(--color-text-muted);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--color-text-primary);
+    }
+
+    &.remove:hover {
+      color: var(--color-error);
+    }
+  }
+
+  .icon-current {
+    all: unset;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--color-text-primary);
+    }
+  }
+
+  .icon-name {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+  }
+
+  .estimate-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+
+    .sidebar-title {
+      margin: 0;
+    }
+  }
+
+  .estimate-remove {
+    all: unset;
+    display: flex;
+    align-items: center;
+    color: var(--color-text-muted);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--color-error);
+    }
+  }
+
+  .estimate-value {
+    all: unset;
+    display: block;
+    width: 100%;
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: 2px 0;
+
+    &:hover {
+      color: var(--color-text-primary);
+    }
+  }
+
+  .estimate-input-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .estimate-input {
+    flex: 1;
+    min-width: 0;
+    background: var(--color-bg-base);
+    border: 1px solid var(--color-accent);
+    color: var(--color-text-primary);
+    font-size: 0.8rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    outline: none;
+    box-sizing: border-box;
+  }
+
+  .estimate-suffix {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
   }
 
 </style>

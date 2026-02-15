@@ -3,8 +3,12 @@ package main
 import (
 	"context"
 	"daedalus/pkg/daedalus"
+	"encoding/base64"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -894,6 +898,196 @@ func insertSorted(cards []daedalus.KanbanCard, card daedalus.KanbanCard) []daeda
 	copy(cards[idx+1:], cards[idx:])
 	cards[idx] = card
 	return cards
+}
+
+// ListIcons returns a sorted list of icon filenames from {boardRoot}/assets/icons/.
+// Returns an empty list if the directory does not exist.
+func (a *App) ListIcons() ([]string, error) {
+	if a.board == nil {
+		return nil, fmt.Errorf("board not loaded")
+	}
+
+	iconsDir := filepath.Join(a.board.RootPath, "assets", "icons")
+	entries, err := os.ReadDir(iconsDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []string{}, nil
+		}
+		slog.Error("failed to read icons directory", "path", iconsDir, "error", err)
+		return nil, fmt.Errorf("reading icons directory: %w", err)
+	}
+
+	var names []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(entry.Name()))
+		if ext == ".svg" || ext == ".png" {
+			names = append(names, entry.Name())
+		}
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
+// GetIconContent returns the content of a custom icon file.
+// For .svg files, returns the raw SVG markup.
+// For .png files, returns a base64 data URI.
+func (a *App) GetIconContent(name string) (string, error) {
+	if a.board == nil {
+		return "", fmt.Errorf("board not loaded")
+	}
+
+	if strings.ContainsAny(name, "/\\") || strings.Contains(name, "..") {
+		slog.Warn("rejected invalid icon name", "name", name)
+		return "", fmt.Errorf("invalid icon name")
+	}
+
+	iconPath := filepath.Join(a.board.RootPath, "assets", "icons", name)
+	absPath, err := a.validatePath(iconPath)
+	if err != nil {
+		return "", err
+	}
+
+	data, err := os.ReadFile(absPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("icon not found: %s", name)
+		}
+		slog.Error("failed to read icon file", "name", name, "error", err)
+		return "", fmt.Errorf("reading icon: %w", err)
+	}
+
+	ext := strings.ToLower(filepath.Ext(name))
+	if ext == ".svg" {
+		return string(data), nil
+	}
+	if ext == ".png" {
+		encoded := base64.StdEncoding.EncodeToString(data)
+		return "data:image/png;base64," + encoded, nil
+	}
+	return "", fmt.Errorf("unsupported icon type: %s", ext)
+}
+
+// SaveCustomIcon saves an uploaded icon file to {boardRoot}/assets/icons/.
+// For .svg files, content is raw SVG text. For .png files, content is base64-encoded.
+func (a *App) SaveCustomIcon(name string, content string) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+
+	if strings.ContainsAny(name, "/\\") || strings.Contains(name, "..") {
+		slog.Warn("rejected invalid icon name", "name", name)
+		return fmt.Errorf("invalid icon name")
+	}
+
+	iconsDir := filepath.Join(a.board.RootPath, "assets", "icons")
+	if err := os.MkdirAll(iconsDir, 0755); err != nil {
+		slog.Error("failed to create icons directory", "path", iconsDir, "error", err)
+		return fmt.Errorf("creating icons directory: %w", err)
+	}
+
+	iconPath := filepath.Join(iconsDir, name)
+	absPath, err := a.validatePath(iconPath)
+	if err != nil {
+		return err
+	}
+
+	ext := strings.ToLower(filepath.Ext(name))
+	if ext == ".svg" {
+		if !strings.Contains(content, "<svg") {
+			return fmt.Errorf("invalid SVG content")
+		}
+		if err := os.WriteFile(absPath, []byte(content), 0644); err != nil {
+			slog.Error("failed to write SVG icon", "name", name, "error", err)
+			return fmt.Errorf("writing icon: %w", err)
+		}
+	} else if ext == ".png" {
+		data, err := base64.StdEncoding.DecodeString(content)
+		if err != nil {
+			return fmt.Errorf("invalid base64 content: %w", err)
+		}
+		if err := os.WriteFile(absPath, data, 0644); err != nil {
+			slog.Error("failed to write PNG icon", "name", name, "error", err)
+			return fmt.Errorf("writing icon: %w", err)
+		}
+	} else {
+		return fmt.Errorf("unsupported icon type: %s", ext)
+	}
+
+	slog.Info("custom icon saved", "name", name)
+	return nil
+}
+
+// DownloadIcon fetches an icon from a URL and saves it to {boardRoot}/assets/icons/.
+// Only .svg and .png extensions are allowed. Returns the filename on success.
+func (a *App) DownloadIcon(rawURL string) (string, error) {
+	if a.board == nil {
+		return "", fmt.Errorf("board not loaded")
+	}
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		slog.Warn("invalid icon download URL", "url", rawURL)
+		return "", fmt.Errorf("invalid URL")
+	}
+
+	// Extract filename from the URL path's last segment
+	filename := filepath.Base(parsed.Path)
+	if filename == "" || filename == "." || filename == "/" {
+		return "", fmt.Errorf("could not determine filename from URL")
+	}
+
+	ext := strings.ToLower(filepath.Ext(filename))
+	if ext != ".svg" && ext != ".png" {
+		return "", fmt.Errorf("unsupported file type: %s (only .svg and .png)", ext)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(rawURL)
+	if err != nil {
+		slog.Error("icon download failed", "url", rawURL, "error", err)
+		return "", fmt.Errorf("download failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("download returned status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("reading response: %w", err)
+	}
+
+	// Validate content
+	if ext == ".svg" {
+		if !strings.Contains(string(body), "<svg") {
+			return "", fmt.Errorf("invalid SVG content")
+		}
+	}
+
+	// Save to icons directory
+	iconsDir := filepath.Join(a.board.RootPath, "assets", "icons")
+	if err := os.MkdirAll(iconsDir, 0755); err != nil {
+		slog.Error("failed to create icons directory", "path", iconsDir, "error", err)
+		return "", fmt.Errorf("creating icons directory: %w", err)
+	}
+
+	iconPath := filepath.Join(iconsDir, filename)
+	absPath, err := a.validatePath(iconPath)
+	if err != nil {
+		return "", err
+	}
+
+	if err := os.WriteFile(absPath, body, 0644); err != nil {
+		slog.Error("failed to write downloaded icon", "name", filename, "error", err)
+		return "", fmt.Errorf("writing icon: %w", err)
+	}
+
+	slog.Info("icon downloaded", "name", filename, "url", rawURL, "bytes", len(body))
+	return filename, nil
 }
 
 // readProcessRSS reads the resident set size from /proc/self/statm in megabytes.

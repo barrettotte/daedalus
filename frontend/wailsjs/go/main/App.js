@@ -14,12 +14,24 @@ export function DeleteList(arg1) {
   return window['go']['main']['App']['DeleteList'](arg1);
 }
 
+export function DownloadIcon(arg1) {
+  return window['go']['main']['App']['DownloadIcon'](arg1);
+}
+
 export function GetCardContent(arg1) {
   return window['go']['main']['App']['GetCardContent'](arg1);
 }
 
+export function GetIconContent(arg1) {
+  return window['go']['main']['App']['GetIconContent'](arg1);
+}
+
 export function GetMetrics() {
   return window['go']['main']['App']['GetMetrics']();
+}
+
+export function ListIcons() {
+  return window['go']['main']['App']['ListIcons']();
 }
 
 export function LoadBoard(arg1) {
@@ -52,6 +64,10 @@ export function SaveCard(arg1, arg2, arg3) {
 
 export function SaveCollapsedLists(arg1) {
   return window['go']['main']['App']['SaveCollapsedLists'](arg1);
+}
+
+export function SaveCustomIcon(arg1, arg2) {
+  return window['go']['main']['App']['SaveCustomIcon'](arg1, arg2);
 }
 
 export function SaveDarkMode(arg1) {

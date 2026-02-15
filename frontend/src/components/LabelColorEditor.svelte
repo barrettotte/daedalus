@@ -1,8 +1,8 @@
 <script lang="ts">
   // Modal for managing labels - colors, custom picker, and deletion.
 
-  import { boardData, labelColors, addToast } from "../stores/board";
-  import { SaveLabelColors, RemoveLabel, RenameLabel } from "../../wailsjs/go/main/App";
+  import { boardData, labelColors, labelsExpanded, addToast } from "../stores/board";
+  import { SaveLabelColors, RemoveLabel, RenameLabel, SaveLabelsExpanded } from "../../wailsjs/go/main/App";
   import { labelColor, autoFocus as autoFocusInput, backdropClose } from "../lib/utils";
   import Icon from "./Icon.svelte";
 
@@ -194,15 +194,29 @@
       applyHexInput();
     }
   }
+
+  // Toggles labels between expanded text and collapsed dots on all cards.
+  function toggleLabels(): void {
+    labelsExpanded.update(v => {
+      const next = !v;
+      SaveLabelsExpanded(next).catch(e => addToast(`Failed to save label state: ${e}`));
+      return next;
+    });
+  }
 </script>
 
 <div class="modal-backdrop centered z-high" role="presentation" use:backdropClose={onclose}>
   <div class="modal-dialog size-md" role="dialog">
     <div class="modal-header">
       <h2 class="modal-title">Label Manager</h2>
-      <button class="modal-close" onclick={onclose} title="Close">
-        <Icon name="close" size={16} />
-      </button>
+      <div class="header-actions">
+        <button class="collapse-toggle" onclick={toggleLabels} title={$labelsExpanded ? "Collapse labels to dots" : "Expand labels to text"}>
+          {$labelsExpanded ? "Collapse" : "Expand"}
+        </button>
+        <button class="modal-close" onclick={onclose} title="Close">
+          <Icon name="close" size={16} />
+        </button>
+      </div>
     </div>
     <div class="editor-body">
       {#if allLabels.length === 0}
@@ -587,6 +601,26 @@
 
     &::placeholder {
       color: var(--color-text-muted);
+    }
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .collapse-toggle {
+    all: unset;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 4px;
+
+    &:hover {
+      color: var(--color-text-primary);
+      background: var(--overlay-hover);
     }
   }
 </style>

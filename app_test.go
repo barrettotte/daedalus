@@ -2,7 +2,10 @@ package main
 
 import (
 	"daedalus/pkg/daedalus"
+	"encoding/base64"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1199,6 +1202,275 @@ func TestMoveCard_CardNotFound(t *testing.T) {
 		t.Fatal("expected error for card not found")
 	}
 	if !strings.Contains(err.Error(), "card not found") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// ListIcons should return sorted filenames when icons directory has files.
+func TestListIcons_Success(t *testing.T) {
+	app, root := setupTestBoard(t)
+
+	iconsDir := filepath.Join(root, "assets", "icons")
+	os.MkdirAll(iconsDir, 0755)
+	os.WriteFile(filepath.Join(iconsDir, "zebra.svg"), []byte("<svg></svg>"), 0644)
+	os.WriteFile(filepath.Join(iconsDir, "arrow.svg"), []byte("<svg></svg>"), 0644)
+	os.WriteFile(filepath.Join(iconsDir, "logo.png"), []byte("PNG"), 0644)
+
+	names, err := app.ListIcons()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(names) != 3 {
+		t.Fatalf("expected 3 icons, got %d", len(names))
+	}
+	if names[0] != "arrow.svg" || names[1] != "logo.png" || names[2] != "zebra.svg" {
+		t.Errorf("unexpected order: %v", names)
+	}
+}
+
+// ListIcons should return an empty list when the icons directory doesn't exist.
+func TestListIcons_EmptyDir(t *testing.T) {
+	app, _ := setupTestBoard(t)
+
+	names, err := app.ListIcons()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(names) != 0 {
+		t.Errorf("expected 0 icons, got %d", len(names))
+	}
+}
+
+// GetIconContent should return raw SVG markup for .svg files.
+func TestGetIconContent_SVG(t *testing.T) {
+	app, root := setupTestBoard(t)
+
+	iconsDir := filepath.Join(root, "assets", "icons")
+	os.MkdirAll(iconsDir, 0755)
+	svgContent := `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>`
+	os.WriteFile(filepath.Join(iconsDir, "test.svg"), []byte(svgContent), 0644)
+
+	content, err := app.GetIconContent("test.svg")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if content != svgContent {
+		t.Errorf("got %q, want %q", content, svgContent)
+	}
+}
+
+// GetIconContent should return a base64 data URI for .png files.
+func TestGetIconContent_PNG(t *testing.T) {
+	app, root := setupTestBoard(t)
+
+	iconsDir := filepath.Join(root, "assets", "icons")
+	os.MkdirAll(iconsDir, 0755)
+	pngData := []byte{0x89, 0x50, 0x4E, 0x47} // PNG magic bytes
+	os.WriteFile(filepath.Join(iconsDir, "test.png"), pngData, 0644)
+
+	content, err := app.GetIconContent("test.png")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expectedPrefix := "data:image/png;base64,"
+	if !strings.HasPrefix(content, expectedPrefix) {
+		t.Errorf("expected data URI prefix, got %q", content[:30])
+	}
+
+	encoded := strings.TrimPrefix(content, expectedPrefix)
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		t.Fatalf("failed to decode base64: %v", err)
+	}
+	if len(decoded) != len(pngData) {
+		t.Errorf("decoded length: got %d, want %d", len(decoded), len(pngData))
+	}
+}
+
+// GetIconContent should reject names with path traversal characters.
+func TestGetIconContent_PathTraversal(t *testing.T) {
+	app, _ := setupTestBoard(t)
+
+	for _, name := range []string{"../etc/passwd", "foo/bar.svg", "..\\evil.svg"} {
+		_, err := app.GetIconContent(name)
+		if err == nil {
+			t.Errorf("expected error for name %q", name)
+		}
+		if err != nil && err.Error() != "invalid icon name" {
+			t.Errorf("unexpected error for %q: %v", name, err)
+		}
+	}
+}
+
+// GetIconContent should return an error for a nonexistent icon.
+func TestGetIconContent_NotFound(t *testing.T) {
+	app, root := setupTestBoard(t)
+
+	// Create the icons directory but no files
+	os.MkdirAll(filepath.Join(root, "assets", "icons"), 0755)
+
+	_, err := app.GetIconContent("nonexistent.svg")
+	if err == nil {
+		t.Fatal("expected error for nonexistent icon")
+	}
+	if !strings.Contains(err.Error(), "icon not found") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// SaveCustomIcon should save an SVG file and read it back correctly.
+func TestSaveCustomIcon_SVG(t *testing.T) {
+	app, _ := setupTestBoard(t)
+
+	svgContent := `<svg viewBox="0 0 24 24"><rect width="24" height="24"/></svg>`
+	err := app.SaveCustomIcon("new-icon.svg", svgContent)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	content, err := app.GetIconContent("new-icon.svg")
+	if err != nil {
+		t.Fatalf("unexpected error reading back: %v", err)
+	}
+	if content != svgContent {
+		t.Errorf("got %q, want %q", content, svgContent)
+	}
+}
+
+// SaveCustomIcon should save a PNG file (base64 input) and read it back as a data URI.
+func TestSaveCustomIcon_PNG(t *testing.T) {
+	app, _ := setupTestBoard(t)
+
+	pngData := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
+	encoded := base64.StdEncoding.EncodeToString(pngData)
+
+	err := app.SaveCustomIcon("logo.png", encoded)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	content, err := app.GetIconContent("logo.png")
+	if err != nil {
+		t.Fatalf("unexpected error reading back: %v", err)
+	}
+
+	if !strings.HasPrefix(content, "data:image/png;base64,") {
+		t.Errorf("expected data URI, got %q", content)
+	}
+}
+
+// SaveCustomIcon should reject .svg files that don't contain <svg.
+func TestSaveCustomIcon_InvalidSVG(t *testing.T) {
+	app, _ := setupTestBoard(t)
+
+	err := app.SaveCustomIcon("bad.svg", "<div>not an svg</div>")
+	if err == nil {
+		t.Fatal("expected error for invalid SVG content")
+	}
+	if !strings.Contains(err.Error(), "invalid SVG") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// DownloadIcon should fetch an SVG from a URL and save it to the icons directory.
+func TestDownloadIcon_SVG(t *testing.T) {
+	svgContent := `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/svg+xml")
+		w.Write([]byte(svgContent))
+	}))
+	defer srv.Close()
+
+	app, _ := setupTestBoard(t)
+
+	filename, err := app.DownloadIcon(srv.URL + "/test-icon.svg")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if filename != "test-icon.svg" {
+		t.Errorf("filename: got %q, want %q", filename, "test-icon.svg")
+	}
+
+	// Verify via GetIconContent
+	content, err := app.GetIconContent("test-icon.svg")
+	if err != nil {
+		t.Fatalf("unexpected error reading icon: %v", err)
+	}
+	if content != svgContent {
+		t.Errorf("content mismatch: got %q, want %q", content, svgContent)
+	}
+}
+
+// DownloadIcon should fetch a PNG from a URL and save it to the icons directory.
+func TestDownloadIcon_PNG(t *testing.T) {
+	pngData := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		w.Write(pngData)
+	}))
+	defer srv.Close()
+
+	app, _ := setupTestBoard(t)
+
+	filename, err := app.DownloadIcon(srv.URL + "/logo.png")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if filename != "logo.png" {
+		t.Errorf("filename: got %q, want %q", filename, "logo.png")
+	}
+
+	// Verify via GetIconContent (returns base64 data URI)
+	content, err := app.GetIconContent("logo.png")
+	if err != nil {
+		t.Fatalf("unexpected error reading icon: %v", err)
+	}
+	if !strings.HasPrefix(content, "data:image/png;base64,") {
+		t.Errorf("expected data URI prefix, got %q", content)
+	}
+}
+
+// DownloadIcon should reject URLs with unsupported extensions.
+func TestDownloadIcon_InvalidExt(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("GIF89a"))
+	}))
+	defer srv.Close()
+
+	app, _ := setupTestBoard(t)
+
+	_, err := app.DownloadIcon(srv.URL + "/image.gif")
+	if err == nil {
+		t.Fatal("expected error for unsupported extension")
+	}
+	if !strings.Contains(err.Error(), "unsupported file type") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// DownloadIcon should return an error for invalid URLs.
+func TestDownloadIcon_InvalidURL(t *testing.T) {
+	app, _ := setupTestBoard(t)
+
+	_, err := app.DownloadIcon("not-a-valid-url")
+	if err == nil {
+		t.Fatal("expected error for invalid URL")
+	}
+	if !strings.Contains(err.Error(), "invalid URL") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// DownloadIcon should return an error when no board is loaded.
+func TestDownloadIcon_BoardNotLoaded(t *testing.T) {
+	app := NewApp()
+	_, err := app.DownloadIcon("https://example.com/icon.svg")
+	if err == nil {
+		t.Fatal("expected error when board not loaded")
+	}
+	if err.Error() != "board not loaded" {
 		t.Errorf("unexpected error message: %v", err)
 	}
 }

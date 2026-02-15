@@ -48,7 +48,7 @@ func ScanBoard(rootPath string) (*BoardState, error) {
 
 	// loop over lists (directories)
 	for _, entry := range entries {
-		if entry.IsDir() && !strings.HasPrefix(entry.Name(), ".") {
+		if entry.IsDir() && !strings.HasPrefix(entry.Name(), ".") && entry.Name() != "assets" {
 			dirName := entry.Name()
 			listPath := filepath.Join(absRoot, dirName)
 
@@ -264,6 +264,7 @@ func WriteCardFile(path string, meta CardMetadata, body string) error {
 		"due":       meta.Due == nil,
 		"range":     meta.Range == nil,
 		"icon":      meta.Icon == "",
+		"estimate":  meta.Estimate == nil,
 		"counter":   meta.Counter == nil,
 		"checklist": len(meta.Checklist) == 0,
 		"labels":    len(meta.Labels) == 0,
@@ -286,7 +287,7 @@ func WriteCardFile(path string, meta CardMetadata, body string) error {
 	}
 
 	// Marshal fields in priority order: important metadata first, bulky data last
-	priorityKeys := []string{"id", "title", "list_order", "created", "updated", "due", "range", "labels", "icon"}
+	priorityKeys := []string{"id", "title", "list_order", "created", "updated", "due", "range", "labels", "icon", "estimate"}
 	added := make(map[string]bool)
 	var yamlBuf bytes.Buffer
 

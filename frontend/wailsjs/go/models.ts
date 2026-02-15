@@ -147,6 +147,7 @@ export namespace daedalus {
 	    range?: DateRange;
 	    labels: string[];
 	    icon: string;
+	    estimate?: number;
 	    counter?: Counter;
 	    checklist?: CheckListItem[];
 	
@@ -165,6 +166,7 @@ export namespace daedalus {
 	        this.range = this.convertValues(source["range"], DateRange);
 	        this.labels = source["labels"];
 	        this.icon = source["icon"];
+	        this.estimate = source["estimate"];
 	        this.counter = this.convertValues(source["counter"], Counter);
 	        this.checklist = this.convertValues(source["checklist"], CheckListItem);
 	    }

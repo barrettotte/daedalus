@@ -102,7 +102,7 @@
       </span>
     {/if}
     {#if meta.estimate != null}
-      <span class="badge" title="Estimated time: {meta.estimate} hours">
+      <span class="badge" title="Estimate: {meta.estimate}h">
         <Icon name="hourglass" size={12} />
         {meta.estimate}h
       </span>

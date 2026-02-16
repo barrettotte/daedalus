@@ -37,7 +37,8 @@ type CardMetadata struct {
 	Icon      string          `yaml:"icon,omitempty" json:"icon"`
 	Estimate  *float64        `yaml:"estimate,omitempty" json:"estimate,omitempty"`
 	Counter   *Counter        `yaml:"counter,omitempty" json:"counter,omitempty"`
-	Checklist []CheckListItem `yaml:"checklist,omitempty" json:"checklist,omitempty"`
+	ChecklistTitle string          `yaml:"checklist_title,omitempty" json:"checklist_title"`
+	Checklist      []CheckListItem `yaml:"checklist,omitempty" json:"checklist,omitempty"`
 }
 
 // DateRange is the date range a card will be active

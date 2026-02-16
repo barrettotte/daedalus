@@ -124,16 +124,16 @@
 
 {#if counter}
   <div class="sidebar-section">
-    <div class="counter-header">
+    <div class="section-header">
       <h4 class="sidebar-title">{counter.label || "Counter"}</h4>
-      <div class="counter-header-right">
+      <div class="section-header-actions">
         {#if counterSettingsOpen}
           <button class="counter-header-btn save" title="Save settings" onclick={saveCounterSettings}>
             <Icon name="check" size={12} />
           </button>
         {:else}
           <button class="counter-header-btn" title="Counter settings" onclick={openCounterSettings}>
-            <Icon name="gear" size={12} />
+            <Icon name="pencil" size={12} />
           </button>
         {/if}
         <button class="counter-header-btn remove" title="Remove counter" onclick={removeCounter}>
@@ -188,23 +188,6 @@
 {/if}
 
 <style lang="scss">
-  .counter-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 4px;
-
-    .sidebar-title {
-      margin: 0;
-    }
-  }
-
-  .counter-header-right {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-
   .counter-btn {
     all: unset;
     width: 22px;
@@ -276,18 +259,7 @@
     text-align: center;
   }
 
-  .progress-bar {
-    height: 6px;
-    background: var(--color-border);
-    border-radius: 3px;
-    overflow: hidden;
-    margin-bottom: 8px;
-    max-width: 100%;
-    box-sizing: border-box;
-  }
-
   .sidebar-progress {
-    margin-bottom: 0;
     flex: 1;
   }
 

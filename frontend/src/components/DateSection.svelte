@@ -77,29 +77,37 @@
 
 {#if range}
   <div class="sidebar-section">
-    <div class="date-header">
+    <div class="section-header">
       <h4 class="sidebar-title">Date Range</h4>
-      <button class="counter-header-btn remove" title="Remove dates" onclick={removeAllDates}>
-        <Icon name="trash" size={12} />
-      </button>
+      <div class="section-header-actions">
+        <button class="counter-header-btn" title="Remove end date" onclick={removeEndDate}>
+          <Icon name="close" size={12} />
+        </button>
+        <button class="counter-header-btn remove" title="Remove dates" onclick={removeAllDates}>
+          <Icon name="trash" size={12} />
+        </button>
+      </div>
     </div>
-    <div class="counter-range-row">
-      <DatePicker value={range.start} onselect={d => onRangeDateSelect('start', d)} />
+    <DatePicker value={range.start} onselect={d => onRangeDateSelect('start', d)} />
+    <div class="range-end-row">
       <span class="range-text">to</span>
       <DatePicker value={range.end} onselect={d => onRangeDateSelect('end', d)} />
     </div>
-    <button class="date-expand-btn" title="Convert to single date" onclick={removeEndDate}>- Remove end date</button>
   </div>
 {:else if due}
   <div class="sidebar-section">
-    <div class="date-header">
+    <div class="section-header">
       <h4 class="sidebar-title">Date</h4>
-      <button class="counter-header-btn remove" title="Remove date" onclick={removeAllDates}>
-        <Icon name="trash" size={12} />
-      </button>
+      <div class="section-header-actions">
+        <button class="counter-header-btn" title="Add end date" onclick={addEndDate}>
+          <Icon name="plus" size={12} />
+        </button>
+        <button class="counter-header-btn remove" title="Remove date" onclick={removeAllDates}>
+          <Icon name="trash" size={12} />
+        </button>
+      </div>
     </div>
     <DatePicker value={due} onselect={onDueDateSelect} />
-    <button class="date-expand-btn" title="Add an end date to create a range" onclick={addEndDate}>+ Add end date</button>
   </div>
 {:else}
   <div class="sidebar-section">
@@ -108,30 +116,10 @@
 {/if}
 
 <style lang="scss">
-  .date-header {
+  .range-end-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 4px;
-
-    .sidebar-title {
-      margin: 0;
-    }
+    gap: 4px;
+    margin-top: 4px;
   }
-
-  .date-expand-btn {
-    all: unset;
-    display: block;
-    width: 100%;
-    text-align: center;
-    font-size: 0.7rem;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    margin-top: 6px;
-
-    &:hover {
-      color: var(--color-text-primary);
-    }
-  }
-
 </style>

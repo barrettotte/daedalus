@@ -232,8 +232,8 @@ body {
 .sidebar-section {
     background: var(--overlay-hover-light);
     border-radius: 6px;
-    padding: 10px 12px;
-    margin-bottom: 8px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
 }
 
 .sidebar-title {
@@ -242,7 +242,24 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--color-text-tertiary);
-    margin: 0 0 6px 0;
+    margin: 0 0 4px 0;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+
+    .sidebar-title {
+        margin: 0;
+    }
+}
+
+.section-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .sidebar-value {
@@ -364,6 +381,13 @@ input[type="number"] {
 
 // -- Shared progress bar styles --
 
+.progress-bar {
+    height: 6px;
+    background: var(--color-border);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
 .progress-fill {
     height: 100%;
     background: var(--color-accent);
@@ -372,5 +396,83 @@ input[type="number"] {
 
     &.complete {
         background: var(--color-success);
+    }
+}
+
+// -- Rendered markdown styles --
+
+.markdown-body {
+    line-height: 1.6;
+    font-size: 0.9rem;
+    color: var(--color-text-secondary);
+    background: var(--overlay-subtle);
+    border-radius: 6px;
+    padding: 12px 16px;
+    overflow-x: auto;
+    white-space: nowrap;
+
+    h1, h2, h3 {
+        color: var(--color-text-primary);
+        margin-top: 16px;
+        margin-bottom: 8px;
+    }
+
+    h1 { font-size: 1.2rem; }
+    h2 { font-size: 1.05rem; }
+    h3 { font-size: 0.95rem; }
+
+    a { color: var(--color-accent); }
+    a:hover { text-decoration: underline; }
+
+    code {
+        background: var(--color-bg-base);
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 0.85em;
+    }
+
+    pre {
+        background: var(--color-bg-base);
+        padding: 12px;
+        border-radius: 6px;
+        overflow-x: auto;
+
+        code {
+            padding: 0;
+            background: none;
+        }
+    }
+
+    blockquote {
+        border-left: 3px solid var(--color-accent);
+        margin: 8px 0;
+        padding: 4px 12px;
+        color: var(--color-text-tertiary);
+    }
+
+    ul, ol { padding-left: 20px; }
+
+    li { margin-bottom: 2px; }
+
+    img { max-width: 100%; border-radius: 4px; }
+
+    table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 8px 0;
+    }
+
+    th, td {
+        border: 1px solid var(--color-border);
+        padding: 6px 10px;
+        text-align: left;
+    }
+
+    th { background: var(--color-bg-base); }
+
+    hr {
+        border: none;
+        border-top: 1px solid var(--color-border);
+        margin: 16px 0;
     }
 }

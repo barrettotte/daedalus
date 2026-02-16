@@ -2,10 +2,15 @@
   // Calendar dropdown for selecting a date and optional time, positioned via fixed coordinates to escape overflow clipping.
 
   import { formatISOWithOffset } from "../lib/utils";
+  import {
+    parseISO, daysInMonth, firstDayOfMonth, buildCalendarGrid,
+    dayToString, formatTzLabel, tzOffsets,
+  } from "../lib/calendar";
 
-  let { value = "", onselect }: {
+  let { value = "", onselect, inline = false }: {
     value?: string;
     onselect?: (iso: string) => void;
+    inline?: boolean;
   } = $props();
 
   // Calendar dropdown visibility.
@@ -27,45 +32,6 @@
   let displayHour = $derived(viewHour % 12 || 12);
   let ampm = $derived(viewHour >= 12 ? "PM" : "AM");
 
-  // Parses an ISO datetime string into its components without timezone conversion.
-  function parseISO(iso: string): {
-    year: number;
-    month: number;
-    day: number;
-    hour: number;
-    minute: number;
-    tzOffset: number;
-  } | null {
-
-    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?([+-]\d{2}:\d{2}|Z)?)?/);
-    if (!m) {
-      return null;
-    }
-    const hour = m[4] ? parseInt(m[4]) : 0;
-    const minute = m[5] ? parseInt(m[5]) : 0;
-
-    let tzOffset: number;
-    const tz = m[7];
-    if (!tz) {
-      tzOffset = -new Date().getTimezoneOffset();
-    } else if (tz === "Z") {
-      tzOffset = 0;
-    } else {
-      const tzSign = tz[0] === "+" ? 1 : -1;
-      const parts = tz.slice(1).split(":");
-      tzOffset = tzSign * (parseInt(parts[0]) * 60 + parseInt(parts[1]));
-    }
-
-    return {
-      year: parseInt(m[1]),
-      month: parseInt(m[2]) - 1,
-      day: parseInt(m[3]),
-      hour,
-      minute,
-      tzOffset,
-    };
-  }
-
   // Syncs calendar view to the bound value when it changes externally.
   $effect(() => {
     if (value) {
@@ -79,41 +45,6 @@
       }
     }
   });
-
-  // Returns the number of days in a given month/year.
-  function daysInMonth(year: number, month: number): number {
-    return new Date(year, month + 1, 0).getDate();
-  }
-
-  // Returns the day-of-week (0=Sun) for the 1st of a given month/year.
-  function firstDayOfMonth(year: number, month: number): number {
-    return new Date(year, month, 1).getDay();
-  }
-
-  // Builds a 6x7 grid of day numbers, with nulls for empty leading/trailing cells.
-  function buildCalendarGrid(year: number, month: number): (number | null)[] {
-    const total = daysInMonth(year, month);
-    const startDay = firstDayOfMonth(year, month);
-    const cells: (number | null)[] = [];
-
-    for (let i = 0; i < startDay; i++) {
-      cells.push(null);
-    }
-    for (let d = 1; d <= total; d++) {
-      cells.push(d);
-    }
-    while (cells.length % 7 !== 0) {
-      cells.push(null);
-    }
-    return cells;
-  }
-
-  // Formats a day number into YYYY-MM-DD for grid comparison.
-  function dayToString(year: number, month: number, day: number): string {
-    const m = String(month + 1).padStart(2, "0");
-    const d = String(day).padStart(2, "0");
-    return `${year}-${m}-${d}`;
-  }
 
   // Formats the date portion of an ISO string for the trigger (e.g. "2026-02-15").
   // Uses parseISO instead of utils.formatDate to avoid browser timezone conversion.
@@ -144,62 +75,6 @@
     const min = String(parsed.minute).padStart(2, "0");
     const ap = parsed.hour >= 12 ? "PM" : "AM";
     return `${h}:${min} ${ap}`;
-  }
-
-  // Maps UTC offsets (in minutes) to common timezone abbreviations.
-  const tzNames: Record<number, string> = {
-    [-720]: "AoE",
-    [-660]: "SST",
-    [-600]: "HST",
-    [-540]: "AKST",
-    [-480]: "PST",
-    [-420]: "MST",
-    [-360]: "CST",
-    [-300]: "EST",
-    [-240]: "AST",
-    [-210]: "NST",
-    [-180]: "BRT",
-    [-120]: "GST",
-    [-60]: "CVT",
-    [0]: "GMT",
-    [60]: "CET",
-    [120]: "EET",
-    [180]: "MSK",
-    [210]: "IRST",
-    [240]: "GST",
-    [270]: "AFT",
-    [300]: "PKT",
-    [330]: "IST",
-    [345]: "NPT",
-    [360]: "BST",
-    [390]: "MMT",
-    [420]: "ICT",
-    [480]: "CST",
-    [525]: "ACWST",
-    [540]: "JST",
-    [570]: "ACST",
-    [600]: "AEST",
-    [630]: "LHST",
-    [660]: "SBT",
-    [720]: "NZST",
-    [765]: "CHAST",
-    [780]: "PHST",
-    [840]: "LINT",
-  };
-
-  // Formats a timezone offset as "NAME (UTC+/-X)" or just "UTC+/-X" for unknown offsets.
-  function formatTzLabel(offset: number): string {
-    const sign = offset >= 0 ? "+" : "-";
-    const abs = Math.abs(offset);
-    const h = Math.floor(abs / 60);
-    const m = abs % 60;
-    const utc = m === 0 ? `UTC${sign}${h}` : `UTC${sign}${h}:${String(m).padStart(2, "0")}`;
-
-    const name = tzNames[offset];
-    if (name) {
-      return `${name} (${utc})`;
-    }
-    return utc;
   }
 
   // Extracts the YYYY-MM-DD portion from the value for grid highlighting.
@@ -335,20 +210,12 @@
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
   ];
 
-  // Common UTC offsets in minutes east of UTC.
-  const tzOffsets = [
-    -720, -660, -600, -540, -480, -420, -360, -300, -240, -210,
-    -180, -120, -60, 0, 60, 120, 180, 210, 240, 270,
-    300, 330, 345, 360, 390, 420, 480, 525, 540, 570,
-    600, 630, 660, 720, 765, 780, 840,
-  ];
-
   // Derived calendar grid for the current view.
   let grid = $derived(buildCalendarGrid(viewYear, viewMonth));
 </script>
 
-<div class="datepicker">
-  <button class="datepicker-trigger" bind:this={triggerEl} onclick={toggleCalendar}>
+<div class="datepicker" class:inline>
+  <button class="datepicker-trigger" class:inline bind:this={triggerEl} onclick={toggleCalendar}>
     <span class="trigger-date">{formatTriggerDate(value)}</span>
     {#if formatTriggerTime(value)}
       <span class="trigger-time">{formatTriggerTime(value)}</span>
@@ -372,9 +239,7 @@
             <span class="datepicker-cell empty"></span>
           {:else}
             {@const ds = dayToString(viewYear, viewMonth, cell)}
-            <button class="datepicker-cell day" class:selected={ds === selectedDateStr}
-              class:today={ds === todayStr} onclick={() => selectDay(cell)}
-            >
+            <button class="datepicker-cell day" class:selected={ds === selectedDateStr} class:today={ds === todayStr} onclick={() => selectDay(cell)}>
               {cell}
             </button>
           {/if}
@@ -405,24 +270,40 @@
   .datepicker {
     position: relative;
     width: 100%;
+
+    &.inline {
+      width: auto;
+    }
   }
 
   .datepicker-trigger {
     all: unset;
     width: 100%;
     display: flex;
-    flex-direction: column;
     align-items: center;
+    gap: 4px;
     background: var(--color-bg-base);
     border: 1px solid var(--color-border);
     color: var(--color-text-primary);
-    padding: 5px 8px;
+    padding: 4px 8px;
     border-radius: 4px;
     cursor: pointer;
     box-sizing: border-box;
 
     &:hover {
       border-color: var(--color-text-tertiary);
+    }
+
+    &.inline {
+      width: auto;
+      background: none;
+      border: none;
+      padding: 0;
+      color: var(--color-text-secondary);
+
+      &:hover {
+        color: var(--color-text-primary);
+      }
     }
   }
 
@@ -436,6 +317,7 @@
     color: var(--color-text-muted);
     white-space: nowrap;
   }
+
 
   .datepicker-backdrop {
     position: fixed;

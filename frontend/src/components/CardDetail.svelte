@@ -11,6 +11,15 @@
   } from "../../wailsjs/go/main/App";
   import { marked } from "marked";
   import { autoFocus, backdropClose } from "../lib/utils";
+
+  // Strip title attributes from links to prevent browser tooltips.
+  marked.use({
+    renderer: {
+      link({ href, text }: { href: string; text: string }) {
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+      },
+    },
+  });
   import type { daedalus } from "../../wailsjs/go/models";
   import ChecklistSection from "./ChecklistSection.svelte";
   import CardSidebar from "./CardSidebar.svelte";
@@ -112,9 +121,9 @@
     }
   }
 
-  // Saves the counter (or removes it when null) and persists to disk.
-  async function saveCounter(counter: daedalus.Counter | null): Promise<void> {
-    const updatedMeta = { ...meta!, counter: counter ?? undefined } as daedalus.CardMetadata;
+  // Persists metadata changes to disk and updates stores.
+  async function saveCardMeta(changes: Partial<daedalus.CardMetadata>, errorLabel: string): Promise<void> {
+    const updatedMeta = { ...meta!, ...changes } as daedalus.CardMetadata;
     const fullBody = `# ${meta!.title}\n\n${rawBody}`;
 
     try {
@@ -122,79 +131,65 @@
       updateCardInBoard(result);
       selectedCard.set(result);
     } catch (e) {
-      addToast(`Failed to save counter: ${e}`);
+      addToast(`Failed to ${errorLabel}: ${e}`);
     }
   }
 
-  // Saves or clears the card icon and persists to disk.
-  async function saveIcon(icon: string): Promise<void> {
-    const updatedMeta = { ...meta!, icon } as daedalus.CardMetadata;
-    const fullBody = `# ${meta!.title}\n\n${rawBody}`;
-
-    try {
-      const result = await SaveCard($selectedCard!.filePath, updatedMeta, fullBody);
-      updateCardInBoard(result);
-      selectedCard.set(result);
-    } catch (e) {
-      addToast(`Failed to save icon: ${e}`);
-    }
+  function saveCounter(counter: daedalus.Counter | null): Promise<void> {
+    return saveCardMeta({ counter: counter ?? undefined }, "save counter");
   }
 
-  // Saves or clears the estimated time and persists to disk.
-  async function saveEstimate(estimate: number | null): Promise<void> {
-    const updatedMeta = {
-      ...meta!,
-      estimate: estimate ?? undefined,
-    } as daedalus.CardMetadata;
-    const fullBody = `# ${meta!.title}\n\n${rawBody}`;
-
-    try {
-      const result = await SaveCard($selectedCard!.filePath, updatedMeta, fullBody);
-      updateCardInBoard(result);
-      selectedCard.set(result);
-    } catch (e) {
-      addToast(`Failed to save estimate: ${e}`);
-    }
+  function saveIcon(icon: string): Promise<void> {
+    return saveCardMeta({ icon }, "save icon");
   }
 
-  // Saves due date and/or date range changes and persists to disk.
-  async function saveDates(due: string | null, range: { start: string; end: string } | null): Promise<void> {
-    const updatedMeta = {
-      ...meta!,
-      due: due ?? undefined,
-      range: range ?? undefined,
-    } as daedalus.CardMetadata;
-
-    const fullBody = `# ${meta!.title}\n\n${rawBody}`;
-
-    try {
-      const result = await SaveCard($selectedCard!.filePath, updatedMeta, fullBody);
-      updateCardInBoard(result);
-      selectedCard.set(result);
-    } catch (e) {
-      addToast(`Failed to save dates: ${e}`);
-    }
+  function saveEstimate(estimate: number | null): Promise<void> {
+    return saveCardMeta({ estimate: estimate ?? undefined }, "save estimate");
   }
 
-  // Toggles a checklist item's done state and saves immediately.
-  async function toggleCheckItem(idx: number): Promise<void> {
-    const updatedChecklist = meta!.checklist!.map((item, i) => {
-      if (i === idx) {
-        return { ...item, done: !item.done };
-      }
-      return { ...item };
-    });
+  function saveDates(due: string | null, range: { start: string; end: string } | null): Promise<void> {
+    return saveCardMeta(
+      { due: due ?? undefined, range: (range as daedalus.DateRange) ?? undefined }, "save dates",
+    );
+  }
 
-    const updatedMeta = { ...meta!, checklist: updatedChecklist } as daedalus.CardMetadata;
-    const fullBody = `# ${meta!.title}\n\n${rawBody}`;
+  function saveChecklist(checklist: daedalus.CheckListItem[] | null): Promise<void> {
+    return saveCardMeta({
+      checklist: checklist ?? undefined,
+      checklist_title: checklist ? (meta!.checklist_title || "Checklist") : undefined,
+    }, "save checklist");
+  }
 
-    try {
-      const result = await SaveCard($selectedCard!.filePath, updatedMeta, fullBody);
-      updateCardInBoard(result);
-      selectedCard.set(result);
-    } catch (e) {
-      addToast(`Failed to toggle checklist item: ${e}`);
-    }
+  function saveChecklistTitle(title: string): Promise<void> {
+    return saveCardMeta({ checklist_title: title }, "save checklist title");
+  }
+
+  function toggleCheckItem(idx: number): Promise<void> {
+    const checklist = meta!.checklist!.map((item, i) => (i === idx ? { ...item, done: !item.done } : { ...item }));
+    return saveCardMeta({ checklist }, "toggle checklist item");
+  }
+
+  function addCheckItem(desc: string): Promise<void> {
+    const existing = meta!.checklist || [];
+    const maxIdx = existing.length > 0 ? Math.max(...existing.map(i => i.idx)) : -1;
+    const newItem = { idx: maxIdx + 1, desc, done: false } as daedalus.CheckListItem;
+    return saveCardMeta({ checklist: [...existing, newItem] }, "add checklist item");
+  }
+
+  function editCheckItem(idx: number, desc: string): Promise<void> {
+    const checklist = meta!.checklist!.map((item, i) => (i === idx ? { ...item, desc } : { ...item }));
+    return saveCardMeta({ checklist }, "edit checklist item");
+  }
+
+  function removeCheckItem(idx: number): Promise<void> {
+    return saveCardMeta({ checklist: meta!.checklist!.filter((_, i) => i !== idx) }, "remove checklist item");
+  }
+
+  function reorderCheckItem(fromIdx: number, toIdx: number): Promise<void> {
+    const items = [...meta!.checklist!];
+    const [moved] = items.splice(fromIdx, 1);
+    items.splice(toIdx, 0, moved);
+    return saveCardMeta({ checklist: items }, "reorder checklist");
   }
 
   // Navigates to prev/next card in the same list while the detail modal is open.
@@ -426,7 +421,7 @@
             {:else if loading}
               <p class="loading-text">Loading...</p>
             {:else if bodyHtml.trim()}
-              <div class="markdown-body clickable" role="button" tabindex="0" title="Click to edit description"
+              <div class="markdown-body clickable" role="button" tabindex="0"
                 onclick={startEditBody} onkeydown={e => e.key === 'Enter' && startEditBody()}
               >{@html bodyHtml}</div>
             {:else}
@@ -435,9 +430,19 @@
           </div>
 
           <!-- Checklist -->
-          {#if meta.checklist && meta.checklist.length > 0}
+          {#if meta.checklist_title || (meta.checklist && meta.checklist.length > 0)}
             <div class="section">
-              <ChecklistSection checklist={meta.checklist} ontoggle={toggleCheckItem}/>
+              <ChecklistSection
+                checklist={meta.checklist || []}
+                title={meta.checklist_title || ""}
+                ontoggle={toggleCheckItem}
+                onadd={addCheckItem}
+                onremove={removeCheckItem}
+                onedit={editCheckItem}
+                ontitlechange={saveChecklistTitle}
+                onreorder={reorderCheckItem}
+                ondelete={() => saveChecklist(null)}
+              />
             </div>
           {/if}
         </div>
@@ -445,6 +450,7 @@
         <CardSidebar {meta} bind:moveDropdownOpen
           onsavecounter={saveCounter} onsavedates={saveDates}
           onsaveestimate={saveEstimate} onsaveicon={saveIcon}
+          onsavechecklist={saveChecklist}
         />
       </div>
       {/if}
@@ -532,104 +538,6 @@
     font-size: 0.85rem;
     font-style: italic;
     text-align: left;
-  }
-
-  .markdown-body {
-    line-height: 1.6;
-    font-size: 0.9rem;
-    color: var(--color-text-secondary);
-    background: var(--overlay-subtle);
-    border-radius: 6px;
-    padding: 12px 16px;
-    overflow-x: auto;
-    white-space: nowrap;
-
-    :global(h1),
-    :global(h2),
-    :global(h3) {
-      color: var(--color-text-primary);
-      margin-top: 16px;
-      margin-bottom: 8px;
-    }
-
-    :global(h1) {
-      font-size: 1.2rem;
-    }
-    :global(h2) {
-      font-size: 1.05rem;
-    }
-    :global(h3) {
-      font-size: 0.95rem;
-    }
-
-    :global(a) {
-      color: var(--color-accent);
-    }
-
-    :global(a:hover) {
-      text-decoration: underline;
-    }
-
-    :global(code) {
-      background: var(--color-bg-base);
-      padding: 2px 6px;
-      border-radius: 3px;
-      font-size: 0.85em;
-    }
-
-    :global(pre) {
-      background: var(--color-bg-base);
-      padding: 12px;
-      border-radius: 6px;
-      overflow-x: auto;
-
-      :global(code) {
-        padding: 0;
-        background: none;
-      }
-    }
-
-    :global(blockquote) {
-      border-left: 3px solid var(--color-accent);
-      margin: 8px 0;
-      padding: 4px 12px;
-      color: var(--color-text-tertiary);
-    }
-
-    :global(ul), :global(ol) {
-      padding-left: 20px;
-    }
-
-    :global(li) {
-      margin-bottom: 2px;
-    }
-
-    :global(img) {
-      max-width: 100%;
-      border-radius: 4px;
-    }
-
-    :global(table) {
-      border-collapse: collapse;
-      width: 100%;
-      margin: 8px 0;
-    }
-
-    :global(th), :global(td) {
-      border: 1px solid var(--color-border);
-      padding: 6px 10px;
-      text-align: left;
-    }
-
-    :global(th) {
-      background: var(--color-bg-base);
-    }
-
-    :global(hr) {
-      border: none;
-      border-top: 1px solid var(--color-border);
-      margin: 16px 0;
-    }
   }
 
   /* Delete confirmation */

@@ -21,6 +21,7 @@
     onsavedates,
     onsaveestimate,
     onsaveicon,
+    onsavechecklist,
   }: {
     meta: daedalus.CardMetadata;
     moveDropdownOpen?: boolean;
@@ -31,6 +32,7 @@
     ) => void;
     onsaveestimate?: (estimate: number | null) => void;
     onsaveicon?: (icon: string) => void;
+    onsavechecklist?: (checklist: daedalus.CheckListItem[] | null) => void;
   } = $props();
 
   let iconPickerOpen = $state(false);
@@ -216,28 +218,30 @@
 
   {#if meta.icon || iconPickerOpen}
     <div class="sidebar-section" bind:this={iconSectionEl}>
-      <div class="icon-header">
+      <div class="section-header">
         <h4 class="sidebar-title">Icon</h4>
-        <div class="icon-header-right">
-          {#if meta.icon && !iconPickerOpen}
-            <button class="icon-header-btn" title="Change icon" onclick={() => iconPickerOpen = true}>
+        {#if meta.icon && !iconPickerOpen}
+          <button class="icon-current" title={`${$boardPath}/assets/icons/${meta.icon}`} onclick={() => iconPickerOpen = true}>
+            <CardIcon name={meta.icon} size={14} />
+          </button>
+        {/if}
+        <div class="section-header-actions">
+          {#if iconPickerOpen}
+            <button class="counter-header-btn save" title="Done" onclick={() => iconPickerOpen = false}>
+              <Icon name="check" size={12} />
+            </button>
+          {:else if meta.icon}
+            <button class="counter-header-btn" title="Change icon" onclick={() => iconPickerOpen = true}>
               <Icon name="pencil" size={12} />
             </button>
           {/if}
-          <button class="icon-header-btn remove" title="Remove icon" onclick={() => { iconPickerOpen = false; onsaveicon?.(""); }}>
+          <button class="counter-header-btn remove" title="Remove icon" onclick={() => { iconPickerOpen = false; onsaveicon?.(""); }}>
             <Icon name="trash" size={12} />
           </button>
         </div>
       </div>
-      {#if meta.icon && !iconPickerOpen}
-        <button class="icon-current" title={`${$boardPath}/assets/icons/${meta.icon}`} onclick={() => iconPickerOpen = true}>
-          <CardIcon name={meta.icon} size={20} />
-          <span class="icon-name">{meta.icon}</span>
-        </button>
-      {:else}
-        <IconPicker currentIcon={meta.icon || ""}
-          onselect={(name) => { iconPickerOpen = false; onsaveicon?.(name); }}
-        />
+      {#if iconPickerOpen}
+        <IconPicker currentIcon={meta.icon || ""} onselect={(name) => { iconPickerOpen = false; onsaveicon?.(name); }}/>
       {/if}
     </div>
   {:else}
@@ -250,29 +254,41 @@
 
   {#if meta.estimate != null || editingEstimate}
     <div class="sidebar-section">
-      <div class="estimate-header">
+      <div class="section-header">
         <h4 class="sidebar-title">Estimate</h4>
-        {#if !editingEstimate}
-          <button class="estimate-remove" title="Remove estimate" onclick={() => onsaveestimate?.(null)}>
-            <Icon name="trash" size={12} />
-          </button>
+        {#if editingEstimate}
+          <span class="estimate-inline">
+            <span class="estimate-sep">-</span>
+            <input class="estimate-input" type="number" step="0.5" min="0"
+              bind:value={estimateInput}
+              onblur={blurEstimate}
+              onkeydown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+              use:autoFocus
+            />
+          </span>
+          <div class="section-header-actions">
+            <button class="counter-header-btn save" title="Confirm" onclick={() => (document.querySelector('.estimate-input') as HTMLInputElement)?.blur()}>
+              <Icon name="check" size={12} />
+            </button>
+            <button class="counter-header-btn remove" title="Remove estimate" onclick={() => onsaveestimate?.(null)}>
+              <Icon name="trash" size={12} />
+            </button>
+          </div>
+        {:else}
+          <span class="estimate-inline">
+            <span class="estimate-sep">-</span>
+            <button class="estimate-value" onclick={startEditEstimate}>{meta.estimate}h</button>
+          </span>
+          <div class="section-header-actions">
+            <button class="counter-header-btn" title="Edit estimate" onclick={startEditEstimate}>
+              <Icon name="pencil" size={12} />
+            </button>
+            <button class="counter-header-btn remove" title="Remove estimate" onclick={() => onsaveestimate?.(null)}>
+              <Icon name="trash" size={12} />
+            </button>
+          </div>
         {/if}
       </div>
-      {#if editingEstimate}
-        <div class="estimate-input-row">
-          <input class="estimate-input" type="number" step="0.5" min="0"
-            bind:value={estimateInput}
-            onblur={blurEstimate}
-            onkeydown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-            use:autoFocus
-          />
-          <span class="estimate-suffix">hour(s)</span>
-        </div>
-      {:else}
-        <button class="estimate-value" onclick={startEditEstimate}>
-          {meta.estimate}h
-        </button>
-      {/if}
     </div>
   {:else}
     <div class="sidebar-section">
@@ -282,17 +298,45 @@
 
   <CounterControl counter={meta.counter} onsave={onsavecounter} />
 
-  {#if meta.created}
+  {#if meta.checklist_title || (meta.checklist && meta.checklist.length > 0)}
+    {@const items = meta.checklist || []}
+    {@const done = items.filter(i => i.done).length}
     <div class="sidebar-section">
-      <h4 class="sidebar-title">Created</h4>
-      <div class="sidebar-value">{formatDateTime(meta.created)}</div>
+      <div class="section-header">
+        <h4 class="sidebar-title">{meta.checklist_title || "Checklist"}</h4>
+        {#if items.length > 0}
+          <span class="estimate-inline">
+            <span class="estimate-sep">-</span>
+            <span class="checklist-hint" class:all-done={done === items.length}>
+              {done}/{items.length}
+            </span>
+          </span>
+        {/if}
+        <div class="section-header-actions">
+          <button class="counter-header-btn remove" title="Remove checklist" onclick={() => onsavechecklist?.(null)}>
+            <Icon name="trash" size={12} />
+          </button>
+        </div>
+      </div>
+    </div>
+  {:else}
+    <div class="sidebar-section">
+      <button class="add-counter-btn" title="Add a checklist" onclick={() => onsavechecklist?.([])}>+ Add checklist</button>
     </div>
   {/if}
 
-  <div class="sidebar-section">
-    <h4 class="sidebar-title">Updated</h4>
-    <div class="sidebar-value">
-      {formatDateTime(meta.updated && meta.updated !== meta.created ? meta.updated : meta.created)}
+  <div class="sidebar-section timestamps">
+    {#if meta.created}
+      <div class="timestamp-row">
+        <span class="timestamp-label">Created</span>
+        <span class="sidebar-value">{formatDateTime(meta.created)}</span>
+      </div>
+    {/if}
+    <div class="timestamp-row">
+      <span class="timestamp-label">Updated</span>
+      <span class="sidebar-value">
+        {formatDateTime(meta.updated && meta.updated !== meta.created ? meta.updated : meta.created)}
+      </span>
     </div>
   </div>
 
@@ -410,45 +454,11 @@
     color: var(--color-text-muted);
   }
 
-  .icon-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 4px;
-
-    .sidebar-title {
-      margin: 0;
-    }
-  }
-
-  .icon-header-right {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-
-  .icon-header-btn {
-    all: unset;
-    display: flex;
-    align-items: center;
-    color: var(--color-text-muted);
-    cursor: pointer;
-
-    &:hover {
-      color: var(--color-text-primary);
-    }
-
-    &.remove:hover {
-      color: var(--color-error);
-    }
-  }
-
   .icon-current {
     all: unset;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 8px;
+    display: inline-flex;
+    margin-left: 10px;
+    margin-right: auto;
     color: var(--color-text-secondary);
     cursor: pointer;
 
@@ -457,71 +467,70 @@
     }
   }
 
-  .icon-name {
-    font-size: 0.75rem;
-    color: var(--color-text-muted);
-  }
-
-  .estimate-header {
+  .estimate-inline {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 4px;
-
-    .sidebar-title {
-      margin: 0;
-    }
+    gap: 4px;
+    font-size: 0.7rem;
+    color: var(--color-text-tertiary);
+    margin-right: auto;
+    margin-left: 4px;
   }
 
-  .estimate-remove {
-    all: unset;
-    display: flex;
-    align-items: center;
-    color: var(--color-text-muted);
-    cursor: pointer;
-
-    &:hover {
-      color: var(--color-error);
-    }
+  .estimate-sep {
+    line-height: 0;
   }
 
   .estimate-value {
     all: unset;
-    display: block;
-    width: 100%;
     font-size: 0.8rem;
     color: var(--color-text-secondary);
     cursor: pointer;
-    padding: 2px 0;
 
     &:hover {
       color: var(--color-text-primary);
     }
   }
 
-  .estimate-input-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
   .estimate-input {
-    flex: 1;
-    min-width: 0;
+    width: 50px;
     background: var(--color-bg-base);
     border: 1px solid var(--color-accent);
     color: var(--color-text-primary);
     font-size: 0.8rem;
-    padding: 2px 6px;
+    padding: 1px 4px;
     border-radius: 4px;
     outline: none;
     box-sizing: border-box;
   }
 
-  .estimate-suffix {
-    font-size: 0.75rem;
-    color: var(--color-text-muted);
-    flex-shrink: 0;
+  .checklist-hint {
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+
+    &.all-done {
+      color: var(--color-success);
+    }
+  }
+
+  .timestamps {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .timestamp-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .timestamp-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-tertiary);
   }
 
 </style>

@@ -152,11 +152,6 @@
     <button class="action-link" onclick={triggerUpload}>Upload</button>
     <button class="action-link" onclick={() => toggleInput("url")}>URL</button>
     <button class="action-link" onclick={() => toggleInput("lucide")}>Lucide</button>
-    {#if currentIcon}
-      <button class="action-link remove" onclick={() => onselect?.("")}>
-        Remove
-      </button>
-    {/if}
   </div>
 
   {#if activeInput === "url"}
@@ -184,7 +179,7 @@
 
 <style lang="scss">
   .icon-picker {
-    margin-top: 4px;
+    margin-top: 0;
   }
 
   .icon-grid {
@@ -243,10 +238,6 @@
     &:hover {
       background: var(--overlay-hover);
       border-color: var(--color-text-tertiary);
-    }
-
-    &.remove:hover {
-      color: var(--color-error);
     }
 
     &:disabled {

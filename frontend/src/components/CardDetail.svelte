@@ -21,6 +21,10 @@
     },
   });
   import type { daedalus } from "../../wailsjs/go/models";
+  import {
+    toggleChecklistItem, addChecklistItem, editChecklistItem,
+    removeChecklistItem, reorderChecklistItem,
+  } from "../lib/checklist";
   import ChecklistSection from "./ChecklistSection.svelte";
   import CardSidebar from "./CardSidebar.svelte";
   import Icon from "./Icon.svelte";
@@ -185,31 +189,23 @@
   }
 
   function toggleCheckItem(idx: number): Promise<void> {
-    const checklist = meta!.checklist!.map((item, i) => (i === idx ? { ...item, done: !item.done } : { ...item }));
-    return saveCardMeta({ checklist }, "toggle checklist item");
+    return saveCardMeta({ checklist: toggleChecklistItem(meta!.checklist!, idx) }, "toggle checklist item");
   }
 
   function addCheckItem(desc: string): Promise<void> {
-    const existing = meta!.checklist || [];
-    const maxIdx = existing.length > 0 ? Math.max(...existing.map(i => i.idx)) : -1;
-    const newItem = { idx: maxIdx + 1, desc, done: false } as daedalus.CheckListItem;
-    return saveCardMeta({ checklist: [...existing, newItem] }, "add checklist item");
+    return saveCardMeta({ checklist: addChecklistItem(meta!.checklist || [], desc) }, "add checklist item");
   }
 
   function editCheckItem(idx: number, desc: string): Promise<void> {
-    const checklist = meta!.checklist!.map((item, i) => (i === idx ? { ...item, desc } : { ...item }));
-    return saveCardMeta({ checklist }, "edit checklist item");
+    return saveCardMeta({ checklist: editChecklistItem(meta!.checklist!, idx, desc) }, "edit checklist item");
   }
 
   function removeCheckItem(idx: number): Promise<void> {
-    return saveCardMeta({ checklist: meta!.checklist!.filter((_, i) => i !== idx) }, "remove checklist item");
+    return saveCardMeta({ checklist: removeChecklistItem(meta!.checklist!, idx) }, "remove checklist item");
   }
 
   function reorderCheckItem(fromIdx: number, toIdx: number): Promise<void> {
-    const items = [...meta!.checklist!];
-    const [moved] = items.splice(fromIdx, 1);
-    items.splice(toIdx, 0, moved);
-    return saveCardMeta({ checklist: items }, "reorder checklist");
+    return saveCardMeta({ checklist: reorderChecklistItem(meta!.checklist!, fromIdx, toIdx) }, "reorder checklist");
   }
 
   // Navigates to prev/next card in the same list while the detail modal is open.
@@ -394,7 +390,7 @@
 {#if $selectedCard && meta}
   <div class="modal-backdrop scrollable" bind:this={backdropEl} role="presentation" use:backdropClose={close} onkeydown={handleKeydown}>
     <div class="modal-dialog size-lg card-detail-dialog" role="dialog">
-      <div class="modal-header card-detail-header">
+      <div class="modal-header card-editor">
         {#if editingTitle}
           <input class="edit-title-input" type="text" bind:value={editTitle} onblur={blurTitle}
             onkeydown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} use:autoFocus
@@ -488,13 +484,6 @@
     position: relative;
   }
 
-  .card-detail-header {
-    align-items: flex-start;
-    gap: 12px;
-    border-bottom: none;
-    padding: 16px 16px 12px 20px;
-  }
-
   .card-title {
     all: unset;
     font-size: 1.25rem;
@@ -502,6 +491,7 @@
     color: var(--color-text-primary);
     line-height: 1.3;
     word-break: break-word;
+    overflow: hidden;
     flex: 1;
     min-width: 0;
     padding-top: 4px;
@@ -518,21 +508,6 @@
     }
   }
 
-  .edit-title-input {
-    flex: 1;
-    min-width: 0;
-    background: var(--color-bg-base);
-    border: 1px solid var(--color-accent);
-    color: var(--color-text-primary);
-    font-size: 1.25rem;
-    font-weight: 600;
-    padding: 2px 10px;
-    border-radius: 4px;
-    outline: none;
-    box-sizing: border-box;
-    font-family: inherit;
-  }
-
   .main-col {
     flex: 1;
     min-width: 0;
@@ -541,15 +516,6 @@
   /* Sections */
   .section {
     margin-bottom: 20px;
-  }
-
-  .edit-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    color: var(--color-text-muted);
-    font-size: 0.75rem;
-    padding: 4px 12px;
   }
 
   .save-body-btn {

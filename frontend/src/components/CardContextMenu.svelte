@@ -7,12 +7,11 @@
     removeCardFromBoard, addToast, isAtLimit, isLocked,
   } from "../stores/board";
   import { MoveCard, DeleteCard, LoadBoard } from "../../wailsjs/go/main/App";
-  import { getDisplayTitle } from "../lib/utils";
+  import { getDisplayTitle, clickOutside } from "../lib/utils";
   import Icon from "./Icon.svelte";
 
   let moveSubmenuOpen = $state(false);
   let confirmingDelete = $state(false);
-  let menuEl: HTMLElement | undefined = $state();
 
   let menu = $derived($contextMenu);
 
@@ -91,17 +90,6 @@
     }
   }
 
-  // Close when clicking outside the menu.
-  function handleWindowClick(e: MouseEvent): void {
-    const target = e.target as Node;
-    if (!target.isConnected) {
-      return;
-    }
-    if (menu && menuEl && !menuEl.contains(target)) {
-      close();
-    }
-  }
-
   // Clamp menu position so it doesn't overflow the viewport.
   let style = $derived.by(() => {
     if (!menu) {
@@ -115,10 +103,10 @@
   });
 </script>
 
-<svelte:window onkeydown={handleKeydown} onclick={handleWindowClick} />
+<svelte:window onkeydown={handleKeydown} />
 
 {#if menu}
-  <div class="context-menu" bind:this={menuEl} style={style}>
+  <div class="context-menu" use:clickOutside={close} style={style}>
     <button class="ctx-item" onclick={editCard}>
       <Icon name="pencil" size={14} /> Edit
     </button>

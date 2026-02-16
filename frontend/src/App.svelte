@@ -398,6 +398,16 @@
     }
   }
 
+  // Opens the draft-creation modal for the first (leftmost) list.
+  function createCardDefault(): void {
+    const keys = sortedListKeys($boardData, $listOrder);
+    if (keys.length === 0) {
+      addToast("No lists on this board");
+      return;
+    }
+    createCard(keys[0]);
+  }
+
   // Opens the draft-creation modal for the given list, defaulting to top placement.
   function createCard(listKey: string): void {
     if (isAtLimit(listKey, $boardData, $boardConfig)) {
@@ -451,6 +461,7 @@
       openCardEdit: card => { openInEditMode.set(true); selectedCard.set(card); },
       openSearch,
       createCard,
+      createCardDefault,
       scrollListIntoView,
     });
   }
@@ -563,7 +574,7 @@
 <main>
   <TopBar bind:searchOpen bind:showYearProgress bind:darkMode
     bind:showLabelEditor bind:showKeyboardHelp bind:showAbout
-    oninitboard={initBoard}
+    oninitboard={initBoard} oncreatecard={createCardDefault}
   />
 
   {#snippet renderList(listKey: string)}

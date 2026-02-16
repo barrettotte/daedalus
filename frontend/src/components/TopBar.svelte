@@ -17,6 +17,7 @@
     showKeyboardHelp = $bindable(false),
     showAbout = $bindable(false),
     oninitboard,
+    oncreatecard,
   }: {
     searchOpen: boolean;
     showYearProgress: boolean;
@@ -25,6 +26,7 @@
     showKeyboardHelp: boolean;
     showAbout: boolean;
     oninitboard: () => Promise<void>;
+    oncreatecard: () => void;
   } = $props();
 
   let searchInputEl: HTMLInputElement | undefined = $state(undefined);
@@ -160,6 +162,9 @@
     </button>
   {/if}
   <div class="top-bar-actions">
+    <button class="top-btn" onclick={oncreatecard} title="New card (N)">
+      <Icon name="plus" size={14} />
+    </button>
     {#if searchOpen}
       <div class="search-bar" role="toolbar" aria-label="Search" tabindex="-1"
         onmousedown={(e) => {

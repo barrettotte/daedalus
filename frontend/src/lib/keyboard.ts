@@ -29,6 +29,7 @@ export interface KeyboardActions {
   openCardEdit: (card: daedalus.KanbanCard) => void;
   openSearch: (prefill?: string) => void;
   createCard: (listKey: string) => void;
+  createCardDefault: () => void;
   scrollListIntoView: (key: string) => void;
 }
 
@@ -100,10 +101,10 @@ export function handleBoardKeydown(e: KeyboardEvent, state: KeyboardState, actio
     return;
   }
 
-  // N - Create new card
+  // N - Create new card in leftmost list
   if (e.key === "n" && !e.metaKey && !e.ctrlKey && !e.altKey) {
     e.preventDefault();
-    actions.createCard(keys[0]);
+    actions.createCardDefault();
     return;
   }
 

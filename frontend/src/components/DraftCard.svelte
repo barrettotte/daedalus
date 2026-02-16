@@ -1,46 +1,37 @@
 <script lang="ts">
-  // Modal for creating a new card with title, body, labels, and position selector.
+  // Modal for creating a new card with title, body, and sidebar metadata.
 
   import {
     selectedCard, draftListKey, draftPosition,
-    addCardToBoard, boardConfig, boardData, addToast, isAtLimit, labelColors,
+    addCardToBoard, boardConfig, boardData, addToast, isAtLimit,
   } from "../stores/board";
   import { CreateCard, SaveCard } from "../../wailsjs/go/main/App";
-  import { formatListName, labelColor, autoFocus, backdropClose } from "../lib/utils";
+  import { autoFocus, backdropClose } from "../lib/utils";
   import type { daedalus } from "../../wailsjs/go/models";
+  import {
+    toggleChecklistItem, addChecklistItem, editChecklistItem,
+    removeChecklistItem, reorderChecklistItem,
+  } from "../lib/checklist";
   import Icon from "./Icon.svelte";
+  import DraftSidebar from "./DraftSidebar.svelte";
+  import ChecklistSection from "./ChecklistSection.svelte";
 
-  // Draft mode state for creating new cards before they exist on disk
   let draftTitle = $state("");
   let draftBody = $state("");
-  let draftLabels = $state<string[]>([]);
-  let labelDropdownOpen = $state(false);
   let saving = $state(false);
 
-  // Number of cards in the draft target list.
-  let draftListCount = $derived.by(() => {
-    if (!$draftListKey) {
-      return 0;
-    }
-    return ($boardData[$draftListKey] || []).length;
-  });
+  // Live character and word counts for the body textarea.
+  let charCount = $derived(draftBody.length);
+  let wordCount = $derived(draftBody.trim() ? draftBody.trim().split(/\s+/).length : 0);
 
-  // 1-based position number derived from the current draftPosition value.
-  let positionDisplayValue = $derived.by(() => {
-    const pos = $draftPosition;
-    if (pos === "top") {
-      return 1;
-    }
-    if (pos === "bottom") {
-      return draftListCount + 1;
-    }
-
-    const idx = parseInt(pos, 10);
-    if (!isNaN(idx)) {
-      return idx + 1;
-    }
-    return 1;
-  });
+  // Sidebar metadata fields bound to DraftSidebar.
+  let draftLabels = $state<string[]>([]);
+  let draftIcon = $state("");
+  let draftDue = $state<string | null>(null);
+  let draftRange = $state<{ start: string; end: string } | null>(null);
+  let draftEstimate = $state<number | null>(null);
+  let draftCounter = $state<daedalus.Counter | null>(null);
+  let draftChecklist = $state<daedalus.CheckListItem[] | null>(null);
 
   // Speculative ID for the next card (current max + 1).
   let nextCardId = $derived.by(() => {
@@ -55,38 +46,45 @@
     return max + 1;
   });
 
-  // Derives the list display name from config title or formatted directory name.
-  let draftListDisplayName = $derived.by(() => {
-    if (!$draftListKey) {
-      return "";
+  // Local state that syncs with stores so DraftSidebar can bind to them.
+  let localListKey = $state("");
+  let localPosition = $state("top");
+
+  // Sync store -> local when draft opens.
+  $effect(() => {
+    if ($draftListKey) {
+      localListKey = $draftListKey;
     }
-    const cfg = $boardConfig[$draftListKey];
-    if (cfg && cfg.title) {
-      return cfg.title;
+  });
+  $effect(() => {
+    if ($draftPosition) {
+      localPosition = $draftPosition;
     }
-    return formatListName($draftListKey);
   });
 
-  // Board labels not currently selected for this draft, sorted alphabetically.
-  let availableLabels = $derived.by(() => {
-    const current = new Set(draftLabels);
-    return Object.keys($labelColors).filter(l => !current.has(l)).sort();
+  // Sync local -> store when user changes via DraftSidebar.
+  $effect(() => {
+    if (localListKey && $draftListKey && localListKey !== $draftListKey) {
+      draftListKey.set(localListKey);
+    }
   });
-
-  function addDraftLabel(label: string): void {
-    draftLabels = [...draftLabels, label];
-  }
-
-  function removeDraftLabel(label: string): void {
-    draftLabels = draftLabels.filter(l => l !== label);
-  }
+  $effect(() => {
+    if (localPosition !== $draftPosition) {
+      draftPosition.set(localPosition);
+    }
+  });
 
   // Closes the draft modal and clears all draft state.
   function close(): void {
     draftTitle = "";
     draftBody = "";
     draftLabels = [];
-    labelDropdownOpen = false;
+    draftIcon = "";
+    draftDue = null;
+    draftRange = null;
+    draftEstimate = null;
+    draftCounter = null;
+    draftChecklist = null;
     saving = false;
     draftListKey.set(null);
     selectedCard.set(null);
@@ -97,8 +95,6 @@
     if (!draftTitle.trim()) {
       return;
     }
-
-    // Re-check limit in case the list filled while the modal was open.
     if (isAtLimit($draftListKey!, $boardData, $boardConfig)) {
       addToast("List is at its card limit");
       return;
@@ -109,62 +105,69 @@
       const pos = $draftPosition;
       let card = await CreateCard($draftListKey!, draftTitle.trim(), draftBody, pos);
 
-      if (draftLabels.length > 0) {
+      // Persist extra metadata if any sidebar fields were filled in.
+      const hasExtraMeta = draftLabels.length > 0 || draftIcon || draftDue || draftRange
+        || draftEstimate != null || draftCounter || draftChecklist;
+      if (hasExtraMeta) {
         const fullBody = `# ${draftTitle.trim()}\n\n${draftBody}`;
-        card = await SaveCard(card.filePath, { ...card.metadata, labels: draftLabels } as daedalus.CardMetadata, fullBody);
+
+        const meta = {
+          ...card.metadata,
+          labels: draftLabels.length > 0 ? draftLabels : card.metadata.labels,
+          icon: draftIcon || card.metadata.icon,
+          due: draftDue || card.metadata.due,
+          range: draftRange || card.metadata.range,
+          estimate: draftEstimate ?? card.metadata.estimate,
+          counter: draftCounter || card.metadata.counter,
+          checklist: draftChecklist || card.metadata.checklist,
+        } as daedalus.CardMetadata;
+
+        card = await SaveCard(card.filePath, meta, fullBody);
       }
 
       addCardToBoard($draftListKey!, card, pos);
       addToast("Card created", "success");
-
-      draftTitle = "";
-      draftBody = "";
-      draftLabels = [];
-      labelDropdownOpen = false;
-      draftListKey.set(null);
-      selectedCard.set(null);
-
+      close();
     } catch (e) {
       addToast(`Failed to create card: ${e}`);
     }
     saving = false;
   }
 
-  // Converts 1-based user input to the store's position value, clamping to valid range.
-  function handlePositionInput(e: Event): void {
-    const input = e.target as HTMLInputElement;
-    const raw = parseInt(input.value, 10);
-    if (isNaN(raw)) {
-      input.value = String(positionDisplayValue);
+  // Checklist handlers -- mutate draftChecklist directly since there's no backend yet.
+  function toggleCheckItem(idx: number): void {
+    if (!draftChecklist) {
       return;
     }
-
-    const max = draftListCount + 1;
-    const val = Math.max(1, Math.min(raw, max));
-    if (val !== raw) {
-      input.value = String(val);
-    }
-
-    if (val === 1) {
-      draftPosition.set("top");
-    } else if (val === max) {
-      draftPosition.set("bottom");
-    } else {
-      draftPosition.set(String(val - 1));
-    }
+    draftChecklist = toggleChecklistItem(draftChecklist, idx);
   }
 
-  let labelAddEl: HTMLElement | undefined = $state();
-
-  // Closes label dropdown when clicking outside.
-  function handleWindowClick(e: MouseEvent): void {
-    const target = e.target as Node;
-    if (!target.isConnected) {
+  function addCheckItem(desc: string): void {
+    if (!draftChecklist) {
       return;
     }
-    if (labelDropdownOpen && labelAddEl && !labelAddEl.contains(target)) {
-      labelDropdownOpen = false;
+    draftChecklist = addChecklistItem(draftChecklist, desc);
+  }
+
+  function removeCheckItem(idx: number): void {
+    if (!draftChecklist) {
+      return;
     }
+    draftChecklist = removeChecklistItem(draftChecklist, idx);
+  }
+
+  function editCheckItem(idx: number, desc: string): void {
+    if (!draftChecklist) {
+      return;
+    }
+    draftChecklist = editChecklistItem(draftChecklist, idx, desc);
+  }
+
+  function reorderCheckItem(fromIdx: number, toIdx: number): void {
+    if (!draftChecklist) {
+      return;
+    }
+    draftChecklist = reorderChecklistItem(draftChecklist, fromIdx, toIdx);
   }
 
   // Handles keyboard shortcuts: Ctrl/Cmd+Enter saves draft, Escape closes.
@@ -180,89 +183,59 @@
       close();
     }
   }
-
-  // Resets draft fields only on transition from null to non-null (new draft started).
-  let prevDraftListKey: string | null = null;
-  $effect(() => {
-    const current = $draftListKey;
-    if (current && current !== prevDraftListKey) {
-      draftTitle = "";
-      draftBody = "";
-      draftLabels = [];
-      labelDropdownOpen = false;
-      saving = false;
-    }
-    prevDraftListKey = current;
-  });
 </script>
 
-<svelte:window onkeydown={handleKeydown} onclick={handleWindowClick} />
+<svelte:window onkeydown={handleKeydown} />
 
 {#if $draftListKey}
   <div class="modal-backdrop scrollable" role="presentation" use:backdropClose={close} onkeydown={handleKeydown}>
     <div class="modal-dialog size-lg draft-dialog" role="dialog">
-      <div class="modal-header draft-header">
-        <div class="draft-list-name">
-          Drafting card <span class="draft-card-id">#{nextCardId}</span> in <strong>{draftListDisplayName}</strong>
-        </div>
+      <div class="modal-header card-editor">
+        <input class="edit-title-input" type="text" bind:value={draftTitle} placeholder="Card title"
+          onkeydown={e => e.key === 'Enter' && saveDraft()} use:autoFocus
+        />
         <div class="header-btns">
           <button class="modal-close" onclick={close} title="Close">
             <Icon name="close" size={16} />
           </button>
         </div>
       </div>
-      <div class="draft-body">
-        <input class="edit-title-input" type="text" bind:value={draftTitle} placeholder="Card title"
-          onkeydown={e => e.key === 'Enter' && saveDraft()} use:autoFocus
+      <div class="modal-body">
+        <div class="main-col">
+          <textarea class="edit-body-textarea" bind:value={draftBody} placeholder="Card description (markdown)"></textarea>
+          <div class="edit-footer">
+            <span>{charCount} chars, {wordCount} words</span>
+          </div>
+          {#if draftChecklist}
+            <ChecklistSection
+              checklist={draftChecklist}
+              ontoggle={toggleCheckItem}
+              onadd={addCheckItem}
+              onremove={removeCheckItem}
+              onedit={editCheckItem}
+              onreorder={reorderCheckItem}
+              ondelete={() => { draftChecklist = null; }}
+            />
+          {/if}
+        </div>
+        <DraftSidebar
+          {nextCardId}
+          bind:draftListKey={localListKey}
+          bind:draftPosition={localPosition}
+          bind:draftLabels
+          bind:draftIcon
+          bind:draftDue
+          bind:draftRange
+          bind:draftEstimate
+          bind:draftCounter
+          bind:draftChecklist
         />
-        <textarea class="edit-body-textarea" bind:value={draftBody} placeholder="Card description (markdown)"></textarea>
-        {#if draftLabels.length > 0 || Object.keys($labelColors).length > 0}
-          <div class="draft-labels">
-            {#if draftLabels.length > 0}
-              <div class="draft-label-chips">
-                {#each [...draftLabels].sort() as label}
-                  <button class="draft-label" title="Remove {label}" style="background: {labelColor(label, $labelColors)}" onclick={() => removeDraftLabel(label)}>
-                    {label}
-                  </button>
-                {/each}
-              </div>
-            {/if}
-            {#if availableLabels.length > 0}
-              <div class="draft-label-add" bind:this={labelAddEl}>
-                <button class="draft-add-label-btn" onclick={() => labelDropdownOpen = !labelDropdownOpen}>+ Add label</button>
-                {#if labelDropdownOpen}
-                  <div class="draft-label-menu">
-                    {#each availableLabels as label}
-                      <button class="draft-label-option" onclick={() => addDraftLabel(label)}>
-                        <span class="draft-label-swatch" style="background: {$labelColors[label]}"></span>
-                        {label}
-                      </button>
-                    {/each}
-                  </div>
-                {/if}
-              </div>
-            {/if}
-          </div>
-        {/if}
       </div>
-      <div class="draft-actions">
-        <div class="position-section">
-          <span class="position-label">Position</span>
-          <div class="position-toggle">
-            <button class="pos-btn" title="Add card to top of list" class:active={$draftPosition === 'top'} onclick={() => draftPosition.set('top')}>Top</button>
-            <button class="pos-btn" title="Add card to bottom of list" class:active={$draftPosition === 'bottom'} onclick={() => draftPosition.set('bottom')}>Bottom</button>
-          </div>
-          <div class="position-specific-row">
-            <input class="position-input" type="number" min="1" max={draftListCount + 1} value={positionDisplayValue} oninput={handlePositionInput}/>
-            <span class="position-hint">of {draftListCount + 1}</span>
-          </div>
-        </div>
-        <div class="draft-btns">
-          <button class="save-btn" onclick={saveDraft} disabled={saving || !draftTitle.trim()}>
-            {saving ? "Saving..." : "Save"}
-          </button>
-          <button class="cancel-btn" onclick={close}>Cancel</button>
-        </div>
+      <div class="draft-footer">
+        <button class="save-btn" onclick={saveDraft} disabled={saving || !draftTitle.trim()}>
+          {saving ? "Saving..." : "Create"}
+        </button>
+        <button class="cancel-btn" onclick={close}>Cancel</button>
       </div>
     </div>
   </div>
@@ -271,125 +244,25 @@
 <style lang="scss">
   .draft-dialog {
     margin-bottom: 48px;
-  }
 
-  .draft-header {
-    border-bottom: none;
-    padding: 16px 20px 0 20px;
-  }
-
-  .draft-list-name {
-    font-size: 0.78rem;
-    color: var(--color-text-tertiary);
-
-    strong {
-      color: var(--color-text-secondary);
+    :global(.edit-title-input) {
+      max-width: calc(100% - 220px);
     }
   }
 
-  .draft-card-id {
-    color: var(--color-text-muted);
-    font-family: monospace;
-    font-size: 0.75rem;
-  }
-
-  .draft-body {
+  .main-col {
+    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 12px;
-    padding: 16px 20px 0 20px;
   }
 
-  .edit-title-input {
-    background: var(--color-bg-base);
-    border: 1px solid var(--color-accent);
-    color: var(--color-text-primary);
-    font-size: 1.25rem;
-    font-weight: 600;
-    padding: 2px 10px;
-    border-radius: 4px;
-    outline: none;
-    box-sizing: border-box;
-    font-family: inherit;
-  }
-
-  .draft-actions {
-    display: flex;
-    align-items: flex-end;
-    gap: 8px;
-    padding: 16px 20px 20px 20px;
-  }
-
-  .position-section {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-right: auto;
-  }
-
-  .position-label {
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-  }
-
-  .position-toggle {
-    display: flex;
-    border-radius: 4px;
-    overflow: hidden;
-    border: 1px solid var(--color-border);
-    width: fit-content;
-  }
-
-  .position-specific-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .draft-btns {
+  .draft-footer {
     display: flex;
     gap: 8px;
-    flex-shrink: 0;
-  }
-
-  .position-input {
-    width: 44px;
-    background: var(--color-bg-base);
-    border: 1px solid var(--color-border);
-    color: var(--color-text-primary);
-    font-size: 0.78rem;
-    padding: 4px 6px;
-    border-radius: 4px;
-    outline: none;
-    text-align: center;
-    &:focus {
-      border-color: var(--color-accent);
-    }
-  }
-
-  .position-hint {
-    font-size: 0.75rem;
-    color: var(--color-text-tertiary);
-  }
-
-  .pos-btn {
-    all: unset;
-    padding: 5px 12px;
-    font-size: 0.78rem;
-    font-weight: 500;
-    cursor: pointer;
-    color: var(--color-text-secondary);
-    background: transparent;
-
-    &:hover {
-      background: var(--overlay-hover-light);
-    }
-
-    &.active {
-      background: var(--overlay-accent);
-      color: var(--color-accent);
-    }
+    justify-content: flex-end;
+    padding: 0 20px 20px 20px;
   }
 
   .save-btn {
@@ -412,88 +285,17 @@
     }
   }
 
-  .draft-labels {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .draft-label-chips {
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
-  }
-
-  .draft-label {
-    font-size: 0.7rem;
-    font-weight: 600;
-    padding: 4px 8px;
-    border-radius: 3px;
-    color: var(--color-text-inverse);
-    border: none;
-    cursor: pointer;
-    text-align: center;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 120px;
-
-    &:hover {
-      opacity: 0.7;
-    }
-  }
-
-  .draft-label-add {
-    position: relative;
-  }
-
-  .draft-add-label-btn {
-    all: unset;
-    font-size: 0.78rem;
-    color: var(--color-text-tertiary);
-    cursor: pointer;
-
-    &:hover {
-      color: var(--color-text-secondary);
-    }
-  }
-
-  .draft-label-menu {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    min-width: 180px;
-    background: var(--color-bg-elevated);
+  .cancel-btn {
+    background: none;
     border: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    padding: 8px 16px;
     border-radius: 4px;
-    padding: 4px 0;
-    z-index: 10;
-    max-height: 200px;
-    overflow-y: auto;
-  }
-
-  .draft-label-option {
-    all: unset;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    width: 100%;
-    padding: 5px 8px;
-    font-size: 0.8rem;
-    color: var(--color-text-primary);
+    font-size: 0.85rem;
     cursor: pointer;
-    box-sizing: border-box;
 
     &:hover {
-      background: var(--overlay-hover);
+      border-color: var(--color-text-tertiary);
     }
   }
-
-  .draft-label-swatch {
-    width: 10px;
-    height: 10px;
-    border-radius: 2px;
-    flex-shrink: 0;
-  }
-
 </style>

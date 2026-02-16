@@ -141,6 +141,30 @@ export function backdropClose(node: HTMLElement, onclose: () => void): ActionRet
   };
 }
 
+// Svelte action that calls a callback when a click lands outside the attached element.
+export function clickOutside(node: HTMLElement, callback: () => void): ActionReturn<() => void> {
+  function handleClick(e: MouseEvent): void {
+    const target = e.target as Node;
+    if (!target.isConnected) {
+      return;
+    }
+    if (!node.contains(target)) {
+      callback();
+    }
+  }
+
+  window.addEventListener("click", handleClick);
+
+  return {
+    update(newCallback: () => void) {
+      callback = newCallback;
+    },
+    destroy() {
+      window.removeEventListener("click", handleClick);
+    },
+  };
+}
+
 // Svelte action that focuses and selects the content of an input on mount.
 export function autoFocus(node: HTMLInputElement | HTMLTextAreaElement): ActionReturn {
   node.focus();

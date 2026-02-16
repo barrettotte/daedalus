@@ -13,7 +13,6 @@ export interface KeyboardState {
   draftListKey: string | null;
   selectedCard: daedalus.KanbanCard | null;
   focusedCard: FocusState | null;
-  confirmingFocusDelete: boolean;
   boardData: BoardLists;
   sortedKeys: string[];
   collapsedLists: Set<string>;
@@ -25,13 +24,11 @@ export interface KeyboardActions {
   setShowAbout: (v: boolean) => void;
   setShowLabelEditor: (v: boolean) => void;
   setShowKeyboardHelp: (v: boolean) => void;
-  setConfirmingFocusDelete: (v: boolean) => void;
   setFocusedCard: (v: FocusState | null) => void;
   openCard: (card: daedalus.KanbanCard) => void;
   openCardEdit: (card: daedalus.KanbanCard) => void;
   openSearch: (prefill?: string) => void;
   createCard: (listKey: string) => void;
-  deleteFocusedCard: () => void;
   scrollListIntoView: (key: string) => void;
 }
 
@@ -60,20 +57,6 @@ export function handleBoardKeydown(e: KeyboardEvent, state: KeyboardState, actio
       e.preventDefault();
       actions.setShowKeyboardHelp(false);
     }
-    return;
-  }
-
-  // Escape cancels delete confirmation
-  if (e.key === "Escape" && state.confirmingFocusDelete) {
-    e.preventDefault();
-    actions.setConfirmingFocusDelete(false);
-    return;
-  }
-
-  // Confirm delete with Enter when confirming
-  if (e.key === "Enter" && state.confirmingFocusDelete) {
-    e.preventDefault();
-    actions.deleteFocusedCard();
     return;
   }
 
@@ -127,7 +110,6 @@ export function handleBoardKeydown(e: KeyboardEvent, state: KeyboardState, actio
   // Arrow keys - navigate focus (skip if Ctrl/Cmd held)
   if ((e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight") && !e.ctrlKey && !e.metaKey) {
     e.preventDefault();
-    actions.setConfirmingFocusDelete(false);
 
     const focus = state.focusedCard;
     if (!focus) {
@@ -194,7 +176,6 @@ export function handleBoardKeydown(e: KeyboardEvent, state: KeyboardState, actio
   if (e.key === "Escape" && state.focusedCard) {
     e.preventDefault();
     actions.setFocusedCard(null);
-    actions.setConfirmingFocusDelete(false);
     return;
   }
 
@@ -209,14 +190,4 @@ export function handleBoardKeydown(e: KeyboardEvent, state: KeyboardState, actio
     return;
   }
 
-  // Delete - delete focused card with confirmation
-  if (e.key === "Delete" && state.focusedCard) {
-    e.preventDefault();
-    if (state.confirmingFocusDelete) {
-      actions.deleteFocusedCard();
-    } else {
-      actions.setConfirmingFocusDelete(true);
-    }
-    return;
-  }
 }

@@ -39,6 +39,14 @@ export interface DropInfo {
   position: "above" | "below";
 }
 
+// Right-click context menu state.
+export interface ContextMenuState {
+  card: daedalus.KanbanCard;
+  listKey: string;
+  x: number;
+  y: number;
+}
+
 // Toast notification entry.
 export type ToastType = "error" | "success" | "info";
 export interface Toast {
@@ -64,6 +72,7 @@ export const focusedCard: Writable<FocusState | null> = writable(null);
 export const openInEditMode: Writable<boolean> = writable(false);
 export const listOrder: Writable<string[]> = writable([]);
 export const loadProfile: Writable<LoadProfileData | null> = writable(null);
+export const contextMenu: Writable<ContextMenuState | null> = writable(null);
 
 // Updates a single card in the boardData store by matching filePath.
 export function updateCardInBoard(updatedCard: daedalus.KanbanCard): void {

@@ -3,15 +3,18 @@
 
   import {
     selectedCard, draftListKey, draftPosition,
-    addCardToBoard, boardConfig, boardData, addToast, isAtLimit,
+    addCardToBoard, boardConfig, boardData, addToast, isAtLimit, labelColors,
   } from "../stores/board";
-  import { CreateCard } from "../../wailsjs/go/main/App";
-  import { formatListName, autoFocus, backdropClose } from "../lib/utils";
+  import { CreateCard, SaveCard } from "../../wailsjs/go/main/App";
+  import { formatListName, labelColor, autoFocus, backdropClose } from "../lib/utils";
+  import type { daedalus } from "../../wailsjs/go/models";
   import Icon from "./Icon.svelte";
 
   // Draft mode state for creating new cards before they exist on disk
   let draftTitle = $state("");
   let draftBody = $state("");
+  let draftLabels = $state<string[]>([]);
+  let labelDropdownOpen = $state(false);
   let saving = $state(false);
 
   // Number of cards in the draft target list.
@@ -64,10 +67,26 @@
     return formatListName($draftListKey);
   });
 
+  // Board labels not currently selected for this draft, sorted alphabetically.
+  let availableLabels = $derived.by(() => {
+    const current = new Set(draftLabels);
+    return Object.keys($labelColors).filter(l => !current.has(l)).sort();
+  });
+
+  function addDraftLabel(label: string): void {
+    draftLabels = [...draftLabels, label];
+  }
+
+  function removeDraftLabel(label: string): void {
+    draftLabels = draftLabels.filter(l => l !== label);
+  }
+
   // Closes the draft modal and clears all draft state.
   function close(): void {
     draftTitle = "";
     draftBody = "";
+    draftLabels = [];
+    labelDropdownOpen = false;
     saving = false;
     draftListKey.set(null);
     selectedCard.set(null);
@@ -88,15 +107,23 @@
 
     try {
       const pos = $draftPosition;
-      const card = await CreateCard($draftListKey!, draftTitle.trim(), draftBody, pos);
+      let card = await CreateCard($draftListKey!, draftTitle.trim(), draftBody, pos);
+
+      if (draftLabels.length > 0) {
+        const fullBody = `# ${draftTitle.trim()}\n\n${draftBody}`;
+        card = await SaveCard(card.filePath, { ...card.metadata, labels: draftLabels } as daedalus.CardMetadata, fullBody);
+      }
+
       addCardToBoard($draftListKey!, card, pos);
       addToast("Card created", "success");
 
       draftTitle = "";
       draftBody = "";
+      draftLabels = [];
+      labelDropdownOpen = false;
       draftListKey.set(null);
       selectedCard.set(null);
-  
+
     } catch (e) {
       addToast(`Failed to create card: ${e}`);
     }
@@ -127,6 +154,19 @@
     }
   }
 
+  let labelAddEl: HTMLElement | undefined = $state();
+
+  // Closes label dropdown when clicking outside.
+  function handleWindowClick(e: MouseEvent): void {
+    const target = e.target as Node;
+    if (!target.isConnected) {
+      return;
+    }
+    if (labelDropdownOpen && labelAddEl && !labelAddEl.contains(target)) {
+      labelDropdownOpen = false;
+    }
+  }
+
   // Handles keyboard shortcuts: Ctrl/Cmd+Enter saves draft, Escape closes.
   function handleKeydown(e: KeyboardEvent): void {
     if (!$draftListKey) {
@@ -148,13 +188,15 @@
     if (current && current !== prevDraftListKey) {
       draftTitle = "";
       draftBody = "";
+      draftLabels = [];
+      labelDropdownOpen = false;
       saving = false;
     }
     prevDraftListKey = current;
   });
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} onclick={handleWindowClick} />
 
 {#if $draftListKey}
   <div class="modal-backdrop scrollable" role="presentation" use:backdropClose={close} onkeydown={handleKeydown}>
@@ -174,6 +216,34 @@
           onkeydown={e => e.key === 'Enter' && saveDraft()} use:autoFocus
         />
         <textarea class="edit-body-textarea" bind:value={draftBody} placeholder="Card description (markdown)"></textarea>
+        {#if draftLabels.length > 0 || Object.keys($labelColors).length > 0}
+          <div class="draft-labels">
+            {#if draftLabels.length > 0}
+              <div class="draft-label-chips">
+                {#each [...draftLabels].sort() as label}
+                  <button class="draft-label" title="Remove {label}" style="background: {labelColor(label, $labelColors)}" onclick={() => removeDraftLabel(label)}>
+                    {label}
+                  </button>
+                {/each}
+              </div>
+            {/if}
+            {#if availableLabels.length > 0}
+              <div class="draft-label-add" bind:this={labelAddEl}>
+                <button class="draft-add-label-btn" onclick={() => labelDropdownOpen = !labelDropdownOpen}>+ Add label</button>
+                {#if labelDropdownOpen}
+                  <div class="draft-label-menu">
+                    {#each availableLabels as label}
+                      <button class="draft-label-option" onclick={() => addDraftLabel(label)}>
+                        <span class="draft-label-swatch" style="background: {$labelColors[label]}"></span>
+                        {label}
+                      </button>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            {/if}
+          </div>
+        {/if}
       </div>
       <div class="draft-actions">
         <div class="position-section">
@@ -340,6 +410,90 @@
       opacity: 0.5;
       cursor: not-allowed;
     }
+  }
+
+  .draft-labels {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .draft-label-chips {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .draft-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 3px;
+    color: var(--color-text-inverse);
+    border: none;
+    cursor: pointer;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 120px;
+
+    &:hover {
+      opacity: 0.7;
+    }
+  }
+
+  .draft-label-add {
+    position: relative;
+  }
+
+  .draft-add-label-btn {
+    all: unset;
+    font-size: 0.78rem;
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--color-text-secondary);
+    }
+  }
+
+  .draft-label-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    min-width: 180px;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 4px 0;
+    z-index: 10;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .draft-label-option {
+    all: unset;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 5px 8px;
+    font-size: 0.8rem;
+    color: var(--color-text-primary);
+    cursor: pointer;
+    box-sizing: border-box;
+
+    &:hover {
+      background: var(--overlay-hover);
+    }
+  }
+
+  .draft-label-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
   }
 
 </style>

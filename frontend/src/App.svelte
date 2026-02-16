@@ -6,7 +6,8 @@
   import { WindowSetTitle } from "../wailsjs/runtime/runtime";
   import {
     LoadBoard, SaveCollapsedLists, SaveHalfCollapsedLists, SaveLockedLists,
-    SavePinnedLists, DeleteCard, SaveListOrder, DeleteList,
+    SavePinnedLists, SaveListOrder, DeleteList, CreateList,
+    SaveLabelColors,
   } from "../wailsjs/go/main/App";
   import { get } from "svelte/store";
   import {
@@ -36,6 +37,7 @@
   import LabelColorEditor from "./components/LabelColorEditor.svelte";
   import TopBar from "./components/TopBar.svelte";
   import Icon from "./components/Icon.svelte";
+  import CardContextMenu from "./components/CardContextMenu.svelte";
 
   let error = $state("");
   let collapsedLists = $state(new SvelteSet<string>());
@@ -48,7 +50,7 @@
   let showLabelEditor = $state(false);
   let showYearProgress = $state(false);
   let darkMode = $state(true);
-  let confirmingFocusDelete = $state(false);
+
   let boardContainerEl: HTMLDivElement | undefined = $state(undefined);
   let searchOpen = $state(false);
   let listDragging = $state<string | null>(null);
@@ -57,6 +59,8 @@
   let dropLineX = $state(0);
   let dropLineTop = $state(0);
   let dropLineHeight = $state(0);
+  let addingList = $state<'left' | 'right' | false>(false);
+  let newListName = $state("");
 
   // Opens the search bar with an optional prefill string (used by keyboard handler).
   function openSearch(prefill: string = ""): void {
@@ -289,6 +293,26 @@
     }
   }
 
+  // Submits the new list name to the backend, reloads the board on success.
+  async function submitNewList(): Promise<void> {
+    const name = newListName.trim();
+    if (!name) {
+      addingList = false;
+      newListName = "";
+      return;
+    }
+
+    try {
+      await CreateList(name);
+      addToast(`List "${name}" created`);
+      addingList = false;
+      newListName = "";
+      await initBoard();
+    } catch (err) {
+      addToast(`Failed to create list: ${err}`);
+    }
+  }
+
   // Loads the board from the backend and unpacks lists + config into separate stores.
   async function initBoard(): Promise<void> {
     error = "";
@@ -324,7 +348,27 @@
       pinnedRightLists = new SvelteSet(entries.filter((e) => e.pinned === "right").map((e) => e.dir));
 
       boardTitle.set(response.config?.title || "Daedalus");
-      labelColors.set(response.config?.labelColors || {});
+
+      // Backfill: register any card labels not yet in the label_colors registry
+      const loadedColors: Record<string, string> = response.config?.labelColors || {};
+      let backfillDirty = false;
+      for (const cards of Object.values(response.lists)) {
+        for (const card of cards) {
+          if (card.metadata.labels) {
+            for (const label of card.metadata.labels) {
+              if (!loadedColors[label]) {
+                loadedColors[label] = labelColor(label);
+                backfillDirty = true;
+              }
+            }
+          }
+        }
+      }
+      labelColors.set(loadedColors);
+
+      if (backfillDirty) {
+        SaveLabelColors(loadedColors).catch(e => console.error("Failed to backfill label colors:", e));
+      }
 
       if (response.config?.labelsExpanded !== undefined && response.config.labelsExpanded !== null) {
         labelsExpanded.set(response.config.labelsExpanded);
@@ -385,37 +429,6 @@
     }
   }
 
-  // Deletes the currently focused card after confirmation.
-  async function deleteFocusedCard(): Promise<void> {
-    const focus = $focusedCard;
-    if (!focus) {
-      return;
-    }
-
-    const cards = $boardData[focus.listKey] || [];
-    const card = cards[focus.cardIndex];
-    if (!card) {
-      return;
-    }
-
-    try {
-      await DeleteCard(card.filePath);
-      removeCardFromBoard(card.filePath);
-
-      // Move focus to next card, or previous, or clear
-      const remaining = ($boardData[focus.listKey] || []).length;
-      if (remaining === 0) {
-        focusedCard.set(null);
-      } else {
-        focusedCard.set({ listKey: focus.listKey, cardIndex: Math.min(focus.cardIndex, remaining - 1) });
-      }
-    } catch (err) {
-      addToast(`Failed to delete card: ${err}`);
-    }
-
-    confirmingFocusDelete = false;
-  }
-
   // Dispatches global keyboard shortcuts to the extracted handler with current state.
   function handleGlobalKeydown(e: KeyboardEvent): void {
     handleBoardKeydown(e, {
@@ -425,7 +438,6 @@
       draftListKey: $draftListKey,
       selectedCard: $selectedCard,
       focusedCard: $focusedCard,
-      confirmingFocusDelete,
       boardData: $boardData,
       sortedKeys: visualKeys,
       collapsedLists,
@@ -434,13 +446,11 @@
       setShowAbout: v => { showAbout = v; },
       setShowLabelEditor: v => { showLabelEditor = v; },
       setShowKeyboardHelp: v => { showKeyboardHelp = v; },
-      setConfirmingFocusDelete: v => { confirmingFocusDelete = v; },
       setFocusedCard: v => focusedCard.set(v),
       openCard: card => selectedCard.set(card),
       openCardEdit: card => { openInEditMode.set(true); selectedCard.set(card); },
       openSearch,
       createCard,
-      deleteFocusedCard,
       scrollListIntoView,
     });
   }
@@ -508,6 +518,19 @@
     if (get(dragState)) {
       dragPos.set({ x: e.clientX, y: e.clientY });
     }
+  }
+
+  // Svelte action to auto-focus an input element and scroll the board to show it.
+  function autofocus(node: HTMLInputElement): void {
+    node.focus();
+    // Double rAF: first frame inserts into layout, second frame has final scrollWidth.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (boardContainerEl) {
+          boardContainerEl.scrollLeft = addingList === 'left' ? 0 : boardContainerEl.scrollWidth;
+        }
+      });
+    });
   }
 
   onMount(() => {
@@ -652,9 +675,55 @@
       ondragover={(e) => { if (listDragging) { handleListDragOver(e); } }}
       ondrop={(e) => { if (listDragging) { handleListDrop(e); } }}
     >
+      {#if addingList === 'left'}
+        <div class="add-list-input">
+          <input type="text" placeholder="List name..."
+            bind:value={newListName}
+            use:autofocus
+            onkeydown={(e) => {
+              if (e.key === 'Enter') {
+                submitNewList();
+              }
+              if (e.key === 'Escape') {
+                addingList = false;
+                newListName = "";
+              }
+            }}
+            onblur={() => submitNewList()}
+          />
+        </div>
+      {:else}
+        <button class="add-list-btn" title="Add new list to start" onclick={() => { addingList = 'left'; }}>
+          <Icon name="plus" size={18} />
+        </button>
+      {/if}
+
       {#each visualKeys as listKey}
         {@render renderList(listKey)}
       {/each}
+
+      {#if addingList === 'right'}
+        <div class="add-list-input">
+          <input type="text" placeholder="List name..."
+            bind:value={newListName}
+            use:autofocus
+            onkeydown={(e) => {
+              if (e.key === 'Enter') {
+                submitNewList();
+              }
+              if (e.key === 'Escape') {
+                addingList = false;
+                newListName = "";
+              }
+            }}
+            onblur={() => submitNewList()}
+          />
+        </div>
+      {:else}
+        <button class="add-list-btn" title="Add new list to end" onclick={() => { addingList = 'right'; }}>
+          <Icon name="plus" size={18} />
+        </button>
+      {/if}
     </div>
   {:else}
     <div class="loading">Loading cards...</div>
@@ -682,14 +751,11 @@
     {/if}
   {/if}
 
-  {#if confirmingFocusDelete}
-    <div class="focus-delete-confirm">Press Delete again to confirm, Escape to cancel</div>
-  {/if}
-
   <DraftCard />
   <CardDetail />
   <Metrics />
   <Toast />
+  <CardContextMenu />
 
   {#if showKeyboardHelp}
     <KeyboardHelp onclose={() => showKeyboardHelp = false} />
@@ -867,20 +933,7 @@
     }
   }
 
-  .focus-delete-confirm {
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(200, 55, 44, 0.9);
-    color: var(--color-text-inverse);
-    padding: 8px 16px;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    font-weight: 500;
-    z-index: 900;
-    pointer-events: none;
-  }
+
 
   .board-container.modal-open :global(.virtual-scroll-container) {
     overflow-y: hidden;
@@ -966,6 +1019,45 @@
     border-radius: 2px;
     z-index: 1;
     pointer-events: none;
+  }
+
+  .add-list-btn {
+    flex: 0 0 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 2px dashed var(--color-border-medium);
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    align-self: stretch;
+
+    &:hover {
+      border-color: var(--color-text-secondary);
+      color: var(--color-text-secondary);
+      background: var(--overlay-hover-faint);
+    }
+  }
+
+  .add-list-input {
+    flex: 0 0 280px;
+    display: flex;
+    align-items: flex-start;
+    padding-top: 6px;
+
+    input {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--color-accent);
+      border-radius: 6px;
+      background: var(--color-bg-list);
+      color: var(--color-text-primary);
+      font-size: 0.9rem;
+      outline: none;
+      box-sizing: border-box;
+    }
   }
 
 </style>

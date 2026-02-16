@@ -22,6 +22,7 @@
     onsaveestimate,
     onsaveicon,
     onsavechecklist,
+    onsavelabels,
   }: {
     meta: daedalus.CardMetadata;
     moveDropdownOpen?: boolean;
@@ -33,12 +34,14 @@
     onsaveestimate?: (estimate: number | null) => void;
     onsaveicon?: (icon: string) => void;
     onsavechecklist?: (checklist: daedalus.CheckListItem[] | null) => void;
+    onsavelabels?: (labels: string[]) => void;
   } = $props();
 
   let iconPickerOpen = $state(false);
 
   let editingEstimate = $state(false);
   let estimateInput = $state("");
+  let labelDropdownOpen = $state(false);
 
   // Opens the estimate field for inline editing.
   function startEditEstimate(): void {
@@ -59,8 +62,25 @@
     }
   }
 
+  // Board labels not currently on this card, sorted alphabetically.
+  let availableLabels = $derived.by(() => {
+    const current = new Set(meta.labels || []);
+    return Object.keys($labelColors).filter(l => !current.has(l)).sort();
+  });
+
+  // Removes a label from this card.
+  function removeLabel(label: string): void {
+    onsavelabels?.((meta.labels || []).filter(l => l !== label));
+  }
+
+  // Adds a label to this card from the registry. Dropdown stays open for multi-select.
+  function addLabel(label: string): void {
+    onsavelabels?.([...(meta.labels || []), label]);
+  }
+
   let dropdownEl: HTMLElement | undefined = $state();
   let iconSectionEl: HTMLElement | undefined = $state();
+  let labelSectionEl: HTMLElement | undefined = $state();
 
   // Closes dropdowns/pickers when clicking outside of them.
   function handleWindowClick(e: MouseEvent): void {
@@ -74,6 +94,9 @@
     }
     if (iconPickerOpen && iconSectionEl && !iconSectionEl.contains(target)) {
       iconPickerOpen = false;
+    }
+    if (labelDropdownOpen && labelSectionEl && !labelSectionEl.contains(target)) {
+      labelDropdownOpen = false;
     }
   }
 
@@ -203,18 +226,33 @@
     </div>
   </div>
 
-  {#if meta.labels && meta.labels.length > 0}
-    <div class="sidebar-section">
-      <h4 class="sidebar-title">Labels</h4>
+  <div class="sidebar-section" bind:this={labelSectionEl}>
+    <h4 class="sidebar-title">Labels</h4>
+    {#if meta.labels && meta.labels.length > 0}
       <div class="sidebar-labels">
         {#each [...meta.labels].sort() as label}
-          <span class="label" title={label} style="background: {labelColor(label, $labelColors)}">
+          <button class="label label-removable" title="Remove {label}" style="background: {labelColor(label, $labelColors)}" onclick={() => removeLabel(label)}>
             {label}
-          </span>
+          </button>
         {/each}
       </div>
-    </div>
-  {/if}
+    {/if}
+    {#if availableLabels.length > 0}
+      <div class="label-add-wrapper">
+        <button class="add-counter-btn" onclick={() => labelDropdownOpen = !labelDropdownOpen}>+ Add label</button>
+        {#if labelDropdownOpen}
+          <div class="label-add-menu">
+            {#each availableLabels as label}
+              <button class="label-add-option" onclick={() => addLabel(label)}>
+                <span class="label-add-swatch" style="background: {$labelColors[label]}"></span>
+                {label}
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/if}
+  </div>
 
   {#if meta.icon || iconPickerOpen}
     <div class="sidebar-section" bind:this={iconSectionEl}>
@@ -374,6 +412,59 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .label-removable {
+    cursor: pointer;
+    border: none;
+    text-align: center;
+
+    &:hover {
+      opacity: 0.7;
+    }
+  }
+
+  .label-add-wrapper {
+    position: relative;
+    margin-top: 4px;
+  }
+
+  .label-add-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 4px 0;
+    z-index: 10;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .label-add-option {
+    all: unset;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 5px 8px;
+    font-size: 0.8rem;
+    color: var(--color-text-primary);
+    cursor: pointer;
+    box-sizing: border-box;
+
+    &:hover {
+      background: var(--overlay-hover);
+    }
+  }
+
+  .label-add-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
   }
 
   .move-dropdown {

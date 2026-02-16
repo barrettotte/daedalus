@@ -1473,6 +1473,89 @@ func TestDownloadIcon_InvalidURL(t *testing.T) {
 	}
 }
 
+// CreateList should create the directory, update in-memory state, and persist to config.
+func TestCreateList_Success(t *testing.T) {
+	app, root := setupTestBoardMulti(t)
+
+	err := app.CreateList("backlog")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Directory should exist on disk
+	dirPath := filepath.Join(root, "backlog")
+	info, err := os.Stat(dirPath)
+	if err != nil {
+		t.Fatalf("expected directory to exist: %v", err)
+	}
+	if !info.IsDir() {
+		t.Error("expected a directory, not a file")
+	}
+
+	// In-memory state should have the new list
+	cards, ok := app.board.Lists["backlog"]
+	if !ok {
+		t.Fatal("expected backlog in board.Lists")
+	}
+	if len(cards) != 0 {
+		t.Errorf("expected 0 cards, got %d", len(cards))
+	}
+
+	// Config should have the new entry
+	idx := daedalus.FindListEntry(app.board.Config.Lists, "backlog")
+	if idx < 0 {
+		t.Fatal("expected config entry for backlog")
+	}
+
+	// Verify persisted to disk
+	config, err := daedalus.LoadBoardConfig(root)
+	if err != nil {
+		t.Fatalf("error loading saved config: %v", err)
+	}
+	savedIdx := daedalus.FindListEntry(config.Lists, "backlog")
+	if savedIdx < 0 {
+		t.Fatal("expected persisted config entry for backlog")
+	}
+}
+
+// CreateList should reject various invalid names.
+func TestCreateList_InvalidName(t *testing.T) {
+	app, _ := setupTestBoardMulti(t)
+
+	invalidNames := []string{"../etc", "foo/bar", ".hidden", "assets", "", "  "}
+	for _, name := range invalidNames {
+		err := app.CreateList(name)
+		if err == nil {
+			t.Errorf("expected error for invalid name %q", name)
+		}
+	}
+}
+
+// CreateList should reject a name that already exists.
+func TestCreateList_Duplicate(t *testing.T) {
+	app, _ := setupTestBoardMulti(t)
+
+	err := app.CreateList("open")
+	if err == nil {
+		t.Fatal("expected error for duplicate list name")
+	}
+	if !strings.Contains(err.Error(), "already exists") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// CreateList should return an error when no board has been loaded.
+func TestCreateList_BoardNotLoaded(t *testing.T) {
+	app := NewApp()
+	err := app.CreateList("new-list")
+	if err == nil {
+		t.Fatal("expected error when board not loaded")
+	}
+	if err.Error() != "board not loaded" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
 // DownloadIcon should return an error when no board is loaded.
 func TestDownloadIcon_BoardNotLoaded(t *testing.T) {
 	app := NewApp()

@@ -15,7 +15,6 @@
     ]},
     { title: "Card Actions", items: [
       { key: "E", desc: "Open card in edit mode" },
-      { key: "Delete", desc: "Delete focused card (press twice)" },
     ]},
     { title: "Modal", items: [
       { key: "Arrow Up / Down", desc: "Navigate to prev/next card" },

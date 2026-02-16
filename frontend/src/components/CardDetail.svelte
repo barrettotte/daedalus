@@ -7,7 +7,7 @@
     focusedCard, openInEditMode, addToast,
   } from "../stores/board";
   import {
-    GetCardContent, SaveCard, OpenFileExternal, DeleteCard,
+    GetCardContent, SaveCard, OpenFileExternal, DeleteCard, OpenURI,
   } from "../../wailsjs/go/main/App";
   import { marked } from "marked";
   import { autoFocus, backdropClose } from "../lib/utils";
@@ -100,10 +100,22 @@
     editingBody = true;
   }
 
-  // Saves the body on blur, or discards if unchanged.
-  async function blurBody(): Promise<void> {
-    editingBody = false;
+  // Handles clicks on the markdown body -- opens links via system handler, otherwise enters edit mode.
+  function handleBodyClick(e: MouseEvent): void {
+    const target = e.target as HTMLElement;
+    const anchor = target.closest("a");
 
+    if (anchor && anchor.href) {
+      e.preventDefault();
+      e.stopPropagation();
+      OpenURI(anchor.href).catch(err => addToast(`Failed to open link: ${err}`));
+      return;
+    }
+    startEditBody();
+  }
+
+  // Saves the body content to disk if changed. Does not close the editor.
+  async function saveBody(): Promise<void> {
     if (editBody === rawBody) {
       return;
     }
@@ -116,9 +128,16 @@
       selectedCard.set(result);
       rawBody = editBody;
       bodyHtml = marked.parse(editBody, { async: false });
+      addToast("Saved", "success");
     } catch (e) {
       addToast(`Failed to save body: ${e}`);
     }
+  }
+
+  // Saves the body on blur, then closes the editor.
+  async function blurBody(): Promise<void> {
+    await saveBody();
+    editingBody = false;
   }
 
   // Persists metadata changes to disk and updates stores.
@@ -162,6 +181,10 @@
 
   function saveChecklistTitle(title: string): Promise<void> {
     return saveCardMeta({ checklist_title: title }, "save checklist title");
+  }
+
+  function saveLabels(labels: string[]): Promise<void> {
+    return saveCardMeta({ labels }, "save labels");
   }
 
   function toggleCheckItem(idx: number): Promise<void> {
@@ -419,12 +442,17 @@
           <div class="section">
             {#if editingBody}
               <textarea class="edit-body-textarea" bind:value={editBody} onblur={blurBody} placeholder="Card description (markdown)" use:autoFocus></textarea>
-              <div class="edit-footer">{charCount} chars, {wordCount} words</div>
+              <div class="edit-footer">
+                <span>{charCount} chars, {wordCount} words</span>
+                <button class="save-body-btn" title="Save" onmousedown={e => { e.preventDefault(); blurBody(); }}>
+                  <Icon name="check" size={12} /> Save
+                </button>
+              </div>
             {:else if loading}
               <p class="loading-text">Loading...</p>
             {:else if bodyHtml.trim()}
               <div class="markdown-body clickable" role="button" tabindex="0"
-                onclick={startEditBody} onkeydown={e => e.key === 'Enter' && startEditBody()}
+                onclick={handleBodyClick} onkeydown={e => e.key === 'Enter' && startEditBody()}
               >{@html bodyHtml}</div>
             {:else}
               <button class="empty-desc clickable" title="Click to add description" onclick={startEditBody}>Enter description...</button>
@@ -452,7 +480,7 @@
         <CardSidebar {meta} bind:moveDropdownOpen
           onsavecounter={saveCounter} onsavedates={saveDates}
           onsaveestimate={saveEstimate} onsaveicon={saveIcon}
-          onsavechecklist={saveChecklist}
+          onsavechecklist={saveChecklist} onsavelabels={saveLabels}
         />
       </div>
       {/if}
@@ -522,10 +550,30 @@
   }
 
   .edit-footer {
-    text-align: right;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     color: var(--color-text-muted);
     font-size: 0.75rem;
     padding: 4px 12px;
+  }
+
+  .save-body-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--color-accent);
+    color: var(--color-text-inverse);
+    border: none;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover {
+      filter: brightness(1.15);
+    }
   }
 
   /* Markdown body */

@@ -6,6 +6,10 @@ export function CreateCard(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['CreateCard'](arg1, arg2, arg3, arg4);
 }
 
+export function CreateList(arg1) {
+  return window['go']['main']['App']['CreateList'](arg1);
+}
+
 export function DeleteCard(arg1) {
   return window['go']['main']['App']['DeleteCard'](arg1);
 }
@@ -44,6 +48,10 @@ export function MoveCard(arg1, arg2, arg3) {
 
 export function OpenFileExternal(arg1) {
   return window['go']['main']['App']['OpenFileExternal'](arg1);
+}
+
+export function OpenURI(arg1) {
+  return window['go']['main']['App']['OpenURI'](arg1);
 }
 
 export function RemoveLabel(arg1) {

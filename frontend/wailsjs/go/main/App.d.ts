@@ -5,6 +5,8 @@ import {main} from '../models';
 
 export function CreateCard(arg1:string,arg2:string,arg3:string,arg4:string):Promise<daedalus.KanbanCard>;
 
+export function CreateList(arg1:string):Promise<void>;
+
 export function DeleteCard(arg1:string):Promise<void>;
 
 export function DeleteList(arg1:string):Promise<void>;
@@ -24,6 +26,8 @@ export function LoadBoard(arg1:string):Promise<main.BoardResponse>;
 export function MoveCard(arg1:string,arg2:string,arg3:number):Promise<daedalus.KanbanCard>;
 
 export function OpenFileExternal(arg1:string):Promise<void>;
+
+export function OpenURI(arg1:string):Promise<void>;
 
 export function RemoveLabel(arg1:string):Promise<void>;
 

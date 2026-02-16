@@ -397,6 +397,53 @@ func (a *App) SaveListOrder(order []string) error {
 	return nil
 }
 
+// CreateList creates a new empty list directory and adds it to the board config.
+func (a *App) CreateList(name string) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+
+	// Validate name: reject empty, path separators, traversal, hidden dirs, and reserved names
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("list name cannot be empty")
+	}
+	if strings.ContainsAny(name, "/\\") || strings.Contains(name, "..") {
+		slog.Warn("rejected invalid list name", "name", name)
+		return fmt.Errorf("invalid list name")
+	}
+	if strings.HasPrefix(name, ".") {
+		return fmt.Errorf("list name cannot start with a dot")
+	}
+	if name == "assets" {
+		return fmt.Errorf("'assets' is a reserved name")
+	}
+
+	// Check for duplicates
+	if _, exists := a.board.Lists[name]; exists {
+		return fmt.Errorf("list already exists: %s", name)
+	}
+
+	// Create directory on disk
+	dirPath := filepath.Join(a.board.RootPath, name)
+	if err := os.MkdirAll(dirPath, 0755); err != nil {
+		slog.Error("failed to create list directory", "name", name, "path", dirPath, "error", err)
+		return fmt.Errorf("creating list directory: %w", err)
+	}
+
+	// Update in-memory state
+	a.board.Lists[name] = []daedalus.KanbanCard{}
+	a.board.Config.Lists = append(a.board.Config.Lists, daedalus.ListEntry{Dir: name})
+
+	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
+		slog.Error("failed to save config after list creation", "name", name, "error", err)
+		return err
+	}
+
+	slog.Info("list created", "name", name)
+	return nil
+}
+
 // DeleteList removes an entire list directory and cleans up all config references.
 func (a *App) DeleteList(listDirName string) error {
 	if a.board == nil {
@@ -613,6 +660,34 @@ func (a *App) OpenFileExternal(filePath string) error {
 		return err
 	}
 	slog.Debug("opened file externally", "path", absPath)
+	return nil
+}
+
+// OpenURI opens an arbitrary URI with the system handler (xdg-open, open, start).
+// Supports all URI schemes: https://, file://, vscode://, mailto:, etc.
+func (a *App) OpenURI(uri string) error {
+	if uri == "" {
+		return fmt.Errorf("empty URI")
+	}
+
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "linux":
+		cmd = exec.Command("xdg-open", uri)
+	case "darwin":
+		cmd = exec.Command("open", uri)
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", "", uri)
+	default:
+		slog.Error("unsupported platform for URI open", "os", runtime.GOOS)
+		return fmt.Errorf("unsupported platform")
+	}
+
+	if err := cmd.Start(); err != nil {
+		slog.Error("failed to open URI", "uri", uri, "error", err)
+		return err
+	}
+	slog.Debug("opened URI", "uri", uri)
 	return nil
 }
 

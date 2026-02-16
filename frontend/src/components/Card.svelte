@@ -3,7 +3,7 @@
 
   import Icon from "./Icon.svelte";
   import CardIcon from "./CardIcon.svelte";
-  import { selectedCard, labelsExpanded, labelColors, dragState, addToast } from "../stores/board";
+  import { selectedCard, labelsExpanded, labelColors, dragState, addToast, contextMenu } from "../stores/board";
   import { SaveLabelsExpanded } from "../../wailsjs/go/main/App";
   import { labelColor, formatDate, formatDateTime } from "../lib/utils";
   import type { daedalus } from "../../wailsjs/go/models";
@@ -47,6 +47,12 @@
     dragState.set(null);
   }
 
+  // Opens the right-click context menu for this card.
+  function handleContextMenu(e: MouseEvent): void {
+    e.preventDefault();
+    contextMenu.set({ card, listKey, x: e.clientX, y: e.clientY });
+  }
+
   // Toggles all labels board-wide between expanded text and collapsed color pills, persisting to board.yaml.
   function toggleLabels(): void {
     labelsExpanded.update(v => {
@@ -58,8 +64,8 @@
 </script>
 
 <div class="card" class:dragging={isDragging} class:focused={focused} draggable="true" role="button"
-  tabindex="0" ondragstart={handleDragStart} ondragend={handleDragEnd} onclick={openDetail} 
-  onkeydown={e => e.key === 'Enter' && openDetail()}
+  tabindex="0" ondragstart={handleDragStart} ondragend={handleDragEnd} onclick={openDetail}
+  oncontextmenu={handleContextMenu} onkeydown={e => e.key === 'Enter' && openDetail()}
 >
   <div class="top-row">
     {#if meta.labels && meta.labels.length > 0}
@@ -184,15 +190,15 @@
   }
 
   .label {
-    font-size: 0.65rem;
+    font-size: 0.7rem;
     font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 3px;
+    padding: 3px 10px;
+    border-radius: 4px;
     color: var(--color-text-inverse);
 
     &.collapsed {
-      padding: 0 6px;
-      height: 6px;
+      padding: 0 8px;
+      height: 8px;
       min-width: 0;
       font-size: 0;
     }

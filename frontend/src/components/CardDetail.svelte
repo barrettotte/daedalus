@@ -44,9 +44,6 @@
   // Delete confirmation state
   let confirmingDelete = $state(false);
 
-  // Move-to-list dropdown state
-  let moveDropdownOpen = $state(false);
-
   // Guards against stale async responses when rapidly switching cards.
   let loadGeneration = 0;
 
@@ -296,9 +293,7 @@
     }
 
     if (e.key === "Escape") {
-      if (moveDropdownOpen) {
-        moveDropdownOpen = false;
-      } else if (editingTitle) {
+      if (editingTitle) {
         editingTitle = false;
       } else if (editingBody) {
         editingBody = false;
@@ -336,7 +331,6 @@
     editingTitle = false;
     editingBody = false;
     confirmingDelete = false;
-    moveDropdownOpen = false;
 
     const shouldEdit = $openInEditMode;
     if (shouldEdit) {
@@ -477,7 +471,7 @@
           {/if}
         </div>
 
-        <CardSidebar {meta} bind:moveDropdownOpen
+        <CardSidebar {meta}
           onsavecounter={saveCounter} onsavedates={saveDates}
           onsaveestimate={saveEstimate} onsaveicon={saveIcon}
           onsavechecklist={saveChecklist} onsavelabels={saveLabels}

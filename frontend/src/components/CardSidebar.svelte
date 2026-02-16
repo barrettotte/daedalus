@@ -1,12 +1,13 @@
 <script lang="ts">
-  // Card detail sidebar. Shows move-to-list dropdown, labels, dates, counter, and timestamps.
+  // Card detail sidebar. Shows labels, dates, counter, and timestamps.
 
   import {
-    selectedCard, boardConfig, boardData, boardPath, sortedListKeys, listOrder,
-    moveCardInBoard, computeListOrder, addToast, isAtLimit, isLocked, labelColors,
+    boardPath, addToast, labelColors,
+    selectedCard, boardConfig, boardData, sortedListKeys, listOrder,
+    moveCardInBoard, computeListOrder, isAtLimit, isLocked,
   } from "../stores/board";
+  import { formatDateTime, labelColor, autoFocus, getDisplayTitle } from "../lib/utils";
   import { MoveCard, LoadBoard } from "../../wailsjs/go/main/App";
-  import { getDisplayTitle, formatDateTime, labelColor, autoFocus } from "../lib/utils";
   import type { daedalus } from "../../wailsjs/go/models";
   import CounterControl from "./CounterControl.svelte";
   import DateSection from "./DateSection.svelte";
@@ -16,7 +17,6 @@
 
   let {
     meta,
-    moveDropdownOpen = $bindable(false),
     onsavecounter,
     onsavedates,
     onsaveestimate,
@@ -25,7 +25,6 @@
     onsavelabels,
   }: {
     meta: daedalus.CardMetadata;
-    moveDropdownOpen?: boolean;
     onsavecounter?: (counter: daedalus.Counter | null) => void;
     onsavedates?: (
       due: string | null,
@@ -38,6 +37,8 @@
   } = $props();
 
   let iconPickerOpen = $state(false);
+  let listDropdownOpen = $state(false);
+  let positionDropdownOpen = $state(false);
 
   let editingEstimate = $state(false);
   let estimateInput = $state("");
@@ -78,9 +79,10 @@
     onsavelabels?.([...(meta.labels || []), label]);
   }
 
-  let dropdownEl: HTMLElement | undefined = $state();
   let iconSectionEl: HTMLElement | undefined = $state();
   let labelSectionEl: HTMLElement | undefined = $state();
+  let listDropdownEl: HTMLElement | undefined = $state();
+  let positionDropdownEl: HTMLElement | undefined = $state();
 
   // Closes dropdowns/pickers when clicking outside of them.
   function handleWindowClick(e: MouseEvent): void {
@@ -89,8 +91,11 @@
     if (!target.isConnected) {
       return;
     }
-    if (moveDropdownOpen && dropdownEl && !dropdownEl.contains(target)) {
-      moveDropdownOpen = false;
+    if (listDropdownOpen && listDropdownEl && !listDropdownEl.contains(target)) {
+      listDropdownOpen = false;
+    }
+    if (positionDropdownOpen && positionDropdownEl && !positionDropdownEl.contains(target)) {
+      positionDropdownOpen = false;
     }
     if (iconPickerOpen && iconSectionEl && !iconSectionEl.contains(target)) {
       iconPickerOpen = false;
@@ -100,85 +105,148 @@
     }
   }
 
-  // Extracts the raw directory name from the selected card's file path.
+  // The list key where the currently selected card lives.
   let cardListKey = $derived.by(() => {
     if (!$selectedCard) {
       return "";
     }
-    const parts = $selectedCard.filePath.split("/");
-    return parts[parts.length - 2] || "";
+    for (const key of Object.keys($boardData)) {
+      if ($boardData[key].some(c => c.filePath === $selectedCard!.filePath)) {
+        return key;
+      }
+    }
+    return "";
   });
 
-  // Derives the list display name from config title or formatted directory name.
-  let listDisplayName = $derived.by(() => {
-    if (!cardListKey) {
-      return "";
+  // Selected list key for the position editor (tracks user selection).
+  let selectedListKey = $state("");
+  // Selected 0-based position index for the position editor.
+  let selectedPosition = $state(0);
+
+  // Display name of the selected list.
+  let selectedListDisplay = $derived(selectedListKey ? getDisplayTitle(selectedListKey, $boardConfig) : "");
+
+  // Display text for the selected position.
+  let selectedPositionDisplay = $derived.by(() => {
+    const n = selectedPosition + 1;
+    if (positionCount <= 1) {
+      return `${n}`;
     }
-    return getDisplayTitle(cardListKey, $boardConfig);
+    if (selectedPosition === 0) {
+      return `${n} (top)`;
+    }
+    if (selectedPosition === positionCount - 1) {
+      return `${n} (bottom)`;
+    }
+    return `${n}`;
   });
 
-  // Derives the card's 1-based position and list size from boardData.
-  let cardPosition = $derived.by(() => {
-    if (!$selectedCard || !cardListKey) {
-      return "";
-    }
-    const cards = $boardData[cardListKey];
-    if (!cards) {
-      return "";
-    }
+  // Selects a list and closes the list dropdown.
+  function selectList(key: string): void {
+    selectedListKey = key;
+    listDropdownOpen = false;
+  }
 
-    const idx = cards.findIndex(
-      c => c.filePath === $selectedCard!.filePath,
-    );
-    if (idx === -1) {
-      return "";
+  // Selects a position and closes the position dropdown.
+  function selectPosition(idx: number): void {
+    selectedPosition = idx;
+    positionDropdownOpen = false;
+  }
+
+  // Reset dropdowns when the selected card changes.
+  $effect(() => {
+    if ($selectedCard && cardListKey) {
+      selectedListKey = cardListKey;
+      const cards = $boardData[cardListKey] || [];
+      const idx = cards.findIndex(c => c.filePath === $selectedCard!.filePath);
+      selectedPosition = idx === -1 ? 0 : idx;
     }
-    return `${idx + 1} / ${cards.length}`;
   });
 
-  // Moves the current card to a different list, placing it at the top.
-  async function moveToList(targetListKey: string): Promise<void> {
-    if (!$selectedCard || targetListKey === cardListKey) {
+  // Reset position to top when switching to a different list, restore actual position when switching back.
+  let prevSelectedListKey = $state("");
+  $effect(() => {
+    if (selectedListKey !== prevSelectedListKey) {
+      if (selectedListKey !== cardListKey) {
+        selectedPosition = 0;
+      } else if ($selectedCard) {
+        const cards = $boardData[cardListKey] || [];
+        const idx = cards.findIndex(c => c.filePath === $selectedCard!.filePath);
+        selectedPosition = idx === -1 ? 0 : idx;
+      }
+      prevSelectedListKey = selectedListKey;
+    }
+  });
+
+  // Cards in the currently selected target list.
+  let targetCards = $derived($boardData[selectedListKey] || []);
+
+  // Number of position slots available in the target list.
+  // Same list: N slots (the card's existing positions).
+  // Different list: N+1 slots (insert before each card, plus append).
+  let positionCount = $derived.by(() => {
+    const count = targetCards.length;
+    if (selectedListKey === cardListKey) {
+      return count;
+    }
+    return count + 1;
+  });
+
+  // Whether the current selection differs from the card's actual position.
+  let hasPendingMove = $derived.by(() => {
+    if (selectedListKey !== cardListKey) {
+      return true;
+    }
+    const cards = $boardData[cardListKey] || [];
+    const currentIdx = cards.findIndex(c => c.filePath === $selectedCard!.filePath);
+    return selectedPosition !== currentIdx;
+  });
+
+  // Moves the card to the selected list and position.
+  async function executeMove(): Promise<void> {
+    if (!$selectedCard || !hasPendingMove) {
       return;
     }
-    if (isLocked(cardListKey, $boardConfig) || isLocked(targetListKey, $boardConfig)) {
+    if (isLocked(cardListKey, $boardConfig) || isLocked(selectedListKey, $boardConfig)) {
       addToast("List is locked");
       return;
     }
-    if (isAtLimit(targetListKey, $boardData, $boardConfig)) {
+    if (selectedListKey !== cardListKey && isAtLimit(selectedListKey, $boardData, $boardConfig)) {
       addToast("List is at its card limit");
       return;
     }
 
-    const targetCards = $boardData[targetListKey] || [];
-    const targetIndex = 0;
-    const newListOrder = computeListOrder(targetCards, targetIndex);
+    // When reordering within the same list, account for the card being removed first.
+    let cardsForOrder: daedalus.KanbanCard[];
+    if (selectedListKey === cardListKey) {
+      cardsForOrder = targetCards.filter(c => c.filePath !== $selectedCard!.filePath);
+    } else {
+      cardsForOrder = targetCards;
+    }
+
+    const newListOrder = computeListOrder(cardsForOrder, selectedPosition);
     const originalPath = $selectedCard.filePath;
 
-    moveCardInBoard(originalPath, cardListKey, targetListKey, targetIndex, newListOrder);
+    moveCardInBoard(originalPath, cardListKey, selectedListKey, selectedPosition, newListOrder);
 
     try {
-      const result = await MoveCard(originalPath, targetListKey, newListOrder);
+      const result = await MoveCard(originalPath, selectedListKey, newListOrder);
 
-      // Sync the filePath in boardData so derived lookups match the new selectedCard.
+      // Sync file path if it changed (cross-list move).
       if (result.filePath !== originalPath) {
         boardData.update(lists => {
-          const targetCards = lists[targetListKey];
-          if (targetCards) {
-            const idx = targetCards.findIndex(c => c.metadata.id === result.metadata.id);
+          const tc = lists[selectedListKey];
+          if (tc) {
+            const idx = tc.findIndex(c => c.metadata.id === result.metadata.id);
             if (idx !== -1) {
-              targetCards[idx] = {
-                ...targetCards[idx],
-                filePath: result.filePath,
-                listName: result.listName,
-              } as daedalus.KanbanCard;
+              tc[idx] = { ...tc[idx], filePath: result.filePath, listName: result.listName } as daedalus.KanbanCard;
             }
           }
           return lists;
         });
       }
       selectedCard.set(result);
-
+      addToast("Card moved", "success");
     } catch (err) {
       addToast(`Failed to move card: ${err}`);
       const response = await LoadBoard("");
@@ -190,38 +258,55 @@
 <svelte:window onclick={handleWindowClick} />
 <div class="sidebar">
   <div class="sidebar-section">
-    <h4 class="sidebar-title">
-      Card #{meta.id}
-      {#if cardPosition}<span class="position-hint">{cardPosition}</span>{/if}
-    </h4>
-    <div class="move-dropdown" bind:this={dropdownEl}>
-      <button class="move-trigger" title="Move card to a different list" onclick={() => moveDropdownOpen = !moveDropdownOpen}>
-        <span>{listDisplayName}</span>
-        <svg class="move-chevron" class:open={moveDropdownOpen} viewBox="0 0 16 16" width="12" height="12">
-          <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </button>
-      {#if moveDropdownOpen}
-        {@const sourceLocked = isLocked(cardListKey, $boardConfig)}
-        <div class="move-menu">
-          {#each sortedListKeys($boardData, $listOrder) as key}
-            {@const locked = isLocked(key, $boardConfig)}
-            {@const full = key !== cardListKey && isAtLimit(key, $boardData, $boardConfig)}
-            {@const blocked = (key !== cardListKey && (full || locked))
-              || (key === cardListKey && locked)
-              || sourceLocked}
-            <button class="move-option" class:active={key === cardListKey} class:disabled={blocked} disabled={blocked}
-              onclick={() => { moveDropdownOpen = false; moveToList(key); }}
-            >
-              {getDisplayTitle(key, $boardConfig)}
-              {#if locked}
-                <span class="move-full">(locked)</span>
-              {:else if full}
-                <span class="move-full">(full)</span>
-              {/if}
-            </button>
-          {/each}
+    <h4 class="sidebar-title">Card #{meta.id}</h4>
+    <div class="position-editor">
+      <div class="position-field">
+        <span class="position-label">List</span>
+        <div class="pos-dropdown" bind:this={listDropdownEl}>
+          <button class="pos-trigger" onclick={() => listDropdownOpen = !listDropdownOpen}>
+            <span class="pos-trigger-text">{selectedListDisplay}</span>
+            <svg class="pos-chevron" class:open={listDropdownOpen} viewBox="0 0 16 16" width="12" height="12">
+              <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          {#if listDropdownOpen}
+            <div class="pos-menu">
+              {#each sortedListKeys($boardData, $listOrder) as key}
+                {@const locked = isLocked(key, $boardConfig)}
+                {@const full = key !== cardListKey && isAtLimit(key, $boardData, $boardConfig)}
+                {@const blocked = locked || full}
+                <button class="pos-option" class:active={key === selectedListKey} class:disabled={blocked} disabled={blocked} onclick={() => selectList(key)}>
+                  {getDisplayTitle(key, $boardConfig)}
+                  {#if locked}<span class="pos-hint">(locked)</span>{/if}
+                  {#if full}<span class="pos-hint">(full)</span>{/if}
+                </button>
+              {/each}
+            </div>
+          {/if}
         </div>
+      </div>
+      <div class="position-field">
+        <span class="position-label">Position</span>
+        <div class="pos-dropdown" bind:this={positionDropdownEl}>
+          <button class="pos-trigger" onclick={() => positionDropdownOpen = !positionDropdownOpen}>
+            <span class="pos-trigger-text">{selectedPositionDisplay}</span>
+            <svg class="pos-chevron" class:open={positionDropdownOpen} viewBox="0 0 16 16" width="12" height="12">
+              <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          {#if positionDropdownOpen}
+            <div class="pos-menu">
+              {#each Array.from({ length: positionCount }, (_, i) => i) as idx}
+                <button class="pos-option" class:active={idx === selectedPosition} onclick={() => selectPosition(idx)}>
+                  {idx + 1}{idx === 0 ? " (top)" : ""}{idx === positionCount - 1 && positionCount > 1 ? " (bottom)" : ""}
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      </div>
+      {#if hasPendingMove}
+        <button class="position-move-btn" onclick={executeMove}>Move</button>
       {/if}
     </div>
   </div>
@@ -387,13 +472,6 @@
     overflow: hidden;
   }
 
-  .position-hint {
-    font-weight: 400;
-    text-transform: none;
-    letter-spacing: normal;
-    float: right;
-  }
-
   .sidebar-labels {
     display: flex;
     gap: 4px;
@@ -465,84 +543,6 @@
     height: 10px;
     border-radius: 2px;
     flex-shrink: 0;
-  }
-
-  .move-dropdown {
-    position: relative;
-  }
-
-  .move-trigger {
-    all: unset;
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 4px;
-    background: var(--color-bg-base);
-    border: 1px solid var(--color-border);
-    color: var(--color-text-primary);
-    font-size: 0.8rem;
-    padding: 4px 6px;
-    border-radius: 4px;
-    cursor: pointer;
-    box-sizing: border-box;
-
-    &:hover {
-      border-color: var(--color-text-tertiary);
-    }
-  }
-
-  .move-chevron {
-    color: var(--color-text-tertiary);
-    transition: transform 0.15s;
-    flex-shrink: 0;
-
-    &.open {
-      transform: rotate(180deg);
-    }
-  }
-
-  .move-menu {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-    padding: 4px 0;
-    z-index: 10;
-    max-height: 200px;
-    overflow-y: auto;
-  }
-
-  .move-option {
-    all: unset;
-    display: block;
-    width: 100%;
-    padding: 5px 8px;
-    font-size: 0.8rem;
-    color: var(--color-text-primary);
-    cursor: pointer;
-    box-sizing: border-box;
-
-    &:hover:not(:disabled) {
-      background: var(--overlay-hover);
-    }
-
-    &.active {
-      color: var(--color-accent);
-    }
-
-    &.disabled {
-      color: var(--color-text-muted);
-      cursor: not-allowed;
-    }
-  }
-
-  .move-full {
-    font-size: 0.7rem;
-    color: var(--color-text-muted);
   }
 
   .icon-current {
@@ -622,6 +622,129 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--color-text-tertiary);
+  }
+
+  .position-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .position-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .position-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-tertiary);
+  }
+
+  .pos-dropdown {
+    position: relative;
+  }
+
+  .pos-trigger {
+    all: unset;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    background: var(--color-bg-base);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-primary);
+    font-size: 0.8rem;
+    padding: 4px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    box-sizing: border-box;
+
+    &:hover {
+      border-color: var(--color-text-tertiary);
+    }
+  }
+
+  .pos-trigger-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  .pos-chevron {
+    color: var(--color-text-tertiary);
+    transition: transform 0.15s;
+    flex-shrink: 0;
+
+    &.open {
+      transform: rotate(180deg);
+    }
+  }
+
+  .pos-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 4px 0;
+    z-index: 10;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .pos-option {
+    all: unset;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 5px 8px;
+    font-size: 0.8rem;
+    color: var(--color-text-primary);
+    cursor: pointer;
+    box-sizing: border-box;
+
+    &:hover:not(:disabled) {
+      background: var(--overlay-hover);
+    }
+
+    &.active {
+      color: var(--color-accent);
+    }
+
+    &.disabled {
+      color: var(--color-text-muted);
+      cursor: not-allowed;
+    }
+  }
+
+  .pos-hint {
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    margin-left: auto;
+  }
+
+  .position-move-btn {
+    all: unset;
+    text-align: center;
+    background: var(--color-accent);
+    color: var(--color-text-inverse);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+
+    &:hover {
+      opacity: 0.9;
+    }
   }
 
 </style>

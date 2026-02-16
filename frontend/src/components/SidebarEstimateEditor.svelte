@@ -77,6 +77,7 @@
 <style lang="scss">
   .estimate-value {
     all: unset;
+    font-family: var(--font-mono);
     font-size: 0.8rem;
     color: var(--color-text-secondary);
     cursor: pointer;
@@ -91,6 +92,7 @@
     background: var(--color-bg-base);
     border: 1px solid var(--color-accent);
     color: var(--color-text-primary);
+    font-family: var(--font-mono);
     font-size: 0.8rem;
     padding: 1px 4px;
     border-radius: 4px;

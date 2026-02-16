@@ -89,7 +89,7 @@
   <div class="position-field">
     <span class="position-label">Position</span>
     <div class="pos-dropdown" use:clickOutside={() => { positionDropdownOpen = false; }}>
-      <button class="pos-trigger" onclick={() => positionDropdownOpen = !positionDropdownOpen}>
+      <button class="pos-trigger mono" onclick={() => positionDropdownOpen = !positionDropdownOpen}>
         <span class="pos-trigger-text">{selectedPositionDisplay}</span>
         <svg class="pos-chevron" class:open={positionDropdownOpen} viewBox="0 0 16 16" width="12" height="12">
           <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -98,7 +98,7 @@
       {#if positionDropdownOpen}
         <div class="pos-menu">
           {#each Array.from({ length: positionCount }, (_, i) => i) as idx}
-            <button class="pos-option" class:active={idx === position} onclick={() => selectPosition(idx)}>
+            <button class="pos-option mono" class:active={idx === position} onclick={() => selectPosition(idx)}>
               {idx + 1}{idx === 0 ? " (top)" : ""}{idx === positionCount - 1 && positionCount > 1 ? " (bottom)" : ""}
             </button>
           {/each}
@@ -186,6 +186,10 @@
     z-index: 10;
     max-height: 200px;
     overflow-y: auto;
+  }
+
+  .mono {
+    font-family: var(--font-mono);
   }
 
   .pos-option {

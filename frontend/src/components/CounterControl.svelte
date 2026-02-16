@@ -222,6 +222,7 @@
   }
 
   .counter-fraction {
+    font-family: var(--font-mono);
     font-size: 0.7rem;
     font-weight: 600;
     color: var(--color-text-primary);
@@ -242,6 +243,7 @@
     background: var(--color-bg-base);
     border: 1px solid var(--color-border);
     color: var(--color-text-primary);
+    font-family: var(--font-mono);
     font-size: 0.75rem;
     padding: 5px 8px;
     border-radius: 4px;

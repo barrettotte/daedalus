@@ -30,8 +30,6 @@
     box-shadow: var(--shadow-md);
     max-width: 360px;
     word-break: break-word;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
-
     &.error {
       background: var(--color-toast-bg);
       border: 1px solid var(--overlay-error-border);

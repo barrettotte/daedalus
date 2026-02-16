@@ -308,11 +308,13 @@
   }
 
   .trigger-date {
+    font-family: var(--font-mono);
     font-size: 0.75rem;
     white-space: nowrap;
   }
 
   .trigger-time {
+    font-family: var(--font-mono);
     font-size: 0.65rem;
     color: var(--color-text-muted);
     white-space: nowrap;
@@ -388,6 +390,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    font-family: var(--font-mono);
     font-size: 0.65rem;
     border-radius: 4px;
     box-sizing: border-box;
@@ -434,6 +437,7 @@
     background: var(--color-bg-base);
     border: 1px solid var(--color-border);
     color: var(--color-text-primary);
+    font-family: var(--font-mono);
     font-size: 0.7rem;
     padding: 3px 2px;
     border-radius: 4px;
@@ -455,6 +459,7 @@
   }
 
   .datepicker-time-sep {
+    font-family: var(--font-mono);
     font-size: 0.75rem;
     color: var(--color-text-primary);
     font-weight: 600;

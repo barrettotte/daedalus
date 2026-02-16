@@ -27,6 +27,7 @@ type BoardConfig struct {
 	LabelsExpanded   *bool             `yaml:"labels_expanded,omitempty" json:"labelsExpanded,omitempty"`
 	ShowYearProgress *bool             `yaml:"show_year_progress,omitempty" json:"showYearProgress,omitempty"`
 	DarkMode         *bool             `yaml:"dark_mode,omitempty" json:"darkMode,omitempty"`
+	MinimalView      *bool             `yaml:"minimal_view,omitempty" json:"minimalView,omitempty"`
 }
 
 // LoadBoardConfig reads board.yaml from rootPath. Returns empty config if file is missing.

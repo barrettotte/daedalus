@@ -77,6 +77,14 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
+// pauseWatcher suppresses the file watcher briefly so the app's own disk writes
+// don't trigger a redundant board reload.
+func (a *App) pauseWatcher() {
+	if a.watcher != nil {
+		a.watcher.Suppress(10 * time.Second)
+	}
+}
+
 // shutdown is called when the app is closing
 func (a *App) shutdown(ctx context.Context) {
 	if a.watcher != nil {
@@ -179,6 +187,7 @@ func (a *App) SaveListConfig(dirName string, title string, limit int) error {
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
 	}
+	a.pauseWatcher()
 
 	idx := daedalus.FindListEntry(a.board.Config.Lists, dirName)
 	if idx >= 0 {
@@ -205,6 +214,7 @@ func (a *App) SaveLabelsExpanded(expanded bool) error {
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
 	}
+	a.pauseWatcher()
 	a.board.Config.LabelsExpanded = &expanded
 
 	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
@@ -220,6 +230,7 @@ func (a *App) SaveShowYearProgress(show bool) error {
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
 	}
+	a.pauseWatcher()
 	a.board.Config.ShowYearProgress = &show
 
 	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
@@ -235,6 +246,7 @@ func (a *App) SaveLabelColors(colors map[string]string) error {
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
 	}
+	a.pauseWatcher()
 	a.board.Config.LabelColors = colors
 
 	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
@@ -287,6 +299,7 @@ func (a *App) RemoveLabel(label string) error {
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
 	}
+	a.pauseWatcher()
 	slog.Info("removing label from all cards", "label", label)
 
 	affected, err := a.updateCardsWithLabel(label, func(labels []string, idx int) []string {
@@ -316,6 +329,7 @@ func (a *App) RenameLabel(oldName string, newName string) error {
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
 	}
+	a.pauseWatcher()
 	if oldName == "" || newName == "" || oldName == newName {
 		slog.Warn("invalid label rename parameters", "old", oldName, "new", newName)
 		return fmt.Errorf("invalid label names")
@@ -353,6 +367,7 @@ func (a *App) SaveDarkMode(dark bool) error {
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
 	}
+	a.pauseWatcher()
 	a.board.Config.DarkMode = &dark
 	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
 		slog.Error("failed to save dark mode", "error", err)
@@ -362,11 +377,28 @@ func (a *App) SaveDarkMode(dark bool) error {
 	return nil
 }
 
+// SaveMinimalView persists the minimal card view preference to board.yaml.
+func (a *App) SaveMinimalView(minimal bool) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+	a.pauseWatcher()
+
+	a.board.Config.MinimalView = &minimal
+	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
+		slog.Error("failed to save minimal view", "error", err)
+		return err
+	}
+	slog.Debug("minimal view saved", "minimal", minimal)
+	return nil
+}
+
 // SaveBoardTitle sets the board display title and persists to board.yaml.
 func (a *App) SaveBoardTitle(title string) error {
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
 	}
+	a.pauseWatcher()
 	a.board.Config.Title = title
 
 	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
@@ -382,6 +414,7 @@ func (a *App) SaveListOrder(order []string) error {
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
 	}
+	a.pauseWatcher()
 
 	// Build a map of dir -> entry for quick lookup
 	entryMap := make(map[string]daedalus.ListEntry)
@@ -420,6 +453,7 @@ func (a *App) CreateList(name string) error {
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
 	}
+	a.pauseWatcher()
 
 	// Validate name: reject empty, path separators, traversal, hidden dirs, and reserved names
 	name = strings.TrimSpace(name)
@@ -467,6 +501,7 @@ func (a *App) DeleteList(listDirName string) error {
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
 	}
+	a.pauseWatcher()
 
 	// Reject names with path separators or traversal
 	if strings.ContainsAny(listDirName, "/\\") || strings.Contains(listDirName, "..") {
@@ -521,6 +556,8 @@ func (a *App) saveListBoolFlags(dirs []string, setFn func(*daedalus.ListEntry, b
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
 	}
+	a.pauseWatcher()
+
 	set := make(map[string]bool, len(dirs))
 	for _, dir := range dirs {
 		set[dir] = true
@@ -556,6 +593,7 @@ func (a *App) SavePinnedLists(left []string, right []string) error {
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
 	}
+	a.pauseWatcher()
 
 	leftSet := make(map[string]bool, len(left))
 	for _, dir := range left {
@@ -727,6 +765,7 @@ func (a *App) SaveCard(filePath string, metadata daedalus.CardMetadata, body str
 	if a.board == nil {
 		return nil, fmt.Errorf("board not loaded")
 	}
+	a.pauseWatcher()
 
 	absPath, err := a.validatePath(filePath)
 	if err != nil {
@@ -773,6 +812,7 @@ func (a *App) CreateCard(listDirName string, title string, body string, position
 	if a.board == nil {
 		return nil, fmt.Errorf("board not loaded")
 	}
+	a.pauseWatcher()
 
 	cards, ok := a.board.Lists[listDirName]
 	if !ok {
@@ -835,6 +875,7 @@ func (a *App) DeleteCard(filePath string) error {
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
 	}
+	a.pauseWatcher()
 
 	absPath, err := a.validatePath(filePath)
 	if err != nil {
@@ -871,6 +912,7 @@ func (a *App) MoveCard(filePath string, targetListDirName string, newListOrder f
 	if a.board == nil {
 		return nil, fmt.Errorf("board not loaded")
 	}
+	a.pauseWatcher()
 
 	absPath, err := a.validatePath(filePath)
 	if err != nil {
@@ -1076,6 +1118,7 @@ func (a *App) SaveCustomIcon(name string, content string) error {
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
 	}
+	a.pauseWatcher()
 
 	if strings.ContainsAny(name, "/\\") || strings.Contains(name, "..") {
 		slog.Warn("rejected invalid icon name", "name", name)
@@ -1126,6 +1169,7 @@ func (a *App) DownloadIcon(rawURL string) (string, error) {
 	if a.board == nil {
 		return "", fmt.Errorf("board not loaded")
 	}
+	a.pauseWatcher()
 
 	parsed, err := url.Parse(rawURL)
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {

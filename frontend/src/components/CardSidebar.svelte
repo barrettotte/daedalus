@@ -181,12 +181,12 @@
     {#if meta.created}
       <div class="timestamp-row">
         <span class="timestamp-label">Created</span>
-        <span class="sidebar-value">{formatDateTime(meta.created)}</span>
+        <span class="timestamp-value">{formatDateTime(meta.created)}</span>
       </div>
     {/if}
     <div class="timestamp-row">
       <span class="timestamp-label">Updated</span>
-      <span class="sidebar-value">
+      <span class="timestamp-value">
         {formatDateTime(meta.updated && meta.updated !== meta.created ? meta.updated : meta.created)}
       </span>
     </div>
@@ -209,15 +209,23 @@
 
   .timestamp-row {
     display: flex;
-    justify-content: space-between;
     align-items: baseline;
+    gap: 6px;
   }
 
   .timestamp-label {
-    font-size: 0.68rem;
+    font-size: 0.6rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--color-text-tertiary);
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+  }
+
+  .timestamp-value {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
   }
 </style>

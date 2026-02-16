@@ -173,3 +173,20 @@ export function autoFocus(node: HTMLInputElement | HTMLTextAreaElement): ActionR
   }
   return {};
 }
+
+// Svelte action that blurs (unfocuses) an input when the Enter key is pressed.
+export function blurOnEnter(node: HTMLInputElement | HTMLTextAreaElement): ActionReturn {
+
+  function handleKeydown(e: Event): void {
+    if ((e as KeyboardEvent).key === "Enter") {
+      node.blur();
+    }
+  }
+
+  node.addEventListener("keydown", handleKeydown);
+  return {
+    destroy() {
+      node.removeEventListener("keydown", handleKeydown);
+    },
+  };
+}

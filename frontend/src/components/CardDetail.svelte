@@ -4,13 +4,13 @@
   import {
     selectedCard, draftListKey, updateCardInBoard,
     removeCardFromBoard, boardData, sortedListKeys, listOrder,
-    focusedCard, openInEditMode, addToast,
+    focusedCard, openInEditMode, addToast, saveWithToast,
   } from "../stores/board";
   import {
     GetCardContent, SaveCard, OpenFileExternal, DeleteCard, OpenURI,
   } from "../../wailsjs/go/main/App";
   import { marked } from "marked";
-  import { autoFocus, backdropClose } from "../lib/utils";
+  import { autoFocus, blurOnEnter, backdropClose } from "../lib/utils";
 
   // Strip title attributes from links to prevent browser tooltips.
   marked.use({
@@ -109,7 +109,7 @@
     if (anchor && anchor.href) {
       e.preventDefault();
       e.stopPropagation();
-      OpenURI(anchor.href).catch(err => addToast(`Failed to open link: ${err}`));
+      saveWithToast(OpenURI(anchor.href), "open link");
       return;
     }
     startEditBody();
@@ -365,7 +365,7 @@
 
   // Opens the card's markdown file in the system default editor.
   function openExternal(): void {
-    OpenFileExternal($selectedCard!.filePath).catch(e => addToast(`Failed to open file: ${e}`));
+    saveWithToast(OpenFileExternal($selectedCard!.filePath), "open file");
   }
 
   // Deletes the card from disk and removes it from the board store.
@@ -392,9 +392,7 @@
     <div class="modal-dialog size-lg card-detail-dialog" role="dialog">
       <div class="modal-header card-editor">
         {#if editingTitle}
-          <input class="edit-title-input" type="text" bind:value={editTitle} onblur={blurTitle}
-            onkeydown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} use:autoFocus
-          />
+          <input class="edit-title-input" type="text" bind:value={editTitle} onblur={blurTitle} use:blurOnEnter use:autoFocus/>
         {:else}
           <button class="card-title clickable" title="Click to edit title" onclick={startEditTitle}>{meta.title}</button>
         {/if}

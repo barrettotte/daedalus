@@ -55,6 +55,8 @@ export function SaveListOrder(arg1:Array<string>):Promise<void>;
 
 export function SaveLockedLists(arg1:Array<string>):Promise<void>;
 
+export function SaveMinimalView(arg1:boolean):Promise<void>;
+
 export function SavePinnedLists(arg1:Array<string>,arg2:Array<string>):Promise<void>;
 
 export function SaveShowYearProgress(arg1:boolean):Promise<void>;

@@ -30,6 +30,7 @@ export interface KeyboardActions {
   openSearch: (prefill?: string) => void;
   createCard: (listKey: string) => void;
   createCardDefault: () => void;
+  toggleMinimalView: () => void;
   scrollListIntoView: (key: string) => void;
 }
 
@@ -108,6 +109,13 @@ export function handleBoardKeydown(e: KeyboardEvent, state: KeyboardState, actio
     return;
   }
 
+  // M - Toggle minimal card view
+  if (e.key === "m" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    e.preventDefault();
+    actions.toggleMinimalView();
+    return;
+  }
+
   // Arrow keys - navigate focus (skip if Ctrl/Cmd held)
   if ((e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight") && !e.ctrlKey && !e.metaKey) {
     e.preventDefault();
@@ -125,39 +133,10 @@ export function handleBoardKeydown(e: KeyboardEvent, state: KeyboardState, actio
       return;
     }
 
-    if (e.key === "ArrowUp") {
-      if (focus.cardIndex > 0) {
-        actions.setFocusedCard({ listKey: focus.listKey, cardIndex: focus.cardIndex - 1 });
-      }
-    } else if (e.key === "ArrowDown") {
-      const cards = state.boardData[focus.listKey] || [];
-      const maxIndex = state.halfCollapsedLists.has(focus.listKey)
-        ? Math.min(HALF_COLLAPSED_CARD_LIMIT - 1, cards.length - 1) : cards.length - 1;
-
-      if (focus.cardIndex < maxIndex) {
-        actions.setFocusedCard({ listKey: focus.listKey, cardIndex: focus.cardIndex + 1 });
-      }
-    } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-      const listIdx = keys.indexOf(focus.listKey);
-      const delta = e.key === "ArrowLeft" ? -1 : 1;
-      let targetIdx = listIdx + delta;
-
-      // Skip collapsed or empty lists
-      while (targetIdx >= 0 && targetIdx < keys.length) {
-        const targetKey = keys[targetIdx];
-        if (!state.collapsedLists.has(targetKey) && (state.boardData[targetKey] || []).length > 0) {
-          break;
-        }
-        targetIdx += delta;
-      }
-
-      if (targetIdx >= 0 && targetIdx < keys.length) {
-        const targetKey = keys[targetIdx];
-        const targetCards = state.boardData[targetKey] || [];
-        const clampedIndex = Math.min(focus.cardIndex, targetCards.length - 1);
-        actions.setFocusedCard({ listKey: targetKey, cardIndex: clampedIndex });
-        actions.scrollListIntoView(targetKey);
-      }
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      handleVerticalNav(e.key, focus, state, actions);
+    } else {
+      handleHorizontalNav(e.key, focus, keys, state, actions);
     }
     return;
   }
@@ -191,4 +170,45 @@ export function handleBoardKeydown(e: KeyboardEvent, state: KeyboardState, actio
     return;
   }
 
+}
+
+// Moves keyboard focus up or down within the current list.
+function handleVerticalNav(key: string, focus: FocusState, state: KeyboardState, actions: KeyboardActions): void {
+  if (key === "ArrowUp") {
+    if (focus.cardIndex > 0) {
+      actions.setFocusedCard({ listKey: focus.listKey, cardIndex: focus.cardIndex - 1 });
+    }
+  } else {
+    const cards = state.boardData[focus.listKey] || [];
+    const maxIndex = state.halfCollapsedLists.has(focus.listKey)
+      ? Math.min(HALF_COLLAPSED_CARD_LIMIT - 1, cards.length - 1) : cards.length - 1;
+
+    if (focus.cardIndex < maxIndex) {
+      actions.setFocusedCard({ listKey: focus.listKey, cardIndex: focus.cardIndex + 1 });
+    }
+  }
+}
+
+// Moves keyboard focus to the same-index card in an adjacent list, skipping collapsed/empty lists.
+function handleHorizontalNav(key: string, focus: FocusState, keys: string[], state: KeyboardState, actions: KeyboardActions): void {
+  const listIdx = keys.indexOf(focus.listKey);
+  const delta = key === "ArrowLeft" ? -1 : 1;
+  let targetIdx = listIdx + delta;
+
+  // Skip collapsed or empty lists
+  while (targetIdx >= 0 && targetIdx < keys.length) {
+    const targetKey = keys[targetIdx];
+    if (!state.collapsedLists.has(targetKey) && (state.boardData[targetKey] || []).length > 0) {
+      break;
+    }
+    targetIdx += delta;
+  }
+
+  if (targetIdx >= 0 && targetIdx < keys.length) {
+    const targetKey = keys[targetIdx];
+    const targetCards = state.boardData[targetKey] || [];
+    const clampedIndex = Math.min(focus.cardIndex, targetCards.length - 1);
+    actions.setFocusedCard({ listKey: targetKey, cardIndex: clampedIndex });
+    actions.scrollListIntoView(targetKey);
+  }
 }

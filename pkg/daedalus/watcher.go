@@ -17,11 +17,12 @@ const (
 // callback when modifications are detected. Uses file modification times
 // rather than OS-level filesystem events, so it has zero external dependencies.
 type FileWatcher struct {
-	rootPath string
-	onChange func()
-	done     chan struct{}
-	mu       sync.Mutex
-	snapshot map[string]time.Time // filePath -> modTime
+	rootPath      string
+	onChange      func()
+	done          chan struct{}
+	mu            sync.Mutex
+	snapshot      map[string]time.Time // filePath -> modTime
+	suppressUntil time.Time            // ignore changes until this time
 }
 
 // NewFileWatcher creates and starts a polling file watcher for the given board root.
@@ -39,6 +40,14 @@ func NewFileWatcher(rootPath string, onChange func()) *FileWatcher {
 
 	slog.Info("file watcher started", "path", rootPath, "files", len(fw.snapshot))
 	return fw
+}
+
+// Suppress tells the watcher to silently absorb changes for the given duration.
+// Use this before the app writes to disk so self-triggered changes don't fire a reload.
+func (fw *FileWatcher) Suppress(d time.Duration) {
+	fw.mu.Lock()
+	fw.suppressUntil = time.Now().Add(d)
+	fw.mu.Unlock()
 }
 
 // Close stops the file watcher.
@@ -69,7 +78,12 @@ func (fw *FileWatcher) poll() {
 	fw.mu.Lock()
 	prev := fw.snapshot
 	fw.snapshot = current
+	suppressed := time.Now().Before(fw.suppressUntil)
 	fw.mu.Unlock()
+
+	if suppressed {
+		return
+	}
 
 	if fw.hasChanged(prev, current) {
 		slog.Debug("file watcher detected changes")

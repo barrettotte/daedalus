@@ -106,6 +106,10 @@ export function SaveLockedLists(arg1) {
   return window['go']['main']['App']['SaveLockedLists'](arg1);
 }
 
+export function SaveMinimalView(arg1) {
+  return window['go']['main']['App']['SaveMinimalView'](arg1);
+}
+
 export function SavePinnedLists(arg1, arg2) {
   return window['go']['main']['App']['SavePinnedLists'](arg1, arg2);
 }

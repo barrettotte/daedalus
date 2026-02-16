@@ -1,7 +1,7 @@
 <script lang="ts">
   // List column header with inline title editing, card count, drag handle, and a three-dot menu for list operations.
 
-  import { boardConfig, boardData, boardPath, addToast, isAtLimit, listOrder } from "../stores/board";
+  import { boardConfig, boardData, boardPath, addToast, saveWithToast, isAtLimit, listOrder } from "../stores/board";
   import { SaveListConfig, OpenFileExternal, SaveListOrder } from "../../wailsjs/go/main/App";
   import {
     getDisplayTitle, getCountDisplay, isOverLimit,
@@ -154,7 +154,7 @@
 
   // Opens the list's directory in the system file explorer.
   function openInExplorer(): void {
-    OpenFileExternal($boardPath + "/" + listKey).catch(e => addToast(`Failed to open folder: ${e}`));
+    saveWithToast(OpenFileExternal($boardPath + "/" + listKey), "open folder");
   }
 
   // Shows the move-to-position input, pre-filled with the current 1-indexed position.
@@ -187,7 +187,7 @@
     order.splice(srcIdx, 1);
     order.splice(targetIdx, 0, listKey);
     listOrder.set(order);
-    SaveListOrder(order).catch(e => addToast(`Failed to save list order: ${e}`));
+    saveWithToast(SaveListOrder(order), "save list order");
   }
 
   // Handles keydown events on the move position input.
@@ -481,6 +481,7 @@
     background: var(--color-border-medium);
     padding: 2px 8px;
     border-radius: 10px;
+    font-family: var(--font-mono);
     font-size: 0.8rem;
     cursor: pointer;
     flex-shrink: 0;
@@ -509,6 +510,7 @@
     background: var(--color-bg-inset);
     border: 1px solid var(--color-accent);
     color: var(--color-text-primary);
+    font-family: var(--font-mono);
     font-size: 0.78rem;
     padding: 2px 4px;
     border-radius: 4px;
@@ -535,6 +537,7 @@
     background: var(--color-bg-inset);
     border: 1px solid var(--color-accent);
     color: var(--color-text-primary);
+    font-family: var(--font-mono);
     font-size: 0.8rem;
     padding: 2px 6px;
     border-radius: 10px;

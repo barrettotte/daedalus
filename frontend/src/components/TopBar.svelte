@@ -2,10 +2,10 @@
   // Top navigation bar with board title, search, label editor, and toggle buttons for dark mode, metrics, and help.
 
   import {
-    searchQuery, filteredBoardData, boardData, boardTitle, showMetrics, addToast,
+    searchQuery, filteredBoardData, boardData, boardTitle, showMetrics, addToast, saveWithToast, minimalView,
   } from "../stores/board";
   import type { daedalus } from "../../wailsjs/go/models";
-  import { SaveShowYearProgress, SaveDarkMode, SaveBoardTitle } from "../../wailsjs/go/main/App";
+  import { SaveShowYearProgress, SaveDarkMode, SaveBoardTitle, SaveMinimalView } from "../../wailsjs/go/main/App";
   import { autoFocus } from "../lib/utils";
   import Icon from "./Icon.svelte";
 
@@ -44,8 +44,7 @@
     editingTitle = false;
     const newTitle = editTitleValue.trim() || "Daedalus";
     boardTitle.set(newTitle);
-    SaveBoardTitle(newTitle === "Daedalus" ? "" : newTitle)
-      .catch(e => addToast(`Failed to save board title: ${e}`));
+    saveWithToast(SaveBoardTitle(newTitle === "Daedalus" ? "" : newTitle), "save board title");
   }
 
   // Handles keydown on the title input.
@@ -140,16 +139,23 @@
   // Toggles year progress bar visibility and persists to board.yaml.
   function toggleYearProgress(): void {
     showYearProgress = !showYearProgress;
-    SaveShowYearProgress(showYearProgress).catch(
-      e => addToast(`Failed to save year progress state: ${e}`),
-    );
+    saveWithToast(SaveShowYearProgress(showYearProgress), "save year progress state");
+  }
+
+  // Toggles minimal card view and persists to board.yaml.
+  function toggleMinimalView(): void {
+    minimalView.update(v => {
+      const next = !v;
+      saveWithToast(SaveMinimalView(next), "save minimal view state");
+      return next;
+    });
   }
 
   // Toggles between dark and light mode, applying the CSS class and persisting to board.yaml.
   function toggleDarkMode(): void {
     darkMode = !darkMode;
     document.documentElement.classList.toggle("light", !darkMode);
-    SaveDarkMode(darkMode).catch(e => addToast(`Failed to save dark mode state: ${e}`));
+    saveWithToast(SaveDarkMode(darkMode), "save dark mode state");
   }
 </script>
 
@@ -193,6 +199,9 @@
     {/if}
     <button class="top-btn" onclick={() => showLabelEditor = true} title="Label manager">
       <Icon name="tag" size={14} />
+    </button>
+    <button class="top-btn" class:active={$minimalView} onclick={toggleMinimalView} title="Minimal view (M)">
+      <Icon name="list" size={14} />
     </button>
     <button class="top-btn" onclick={oninitboard} title="Reload board">
       <Icon name="refresh" size={14} />
@@ -259,7 +268,6 @@
     border-radius: 4px;
     outline: none;
     width: 180px;
-    font-family: inherit;
   }
 
   .year-bar {
@@ -272,6 +280,7 @@
   }
 
   .year-bar-label {
+    font-family: var(--font-mono);
     font-size: 0.68rem;
     font-weight: 700;
     color: var(--color-text-muted);
@@ -294,14 +303,15 @@
   }
 
   .year-bar-pct {
+    font-family: var(--font-mono);
     font-size: 0.68rem;
     color: var(--color-text-muted);
     flex-shrink: 0;
   }
 
   .year-bar-remaining {
+    font-family: var(--font-mono);
     font-size: 0.68rem;
-    font-family: monospace;
     color: var(--color-text-muted);
     flex-shrink: 0;
     margin-left: 8px;
@@ -344,6 +354,7 @@
 
   .search-count {
     flex-shrink: 0;
+    font-family: var(--font-mono);
     font-size: 0.7rem;
     color: var(--color-text-muted);
     padding: 1px 6px;

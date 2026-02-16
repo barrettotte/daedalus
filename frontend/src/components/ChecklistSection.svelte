@@ -2,7 +2,7 @@
   // Collapsible checklist with progress bar, editable title, add/remove items, and click-to-toggle.
 
   import Icon from "./Icon.svelte";
-  import { autoFocus } from "../lib/utils";
+  import { autoFocus, blurOnEnter } from "../lib/utils";
   import { addToast } from "../stores/board";
   import type { daedalus } from "../../wailsjs/go/models";
 
@@ -63,7 +63,7 @@
     ghost.style.cssText = [
       "position: fixed", "top: -1000px", "left: -1000px",
       "padding: 4px 10px", "border-radius: 4px", "font-size: 0.85rem",
-      "background: var(--color-bg-elevated, #2a2d35)", "color: var(--color-text-primary, #e0e0e0)",
+      "background: var(--color-bg-elevated)", "color: var(--color-text-primary)",
       "white-space: nowrap", "max-width: 300px", "overflow: hidden", "text-overflow: ellipsis",
     ].join(";");
 
@@ -166,9 +166,7 @@
         <Icon name="chevron-down" size={12} />
       </span>
       {#if editingTitle}
-        <input class="cl-title-input" type="text" bind:value={editTitleValue} onclick={(e) => e.stopPropagation()} onblur={blurTitle}
-          onkeydown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} use:autoFocus
-        />
+        <input class="cl-title-input" type="text" bind:value={editTitleValue} onclick={(e) => e.stopPropagation()} onblur={blurTitle} use:blurOnEnter use:autoFocus/>
       {:else}
         <span class="cl-title" role="textbox" tabindex="0" title="Click to rename" onclick={startEditTitle}
           onkeydown={(e) => e.key === 'Enter' && startEditTitle(e as unknown as MouseEvent)}
@@ -223,18 +221,14 @@
                 </span>
               </button>
               {#if editingItemIdx === idx}
-                <input class="edit-item-input" type="text" bind:value={editItemValue} onblur={blurEditItem}
-                  onkeydown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} use:autoFocus
-                />
+                <input class="edit-item-input" type="text" bind:value={editItemValue} onblur={blurEditItem} use:blurOnEnter use:autoFocus/>
               {:else}
                 <span class="check-text" role="textbox" tabindex="0"
                   onclick={() => startEditItem(idx, item.desc)}
                   onkeydown={(e) => e.key === 'Enter' && startEditItem(idx, item.desc)}
                 >
                   {#if isUrl(item.desc)}
-                    <a href={item.desc} target="_blank" rel="noopener noreferrer"
-                      onclick={(e: MouseEvent) => e.stopPropagation()}
-                    >{item.desc}</a>
+                    <a href={item.desc} target="_blank" rel="noopener noreferrer" onclick={(e: MouseEvent) => e.stopPropagation()}>{item.desc}</a>
                   {:else}
                     {item.desc}
                   {/if}
@@ -263,9 +257,7 @@
         </ul>
       {/if}
       <div class="add-item-row">
-        <input class="add-item-input" type="text" placeholder="Add item..." bind:value={newItemDesc}
-          onkeydown={e => e.key === 'Enter' && submitNewItem()}
-        />
+        <input class="add-item-input" type="text" placeholder="Add item..." bind:value={newItemDesc} onkeydown={e => e.key === 'Enter' && submitNewItem()}/>
         <button class="add-item-btn" title="Add item" onclick={submitNewItem}>
           <Icon name="plus" size={12} />
         </button>
@@ -365,7 +357,6 @@
     border-radius: 4px;
     outline: none;
     box-sizing: border-box;
-    font-family: inherit;
   }
 
   .cl-progress {
@@ -377,6 +368,7 @@
 
   .cl-pct,
   .cl-count {
+    font-family: var(--font-mono);
     font-size: 0.7rem;
     font-weight: 600;
     color: var(--color-text-tertiary);
@@ -393,10 +385,7 @@
 
   .checklist {
     list-style: none;
-    padding-top: 1px;
-    padding-left: 0;
-    padding-right: 0;
-    padding-bottom: 0;
+    padding: 1px 0 0 0;
     margin: 0;
     display: flex;
     flex-direction: column;
@@ -511,7 +500,6 @@
     border-radius: 4px;
     outline: none;
     box-sizing: border-box;
-    font-family: inherit;
   }
 
   .add-item-row {

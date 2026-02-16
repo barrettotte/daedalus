@@ -31,6 +31,7 @@ export namespace daedalus {
 	    labelsExpanded?: boolean;
 	    showYearProgress?: boolean;
 	    darkMode?: boolean;
+	    minimalView?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new BoardConfig(source);
@@ -44,6 +45,7 @@ export namespace daedalus {
 	        this.labelsExpanded = source["labelsExpanded"];
 	        this.showYearProgress = source["showYearProgress"];
 	        this.darkMode = source["darkMode"];
+	        this.minimalView = source["minimalView"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

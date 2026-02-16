@@ -1,7 +1,7 @@
 <script lang="ts">
   // Modal for managing labels - colors, custom picker, and deletion.
 
-  import { boardData, labelColors, labelsExpanded, addToast } from "../stores/board";
+  import { boardData, labelColors, labelsExpanded, addToast, saveWithToast } from "../stores/board";
   import { SaveLabelColors, RemoveLabel, RenameLabel, SaveLabelsExpanded } from "../../wailsjs/go/main/App";
   import { labelColor, autoFocus as autoFocusInput, backdropClose } from "../lib/utils";
   import Icon from "./Icon.svelte";
@@ -56,7 +56,7 @@
   function pickColor(label: string, color: string): void {
     labelColors.update(colors => {
       const updated = { ...colors, [label]: color };
-      SaveLabelColors(updated).catch(e => addToast(`Failed to save label colors: ${e}`));
+      saveWithToast(SaveLabelColors(updated), "save label colors");
       return updated;
     });
     hexInput = color;
@@ -67,7 +67,7 @@
     labelColors.update(colors => {
       const updated = { ...colors };
       delete updated[label];
-      SaveLabelColors(updated).catch(e => addToast(`Failed to save label colors: ${e}`));
+      saveWithToast(SaveLabelColors(updated), "save label colors");
       return updated;
     });
     activeLabel = null;
@@ -199,7 +199,7 @@
   function toggleLabels(): void {
     labelsExpanded.update(v => {
       const next = !v;
-      SaveLabelsExpanded(next).catch(e => addToast(`Failed to save label state: ${e}`));
+      saveWithToast(SaveLabelsExpanded(next), "save label state");
       return next;
     });
   }
@@ -589,8 +589,8 @@
     background: var(--color-bg-base);
     border: 1px solid var(--color-border);
     color: var(--color-text-primary);
+    font-family: var(--font-mono);
     font-size: 0.78rem;
-    font-family: monospace;
     padding: 4px 8px;
     border-radius: 4px;
     outline: none;

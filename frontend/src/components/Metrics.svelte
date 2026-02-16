@@ -112,8 +112,8 @@
     border: 1px solid var(--color-border-medium);
     border-radius: 6px;
     padding: 8px 12px;
+    font-family: var(--font-mono);
     font-size: 0.75rem;
-    font-family: monospace;
     z-index: 100;
     min-width: 150px;
 

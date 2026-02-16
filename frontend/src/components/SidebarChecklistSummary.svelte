@@ -45,6 +45,7 @@
 
 <style lang="scss">
   .checklist-hint {
+    font-family: var(--font-mono);
     font-size: 0.8rem;
     color: var(--color-text-secondary);
 

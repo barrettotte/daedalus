@@ -25,6 +25,7 @@
       { key: "/", desc: "Focus search bar" },
       { key: "#", desc: "Jump to card by ID (#123)" },
       { key: "N", desc: "Create new card" },
+      { key: "M", desc: "Toggle minimal view" },
       { key: "?", desc: "Toggle this help overlay" },
     ]},
   ];
@@ -88,8 +89,8 @@
     border: 1px solid var(--color-border);
     border-radius: 4px;
     padding: 3px 8px;
+    font-family: var(--font-mono);
     font-size: 0.78rem;
-    font-family: monospace;
     color: var(--color-text-primary);
     white-space: nowrap;
     justify-self: start;

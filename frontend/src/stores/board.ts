@@ -66,6 +66,7 @@ export const draftListKey: Writable<string | null> = writable(null);
 export const draftPosition: Writable<string> = writable("top");
 export const showMetrics: Writable<boolean> = writable(false);
 export const labelsExpanded: Writable<boolean> = writable(true);
+export const minimalView: Writable<boolean> = writable(false);
 export const dragState: Writable<DragInfo | null> = writable(null);
 export const dropTarget: Writable<DropInfo | null> = writable(null);
 export const focusedCard: Writable<FocusState | null> = writable(null);
@@ -220,4 +221,9 @@ export function addToast(
     setTimeout(() => {
       toasts.update(t => t.filter(item => item.id !== id));
     }, duration);
+}
+
+// Fire-and-forget wrapper that catches promise rejections and shows an error toast.
+export function saveWithToast(promise: Promise<unknown>, action: string): void {
+  promise.catch(e => addToast(`Failed to ${action}: ${e}`));
 }

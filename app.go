@@ -17,6 +17,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 const (
@@ -60,6 +62,7 @@ type AppMetrics struct {
 type App struct {
 	ctx          context.Context
 	board        *daedalus.BoardState
+	watcher      *daedalus.FileWatcher
 	prevCPUTicks int64
 	prevWallTime time.Time
 }
@@ -72,6 +75,13 @@ func NewApp() *App {
 // startup is called when the app starts
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+}
+
+// shutdown is called when the app is closing
+func (a *App) shutdown(ctx context.Context) {
+	if a.watcher != nil {
+		a.watcher.Close()
+	}
 }
 
 // LoadBoard is what is exposed to the frontend
@@ -147,6 +157,14 @@ func (a *App) LoadBoard(path string) *BoardResponse {
 		"mergeMs", profile.MergeMs,
 		"totalMs", profile.TotalMs,
 	)
+
+	// (Re)start the file watcher for external edits.
+	if a.watcher != nil {
+		a.watcher.Close()
+	}
+	a.watcher = daedalus.NewFileWatcher(absRoot, func() {
+		wailsRuntime.EventsEmit(a.ctx, "board:reload")
+	})
 
 	return &BoardResponse{
 		Lists:     state.Lists,

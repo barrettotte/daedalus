@@ -3,7 +3,7 @@
 
   import { onMount, onDestroy } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
-  import { WindowSetTitle } from "../wailsjs/runtime/runtime";
+  import { WindowSetTitle, EventsOn, EventsOff } from "../wailsjs/runtime/runtime";
   import {
     LoadBoard, SaveCollapsedLists, SaveHalfCollapsedLists, SaveLockedLists,
     SavePinnedLists, SaveListOrder, DeleteList, CreateList,
@@ -547,12 +547,16 @@
   onMount(() => {
     document.addEventListener("dragover", handleGlobalDragOver, true);
     initBoard();
+
+    // Reload board when the Go file watcher detects external changes.
+    EventsOn("board:reload", () => initBoard());
   });
 
   onDestroy(() => {
     stopAutoScroll();
     document.removeEventListener("dragover", handleGlobalDragOver, true);
     document.removeEventListener('dragover', listDragOverHandler as EventListener);
+    EventsOff("board:reload");
   });
 
 </script>

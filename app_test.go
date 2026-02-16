@@ -12,6 +12,20 @@ import (
 	"testing"
 )
 
+func mustMkdir(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(path, 0755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mustWrite(t *testing.T, path string, data []byte) {
+	t.Helper()
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // setupTestBoardMulti creates a board with 3 cards in "open" and an empty "done" list.
 func setupTestBoardMulti(t *testing.T) (*App, string) {
 	t.Helper()
@@ -19,11 +33,11 @@ func setupTestBoardMulti(t *testing.T) (*App, string) {
 	openList := filepath.Join(root, "open")
 	doneList := filepath.Join(root, "done")
 
-	os.Mkdir(openList, 0755)
-	os.Mkdir(doneList, 0755)
-	os.WriteFile(filepath.Join(openList, "1.md"), []byte("---\ntitle: \"Card A\"\nid: 1\nlist_order: 1\n---\n# Card A\n\nBody A.\n"), 0644)
-	os.WriteFile(filepath.Join(openList, "2.md"), []byte("---\ntitle: \"Card B\"\nid: 2\nlist_order: 2\n---\n# Card B\n\nBody B.\n"), 0644)
-	os.WriteFile(filepath.Join(openList, "3.md"), []byte("---\ntitle: \"Card C\"\nid: 3\nlist_order: 3\n---\n# Card C\n\nBody C.\n"), 0644)
+	mustMkdir(t, openList)
+	mustMkdir(t, doneList)
+	mustWrite(t, filepath.Join(openList, "1.md"), []byte("---\ntitle: \"Card A\"\nid: 1\nlist_order: 1\n---\n# Card A\n\nBody A.\n"))
+	mustWrite(t, filepath.Join(openList, "2.md"), []byte("---\ntitle: \"Card B\"\nid: 2\nlist_order: 2\n---\n# Card B\n\nBody B.\n"))
+	mustWrite(t, filepath.Join(openList, "3.md"), []byte("---\ntitle: \"Card C\"\nid: 3\nlist_order: 3\n---\n# Card C\n\nBody C.\n"))
 
 	app := NewApp()
 	resp := app.LoadBoard(root)
@@ -38,8 +52,8 @@ func setupTestBoard(t *testing.T) (*App, string) {
 	root := t.TempDir()
 	list := filepath.Join(root, "test")
 
-	os.Mkdir(list, 0755)
-	os.WriteFile(filepath.Join(list, "1.md"), []byte("---\ntitle: \"Test\"\nid: 1\n---\n# Hello\n\nBody content.\n"), 0644)
+	mustMkdir(t, list)
+	mustWrite(t, filepath.Join(list, "1.md"), []byte("---\ntitle: \"Test\"\nid: 1\n---\n# Hello\n\nBody content.\n"))
 
 	app := NewApp()
 	resp := app.LoadBoard(root)
@@ -135,8 +149,8 @@ func TestLoadBoard_InvalidPath(t *testing.T) {
 func TestLoadBoard_SetsBoard(t *testing.T) {
 	root := t.TempDir()
 	list := filepath.Join(root, "test")
-	os.Mkdir(list, 0755)
-	os.WriteFile(filepath.Join(list, "1.md"), []byte("---\ntitle: \"T\"\nid: 1\n---\n"), 0644)
+	mustMkdir(t, list)
+	mustWrite(t, filepath.Join(list, "1.md"), []byte("---\ntitle: \"T\"\nid: 1\n---\n"))
 
 	app := NewApp()
 	resp := app.LoadBoard(root)
@@ -155,8 +169,8 @@ func TestLoadBoard_SetsBoard(t *testing.T) {
 func TestLoadBoard_ReturnedData(t *testing.T) {
 	root := t.TempDir()
 	list := filepath.Join(root, "open")
-	os.Mkdir(list, 0755)
-	os.WriteFile(filepath.Join(list, "5.md"), []byte("---\ntitle: \"Card Five\"\nid: 5\nlist_order: 1\n---\nBody\n"), 0644)
+	mustMkdir(t, list)
+	mustWrite(t, filepath.Join(list, "5.md"), []byte("---\ntitle: \"Card Five\"\nid: 5\nlist_order: 1\n---\nBody\n"))
 
 	app := NewApp()
 	resp := app.LoadBoard(root)
@@ -189,8 +203,8 @@ func TestGetCardContent_ExactRootPath(t *testing.T) {
 func TestGetCardContent_RelativePath(t *testing.T) {
 	root := t.TempDir()
 	list := filepath.Join(root, "test")
-	os.Mkdir(list, 0755)
-	os.WriteFile(filepath.Join(list, "1.md"), []byte("---\ntitle: \"T\"\nid: 1\n---\nBody\n"), 0644)
+	mustMkdir(t, list)
+	mustWrite(t, filepath.Join(list, "1.md"), []byte("---\ntitle: \"T\"\nid: 1\n---\nBody\n"))
 
 	app := NewApp()
 	app.board = &daedalus.BoardState{
@@ -320,8 +334,8 @@ func TestSaveListConfig_BoardNotLoaded(t *testing.T) {
 func TestLoadBoard_IncludesConfig(t *testing.T) {
 	root := t.TempDir()
 	list := filepath.Join(root, "test")
-	os.Mkdir(list, 0755)
-	os.WriteFile(filepath.Join(list, "1.md"), []byte("---\ntitle: \"T\"\nid: 1\n---\n"), 0644)
+	mustMkdir(t, list)
+	mustWrite(t, filepath.Join(list, "1.md"), []byte("---\ntitle: \"T\"\nid: 1\n---\n"))
 
 	app := NewApp()
 	resp := app.LoadBoard(root)
@@ -342,9 +356,9 @@ func TestLoadBoard_IncludesConfig(t *testing.T) {
 func TestLoadBoard_WithConfigFile(t *testing.T) {
 	root := t.TempDir()
 	list := filepath.Join(root, "test")
-	os.Mkdir(list, 0755)
-	os.WriteFile(filepath.Join(list, "1.md"), []byte("---\ntitle: \"T\"\nid: 1\n---\n"), 0644)
-	os.WriteFile(filepath.Join(root, "board.yaml"), []byte("lists:\n  - dir: test\n    title: \"Custom\"\n    limit: 3\n"), 0644)
+	mustMkdir(t, list)
+	mustWrite(t, filepath.Join(list, "1.md"), []byte("---\ntitle: \"T\"\nid: 1\n---\n"))
+	mustWrite(t, filepath.Join(root, "board.yaml"), []byte("lists:\n  - dir: test\n    title: \"Custom\"\n    limit: 3\n"))
 
 	app := NewApp()
 	resp := app.LoadBoard(root)
@@ -1103,12 +1117,8 @@ func TestMoveCard_LockedTarget(t *testing.T) {
 func TestSavePinnedLists_Success(t *testing.T) {
 	root := t.TempDir()
 	for _, dir := range []string{"backlog", "open", "done"} {
-		os.Mkdir(filepath.Join(root, dir), 0755)
-		os.WriteFile(
-			filepath.Join(root, dir, "1.md"),
-			[]byte("---\ntitle: \"T\"\nid: 1\n---\n"),
-			0644,
-		)
+		mustMkdir(t, filepath.Join(root, dir))
+		mustWrite(t, filepath.Join(root, dir, "1.md"), []byte("---\ntitle: \"T\"\nid: 1\n---\n"))
 	}
 
 	app := NewApp()
@@ -1211,10 +1221,10 @@ func TestListIcons_Success(t *testing.T) {
 	app, root := setupTestBoard(t)
 
 	iconsDir := filepath.Join(root, "assets", "icons")
-	os.MkdirAll(iconsDir, 0755)
-	os.WriteFile(filepath.Join(iconsDir, "zebra.svg"), []byte("<svg></svg>"), 0644)
-	os.WriteFile(filepath.Join(iconsDir, "arrow.svg"), []byte("<svg></svg>"), 0644)
-	os.WriteFile(filepath.Join(iconsDir, "logo.png"), []byte("PNG"), 0644)
+	mustMkdir(t, iconsDir)
+	mustWrite(t, filepath.Join(iconsDir, "zebra.svg"), []byte("<svg></svg>"))
+	mustWrite(t, filepath.Join(iconsDir, "arrow.svg"), []byte("<svg></svg>"))
+	mustWrite(t, filepath.Join(iconsDir, "logo.png"), []byte("PNG"))
 
 	names, err := app.ListIcons()
 	if err != nil {
@@ -1247,9 +1257,9 @@ func TestGetIconContent_SVG(t *testing.T) {
 	app, root := setupTestBoard(t)
 
 	iconsDir := filepath.Join(root, "assets", "icons")
-	os.MkdirAll(iconsDir, 0755)
+	mustMkdir(t, iconsDir)
 	svgContent := `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>`
-	os.WriteFile(filepath.Join(iconsDir, "test.svg"), []byte(svgContent), 0644)
+	mustWrite(t, filepath.Join(iconsDir, "test.svg"), []byte(svgContent))
 
 	content, err := app.GetIconContent("test.svg")
 	if err != nil {
@@ -1265,9 +1275,9 @@ func TestGetIconContent_PNG(t *testing.T) {
 	app, root := setupTestBoard(t)
 
 	iconsDir := filepath.Join(root, "assets", "icons")
-	os.MkdirAll(iconsDir, 0755)
+	mustMkdir(t, iconsDir)
 	pngData := []byte{0x89, 0x50, 0x4E, 0x47} // PNG magic bytes
-	os.WriteFile(filepath.Join(iconsDir, "test.png"), pngData, 0644)
+	mustWrite(t, filepath.Join(iconsDir, "test.png"), pngData)
 
 	content, err := app.GetIconContent("test.png")
 	if err != nil {
@@ -1309,7 +1319,7 @@ func TestGetIconContent_NotFound(t *testing.T) {
 	app, root := setupTestBoard(t)
 
 	// Create the icons directory but no files
-	os.MkdirAll(filepath.Join(root, "assets", "icons"), 0755)
+	mustMkdir(t, filepath.Join(root, "assets", "icons"))
 
 	_, err := app.GetIconContent("nonexistent.svg")
 	if err == nil {

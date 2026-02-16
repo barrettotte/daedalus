@@ -3,6 +3,7 @@
 
   import Icon from "./Icon.svelte";
   import { autoFocus } from "../lib/utils";
+  import { addToast } from "../stores/board";
   import type { daedalus } from "../../wailsjs/go/models";
 
   let {
@@ -141,7 +142,7 @@
 
   // Copies a checklist item's description to the clipboard and flashes a checkmark.
   function copyItem(idx: number, desc: string): void {
-    navigator.clipboard.writeText(desc);
+    navigator.clipboard.writeText(desc).catch(() => addToast("Failed to copy to clipboard"));
     clearTimeout(copiedTimer);
     copiedIdx = idx;
     copiedTimer = setTimeout(() => { copiedIdx = -1; }, 1500);

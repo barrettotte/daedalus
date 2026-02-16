@@ -227,7 +227,7 @@
     display: flex;
     align-items: center;
     padding: 0 20px;
-    border-bottom: 1px solid #000;
+    border-bottom: 1px solid var(--color-border);
   }
 
   .board-title {
@@ -263,7 +263,7 @@
     gap: 8px;
     padding: 4px 20px;
     background: var(--color-bg-inset);
-    border-bottom: 1px solid #000;
+    border-bottom: 1px solid var(--color-border);
   }
 
   .year-bar-label {

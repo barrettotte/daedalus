@@ -34,11 +34,6 @@ export function setBoardContainer(el: HTMLDivElement | undefined): void {
   boardContainerEl = el;
 }
 
-// Returns the board container element (for binding in the component template).
-export function getBoardContainer(): HTMLDivElement | undefined {
-  return boardContainerEl;
-}
-
 // Clears drop indicator classes from tracked elements.
 export function clearDropIndicators(): void {
   for (const el of activeIndicators) {

@@ -40,9 +40,11 @@ export interface DropInfo {
 }
 
 // Toast notification entry.
+export type ToastType = "error" | "success" | "info";
 export interface Toast {
   id: number;
   message: string;
+  type: ToastType;
 }
 
 export const boardData: Writable<BoardLists> = writable({});
@@ -198,9 +200,13 @@ let toastId = 0;
 const DEFAULT_TOAST_DURATION = 4000;
 
 // Adds a toast notification that auto-dismisses after a timeout.
-export function addToast(message: string, duration: number = DEFAULT_TOAST_DURATION): void {
+export function addToast(
+    message: string,
+    type: ToastType = "error",
+    duration: number = DEFAULT_TOAST_DURATION,
+): void {
     const id = ++toastId;
-    toasts.update(t => [...t, { id, message }]);
+    toasts.update(t => [...t, { id, message, type }]);
 
     setTimeout(() => {
       toasts.update(t => t.filter(item => item.id !== id));

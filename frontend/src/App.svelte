@@ -350,6 +350,7 @@
 
     } catch (e) {
       error = (e as Error).toString();
+      addToast(`Failed to load board: ${error}`);
     }
   }
 
@@ -790,7 +791,7 @@
 
     &.pinned-left {
       left: 0;
-      box-shadow: 4px 0 8px rgba(0, 0, 0, 0.25);
+      box-shadow: var(--shadow-side);
     }
 
     &.pinned-right {
@@ -872,7 +873,7 @@
     left: 50%;
     transform: translateX(-50%);
     background: rgba(200, 55, 44, 0.9);
-    color: #fff;
+    color: var(--color-text-inverse);
     padding: 8px 16px;
     border-radius: 6px;
     font-size: 0.85rem;
@@ -924,7 +925,7 @@
     pointer-events: none;
     z-index: 10000;
     opacity: 0.9;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow-lg);
     transform: rotate(3deg);
     border: 1px solid var(--overlay-accent-strong);
 

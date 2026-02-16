@@ -346,6 +346,7 @@
       bodyHtml = "<p><em>Could not load card content.</em></p>";
       rawBody = "";
       loading = false;
+      addToast("Failed to load card content");
     });
   });
 
@@ -360,6 +361,7 @@
     try {
       await DeleteCard(filePath);
       removeCardFromBoard(filePath);
+      addToast("Card deleted", "success");
       close();
     } catch (e) {
       addToast(`Failed to delete card: ${e}`);
@@ -566,7 +568,7 @@
 
   .delete-btn {
     background: var(--color-error-dark);
-    color: #fff;
+    color: var(--color-text-inverse);
     border: none;
     padding: 8px 20px;
     border-radius: 4px;

@@ -26,17 +26,17 @@ type KanbanCard struct {
 
 // CardMetadata is the YAML frontmatter structure in the .md files
 type CardMetadata struct {
-	ID        int             `yaml:"id" json:"id"`
-	Title     string          `yaml:"title" json:"title"`
-	Created   *time.Time      `yaml:"created,omitempty" json:"created,omitempty"`
-	Updated   *time.Time      `yaml:"updated,omitempty" json:"updated,omitempty"`
-	ListOrder float64         `yaml:"list_order" json:"list_order"`
-	Due       *time.Time      `yaml:"due,omitempty" json:"due,omitempty"`
-	Range     *DateRange      `yaml:"range,omitempty" json:"range,omitempty"`
-	Labels    []string        `yaml:"labels,omitempty" json:"labels"`
-	Icon      string          `yaml:"icon,omitempty" json:"icon"`
-	Estimate  *float64        `yaml:"estimate,omitempty" json:"estimate,omitempty"`
-	Counter   *Counter        `yaml:"counter,omitempty" json:"counter,omitempty"`
+	ID             int             `yaml:"id" json:"id"`
+	Title          string          `yaml:"title" json:"title"`
+	Created        *time.Time      `yaml:"created,omitempty" json:"created,omitempty"`
+	Updated        *time.Time      `yaml:"updated,omitempty" json:"updated,omitempty"`
+	ListOrder      float64         `yaml:"list_order" json:"list_order"`
+	Due            *time.Time      `yaml:"due,omitempty" json:"due,omitempty"`
+	Range          *DateRange      `yaml:"range,omitempty" json:"range,omitempty"`
+	Labels         []string        `yaml:"labels,omitempty" json:"labels"`
+	Icon           string          `yaml:"icon,omitempty" json:"icon"`
+	Estimate       *float64        `yaml:"estimate,omitempty" json:"estimate,omitempty"`
+	Counter        *Counter        `yaml:"counter,omitempty" json:"counter,omitempty"`
 	ChecklistTitle string          `yaml:"checklist_title,omitempty" json:"checklist_title"`
 	Checklist      []CheckListItem `yaml:"checklist,omitempty" json:"checklist,omitempty"`
 }

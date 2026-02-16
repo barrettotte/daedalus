@@ -9,12 +9,14 @@
     --color-success: #4bce97;
     --color-error: #f87168;
     --color-error-dark: #c9372c;
+    --color-warning: #ffaa32;
 
     /* Text hierarchy */
     --color-text-primary: #c7d1db;
     --color-text-secondary: #9fadbc;
     --color-text-tertiary: #8c9bab;
     --color-text-muted: #6b7a8d;
+    --color-text-inverse: #fff;
 
     /* Backgrounds (darkest to lightest) */
     --color-bg-base: #1e2128;
@@ -48,6 +50,14 @@
     --overlay-error: rgba(247, 68, 68, 0.15);
     --overlay-error-strong: rgba(247, 68, 68, 0.2);
     --overlay-error-limit: rgba(220, 50, 50, 0.3);
+    --overlay-error-border: rgba(248, 113, 104, 0.3);
+    --overlay-warning: rgba(255, 170, 50, 0.15);
+
+    /* Shadows */
+    --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+    --shadow-side: 4px 0 8px rgba(0, 0, 0, 0.25);
 
     /* Misc */
     --color-scrollbar-thumb: #444;
@@ -63,12 +73,14 @@
     --color-success: #16a34a;
     --color-error: #dc2626;
     --color-error-dark: #b91c1c;
+    --color-warning: #d97706;
 
     /* Text hierarchy */
     --color-text-primary: #1e293b;
     --color-text-secondary: #334155;
     --color-text-tertiary: #475569;
     --color-text-muted: #64748b;
+    --color-text-inverse: #fff;
 
     /* Backgrounds (lightest to darkest) */
     --color-bg-base: #eef1f6;
@@ -102,6 +114,14 @@
     --overlay-error: rgba(220, 38, 38, 0.1);
     --overlay-error-strong: rgba(220, 38, 38, 0.15);
     --overlay-error-limit: rgba(220, 38, 38, 0.2);
+    --overlay-error-border: rgba(220, 38, 38, 0.3);
+    --overlay-warning: rgba(217, 119, 6, 0.12);
+
+    /* Shadows */
+    --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.2);
+    --shadow-side: 4px 0 8px rgba(0, 0, 0, 0.1);
 
     /* Light-specific */
     --color-scrollbar-thumb: #cbd5e1;

@@ -393,7 +393,7 @@
     border-radius: 6px;
     padding: 4px 0;
     min-width: 160px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--shadow-sm);
   }
 
   .menu-divider {
@@ -487,8 +487,8 @@
     color: inherit;
 
     &.at-limit {
-      background: rgba(255, 170, 50, 0.15);
-      color: #ffaa32;
+      background: var(--overlay-warning);
+      color: var(--color-warning);
     }
 
     &.over-limit {

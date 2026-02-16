@@ -19,6 +19,12 @@ import (
 	"time"
 )
 
+const (
+	defaultBoardPath      = "./tmp/kanban"
+	httpClientTimeout     = 10 * time.Second
+	linuxClockTicksPerSec = 100
+)
+
 // BoardResponse is the structure returned to the frontend from LoadBoard.
 type BoardResponse struct {
 	Lists     map[string][]daedalus.KanbanCard `json:"lists"`
@@ -71,7 +77,7 @@ func (a *App) startup(ctx context.Context) {
 // LoadBoard is what is exposed to the frontend
 func (a *App) LoadBoard(path string) *BoardResponse {
 	if path == "" {
-		path = "./tmp/kanban"
+		path = defaultBoardPath
 	}
 	slog.Info("scanning board", "path", path)
 
@@ -532,10 +538,31 @@ func isListLocked(config *daedalus.BoardConfig, dir string) bool {
 
 // getFileSize returns the size of a file in bytes, or 0 if the file cannot be stat'd.
 func getFileSize(path string) int64 {
-	if info, err := os.Stat(path); err == nil {
-		return info.Size()
+	info, err := os.Stat(path)
+	if err != nil {
+		slog.Warn("failed to stat file for size", "path", path, "error", err)
+		return 0
 	}
-	return 0
+	return info.Size()
+}
+
+// truncatePreview returns a body preview truncated to PreviewMaxLen characters.
+func truncatePreview(body string) string {
+	if len(body) > daedalus.PreviewMaxLen {
+		return body[:daedalus.PreviewMaxLen]
+	}
+	return body
+}
+
+// iconsDir returns the path to the board's icons directory.
+func (a *App) iconsDir() string {
+	return filepath.Join(a.board.RootPath, "assets", "icons")
+}
+
+// isIconExt returns true if the file extension is a supported icon type (.svg or .png).
+func isIconExt(name string) bool {
+	ext := strings.ToLower(filepath.Ext(name))
+	return ext == ".svg" || ext == ".png"
 }
 
 // validatePath resolves a file path to absolute and verifies it is within the board root.
@@ -628,30 +655,20 @@ func (a *App) SaveCard(filePath string, metadata daedalus.CardMetadata, body str
 
 	a.board.TotalFileBytes += getFileSize(absPath) - oldSize
 
-	// Generate preview from body (first ~150 chars)
-	preview := body
-	if len(preview) > daedalus.PreviewMaxLen {
-		preview = preview[:daedalus.PreviewMaxLen]
-	}
-
 	updatedCard := daedalus.KanbanCard{
 		FilePath:    absPath,
 		Metadata:    metadata,
-		PreviewText: preview,
+		PreviewText: truncatePreview(body),
 	}
 
 	// Update card in-place in board lists
-	for listName, cards := range a.board.Lists {
-		for i, card := range cards {
-			if card.FilePath == absPath {
-				updatedCard.ListName = card.ListName
-				a.board.Lists[listName][i] = updatedCard
-				slog.Info("card saved", "id", metadata.ID, "list", listName, "title", metadata.Title)
-				return &updatedCard, nil
-			}
-		}
+	if listKey, idx, found := a.findCardByPath(absPath); found {
+		updatedCard.ListName = a.board.Lists[listKey][idx].ListName
+		a.board.Lists[listKey][idx] = updatedCard
+		slog.Info("card saved", "id", metadata.ID, "list", listKey, "title", metadata.Title)
+	} else {
+		slog.Info("card saved", "id", metadata.ID, "title", metadata.Title)
 	}
-	slog.Info("card saved", "id", metadata.ID, "title", metadata.Title)
 	return &updatedCard, nil
 }
 
@@ -674,31 +691,7 @@ func (a *App) CreateCard(listDirName string, title string, body string, position
 	newID := a.board.MaxID
 	slog.Debug("assigning new card ID", "id", newID, "previousMaxID", newID-1)
 
-	// Determine list_order and insertion index based on position.
-	// Numeric strings (e.g. "3") insert at that 0-based index with a midpoint list_order.
-	listOrder := 0.0
-	insertIdx := 0
-	if len(cards) > 0 {
-		if position == "bottom" {
-			listOrder = cards[len(cards)-1].Metadata.ListOrder + 1
-			insertIdx = len(cards)
-		} else if idx, err := strconv.Atoi(position); err == nil {
-			if idx <= 0 {
-				listOrder = cards[0].Metadata.ListOrder - 1
-				insertIdx = 0
-			} else if idx >= len(cards) {
-				listOrder = cards[len(cards)-1].Metadata.ListOrder + 1
-				insertIdx = len(cards)
-			} else {
-				listOrder = (cards[idx-1].Metadata.ListOrder + cards[idx].Metadata.ListOrder) / 2
-				insertIdx = idx
-			}
-		} else {
-			// "top" or any unrecognized value
-			listOrder = cards[0].Metadata.ListOrder - 1
-			insertIdx = 0
-		}
-	}
+	listOrder, insertIdx := computeInsertPosition(cards, position)
 
 	// Use provided title, falling back to ID string if empty
 	if strings.TrimSpace(title) == "" {
@@ -725,17 +718,11 @@ func (a *App) CreateCard(listDirName string, title string, body string, position
 
 	a.board.TotalFileBytes += getFileSize(filePath)
 
-	// Generate preview from body (first ~150 chars)
-	preview := body
-	if len(preview) > daedalus.PreviewMaxLen {
-		preview = preview[:daedalus.PreviewMaxLen]
-	}
-
 	card := daedalus.KanbanCard{
 		FilePath:    filePath,
 		ListName:    listDirName,
 		Metadata:    meta,
-		PreviewText: preview,
+		PreviewText: truncatePreview(body),
 	}
 
 	// Insert card at the computed index
@@ -804,22 +791,7 @@ func (a *App) MoveCard(filePath string, targetListDirName string, newListOrder f
 	}
 
 	// Find card in memory
-	var sourceListKey string
-	var sourceIdx int
-	var found bool
-	for listKey, cards := range a.board.Lists {
-		for i, card := range cards {
-			if card.FilePath == absPath {
-				sourceListKey = listKey
-				sourceIdx = i
-				found = true
-				break
-			}
-		}
-		if found {
-			break
-		}
-	}
+	sourceListKey, sourceIdx, found := a.findCardByPath(absPath)
 	if !found {
 		slog.Error("card not found in any list", "path", absPath)
 		return nil, fmt.Errorf("card not found in any list")
@@ -886,6 +858,42 @@ func (a *App) MoveCard(filePath string, targetListDirName string, newListOrder f
 	return &card, nil
 }
 
+// findCardByPath searches all board lists for a card with the given file path.
+// Returns the list key, index within that list, and whether the card was found.
+func (a *App) findCardByPath(absPath string) (string, int, bool) {
+	for listKey, cards := range a.board.Lists {
+		for i, card := range cards {
+			if card.FilePath == absPath {
+				return listKey, i, true
+			}
+		}
+	}
+	return "", 0, false
+}
+
+// computeInsertPosition determines list_order and insertion index for a new card.
+// Position "bottom" appends, a numeric string inserts at that 0-based index,
+// and anything else (including "top") prepends.
+func computeInsertPosition(cards []daedalus.KanbanCard, position string) (float64, int) {
+	if len(cards) == 0 {
+		return 0, 0
+	}
+	if position == "bottom" {
+		return cards[len(cards)-1].Metadata.ListOrder + 1, len(cards)
+	}
+	if idx, err := strconv.Atoi(position); err == nil {
+		if idx <= 0 {
+			return cards[0].Metadata.ListOrder - 1, 0
+		}
+		if idx >= len(cards) {
+			return cards[len(cards)-1].Metadata.ListOrder + 1, len(cards)
+		}
+		return (cards[idx-1].Metadata.ListOrder + cards[idx].Metadata.ListOrder) / 2, idx
+	}
+	// "top" or any unrecognized value
+	return cards[0].Metadata.ListOrder - 1, 0
+}
+
 // insertSorted inserts a card into a sorted slice at the correct position by ListOrder then ID.
 func insertSorted(cards []daedalus.KanbanCard, card daedalus.KanbanCard) []daedalus.KanbanCard {
 	idx := sort.Search(len(cards), func(i int) bool {
@@ -907,13 +915,13 @@ func (a *App) ListIcons() ([]string, error) {
 		return nil, fmt.Errorf("board not loaded")
 	}
 
-	iconsDir := filepath.Join(a.board.RootPath, "assets", "icons")
-	entries, err := os.ReadDir(iconsDir)
+	dir := a.iconsDir()
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return []string{}, nil
 		}
-		slog.Error("failed to read icons directory", "path", iconsDir, "error", err)
+		slog.Error("failed to read icons directory", "path", dir, "error", err)
 		return nil, fmt.Errorf("reading icons directory: %w", err)
 	}
 
@@ -922,8 +930,7 @@ func (a *App) ListIcons() ([]string, error) {
 		if entry.IsDir() {
 			continue
 		}
-		ext := strings.ToLower(filepath.Ext(entry.Name()))
-		if ext == ".svg" || ext == ".png" {
+		if isIconExt(entry.Name()) {
 			names = append(names, entry.Name())
 		}
 	}
@@ -982,13 +989,13 @@ func (a *App) SaveCustomIcon(name string, content string) error {
 		return fmt.Errorf("invalid icon name")
 	}
 
-	iconsDir := filepath.Join(a.board.RootPath, "assets", "icons")
-	if err := os.MkdirAll(iconsDir, 0755); err != nil {
-		slog.Error("failed to create icons directory", "path", iconsDir, "error", err)
+	dir := a.iconsDir()
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		slog.Error("failed to create icons directory", "path", dir, "error", err)
 		return fmt.Errorf("creating icons directory: %w", err)
 	}
 
-	iconPath := filepath.Join(iconsDir, name)
+	iconPath := filepath.Join(dir, name)
 	absPath, err := a.validatePath(iconPath)
 	if err != nil {
 		return err
@@ -1039,12 +1046,11 @@ func (a *App) DownloadIcon(rawURL string) (string, error) {
 		return "", fmt.Errorf("could not determine filename from URL")
 	}
 
-	ext := strings.ToLower(filepath.Ext(filename))
-	if ext != ".svg" && ext != ".png" {
-		return "", fmt.Errorf("unsupported file type: %s (only .svg and .png)", ext)
+	if !isIconExt(filename) {
+		return "", fmt.Errorf("unsupported file type: %s (only .svg and .png)", filepath.Ext(filename))
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := &http.Client{Timeout: httpClientTimeout}
 	resp, err := client.Get(rawURL)
 	if err != nil {
 		slog.Error("icon download failed", "url", rawURL, "error", err)
@@ -1062,20 +1068,20 @@ func (a *App) DownloadIcon(rawURL string) (string, error) {
 	}
 
 	// Validate content
-	if ext == ".svg" {
+	if strings.ToLower(filepath.Ext(filename)) == ".svg" {
 		if !strings.Contains(string(body), "<svg") {
 			return "", fmt.Errorf("invalid SVG content")
 		}
 	}
 
 	// Save to icons directory
-	iconsDir := filepath.Join(a.board.RootPath, "assets", "icons")
-	if err := os.MkdirAll(iconsDir, 0755); err != nil {
-		slog.Error("failed to create icons directory", "path", iconsDir, "error", err)
+	dir := a.iconsDir()
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		slog.Error("failed to create icons directory", "path", dir, "error", err)
 		return "", fmt.Errorf("creating icons directory: %w", err)
 	}
 
-	iconPath := filepath.Join(iconsDir, filename)
+	iconPath := filepath.Join(dir, filename)
 	absPath, err := a.validatePath(iconPath)
 	if err != nil {
 		return "", err
@@ -1088,40 +1094,6 @@ func (a *App) DownloadIcon(rawURL string) (string, error) {
 
 	slog.Info("icon downloaded", "name", filename, "url", rawURL, "bytes", len(body))
 	return filename, nil
-}
-
-// readProcessRSS reads the resident set size from /proc/self/statm in megabytes.
-func readProcessRSS() float64 {
-	data, err := os.ReadFile("/proc/self/statm")
-	if err != nil {
-		return 0
-	}
-	var size, resident int64
-	if _, err := fmt.Sscanf(string(data), "%d %d", &size, &resident); err != nil {
-		return 0
-	}
-	return float64(resident*int64(os.Getpagesize())) / 1024 / 1024
-}
-
-// readProcessCPUTicks reads utime + stime from /proc/self/stat in clock ticks.
-func readProcessCPUTicks() int64 {
-	data, err := os.ReadFile("/proc/self/stat")
-	if err != nil {
-		return 0
-	}
-	s := string(data)
-	// Skip past comm field (may contain spaces/parens) by finding last ")"
-	i := strings.LastIndex(s, ")")
-	if i < 0 || i+2 >= len(s) {
-		return 0
-	}
-	fields := strings.Fields(s[i+2:])
-	if len(fields) < 13 {
-		return 0
-	}
-	utime, _ := strconv.ParseInt(fields[11], 10, 64)
-	stime, _ := strconv.ParseInt(fields[12], 10, 64)
-	return utime + stime
 }
 
 // GetMetrics returns runtime performance metrics
@@ -1152,8 +1124,8 @@ func (a *App) GetMetrics() AppMetrics {
 	if a.prevCPUTicks > 0 && !a.prevWallTime.IsZero() {
 		wallDelta := now.Sub(a.prevWallTime).Seconds()
 		if wallDelta > 0 {
-			// Convert tick delta to seconds (100 ticks/sec on Linux) then to percentage
-			cpuDelta := float64(cpuTicks-a.prevCPUTicks) / 100.0
+			// Convert tick delta to seconds then to percentage
+			cpuDelta := float64(cpuTicks-a.prevCPUTicks) / linuxClockTicksPerSec
 			processCPU = (cpuDelta / wallDelta) * 100
 		}
 	}

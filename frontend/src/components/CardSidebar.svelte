@@ -367,7 +367,7 @@
     font-weight: 600;
     padding: 4px 8px;
     border-radius: 3px;
-    color: #fff;
+    color: var(--color-text-inverse);
     text-align: center;
     flex: 0 0 calc(50% - 2px);
     box-sizing: border-box;

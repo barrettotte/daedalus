@@ -16,6 +16,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const bodyPreviewMaxLines = 20
+
 // ScanBoard scans directory and builds in-memory state
 func ScanBoard(rootPath string) (*BoardState, error) {
 	absRoot, err := filepath.Abs(rootPath)
@@ -109,6 +111,8 @@ func scanList(listPath, realName, displayName string) ([]KanbanCard, int, int64)
 
 			if info, err := file.Info(); err == nil {
 				localBytes += info.Size()
+			} else {
+				slog.Warn("failed to stat card file", "file", file.Name(), "error", err)
 			}
 
 			cards = append(cards, KanbanCard{
@@ -181,7 +185,7 @@ func parseFileHeader(path string) (CardMetadata, string, error) {
 		},
 		func(line string) bool {
 			bodyLines++
-			if bodyLines > 20 {
+			if bodyLines > bodyPreviewMaxLines {
 				return false
 			}
 			if bodyPreviewBuf.Len() < PreviewMaxLen {
@@ -201,28 +205,30 @@ func parseFileHeader(path string) (CardMetadata, string, error) {
 	return meta, bodyPreviewBuf.String(), nil
 }
 
-// readRawFrontmatter reads an existing file and parses the YAML between --- delimiters into a raw map
-func readRawFrontmatter(path string) (map[string]interface{}, error) {
-	data, err := os.ReadFile(path)
+// readRawFrontmatter reads an existing file and parses the YAML between --- delimiters into a raw map.
+// Uses scanCardFile for robust line-by-line delimiter matching.
+func readRawFrontmatter(path string) (map[string]any, error) {
+	file, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
 		return nil, err
 	}
+	defer file.Close()
 
-	content := string(data)
-	if !strings.HasPrefix(strings.TrimSpace(content), "---") {
+	var buf bytes.Buffer
+	scanCardFile(bufio.NewScanner(file), func(line string) bool {
+		buf.WriteString(line + "\n")
+		return true
+	}, nil)
+
+	if buf.Len() == 0 {
 		return nil, nil
 	}
 
-	parts := strings.SplitN(content, "---", 3)
-	if len(parts) < 3 {
-		return nil, nil
-	}
-
-	raw := make(map[string]interface{})
-	if err := yaml.Unmarshal([]byte(parts[1]), &raw); err != nil {
+	raw := make(map[string]any)
+	if err := yaml.Unmarshal(buf.Bytes(), &raw); err != nil {
 		slog.Warn("failed to parse existing frontmatter", "path", path, "error", err)
 		return nil, fmt.Errorf("yaml parse error: %w", err)
 	}
@@ -242,43 +248,31 @@ func WriteCardFile(path string, meta CardMetadata, body string) error {
 	if err != nil {
 		return fmt.Errorf("marshaling metadata: %w", err)
 	}
-	metaRaw := make(map[string]interface{})
+	metaRaw := make(map[string]any)
 	if err := yaml.Unmarshal(metaYaml, &metaRaw); err != nil {
 		return fmt.Errorf("unmarshaling metadata map: %w", err)
 	}
 
-	// Merge: start with meta map, then add unknown keys from existing
+	// Merge unknown keys from existing frontmatter (e.g. trello_data).
+	// Known CardMetadata keys are NOT merged back -- yaml.Marshal already handled
+	// omitempty correctly, so re-merging old values would undo intentional removals.
+	knownMetaKeys := map[string]bool{
+		"id": true, "title": true, "list_order": true,
+		"created": true, "updated": true, "due": true, "range": true,
+		"labels": true, "icon": true, "estimate": true,
+		"counter": true, "checklist_title": true, "checklist": true,
+	}
 	merged := metaRaw
-	if existingRaw != nil {
-		for k, v := range existingRaw {
-			if _, exists := merged[k]; !exists {
-				merged[k] = v
-			}
-		}
-	}
-
-	// Handle omitempty nil fields: remove keys that yaml.Marshal omitted
-	omitemptyFields := map[string]bool{
-		"created":   meta.Created == nil,
-		"updated":   meta.Updated == nil,
-		"due":       meta.Due == nil,
-		"range":     meta.Range == nil,
-		"icon":      meta.Icon == "",
-		"estimate":  meta.Estimate == nil,
-		"counter":   meta.Counter == nil,
-		"checklist": len(meta.Checklist) == 0,
-		"labels":    len(meta.Labels) == 0,
-	}
-	for field, shouldRemove := range omitemptyFields {
-		if shouldRemove {
-			delete(merged, field)
+	for k, v := range existingRaw {
+		if _, exists := merged[k]; !exists && !knownMetaKeys[k] {
+			merged[k] = v
 		}
 	}
 
 	// Force-quote checklist desc fields to prevent YAML parsing issues
-	if checklist, ok := merged["checklist"].([]interface{}); ok {
+	if checklist, ok := merged["checklist"].([]any); ok {
 		for _, item := range checklist {
-			if m, ok := item.(map[string]interface{}); ok {
+			if m, ok := item.(map[string]any); ok {
 				if desc, ok := m["desc"].(string); ok {
 					m["desc"] = &yaml.Node{Kind: yaml.ScalarNode, Value: desc, Style: yaml.DoubleQuotedStyle}
 				}
@@ -293,7 +287,7 @@ func WriteCardFile(path string, meta CardMetadata, body string) error {
 
 	for _, key := range priorityKeys {
 		if val, ok := merged[key]; ok {
-			b, err := yaml.Marshal(map[string]interface{}{key: val})
+			b, err := yaml.Marshal(map[string]any{key: val})
 			if err != nil {
 				return fmt.Errorf("marshaling field %s: %w", key, err)
 			}
@@ -315,7 +309,7 @@ func WriteCardFile(path string, meta CardMetadata, body string) error {
 	}
 
 	for _, key := range remaining {
-		b, err := yaml.Marshal(map[string]interface{}{key: merged[key]})
+		b, err := yaml.Marshal(map[string]any{key: merged[key]})
 		if err != nil {
 			return fmt.Errorf("marshaling field %s: %w", key, err)
 		}

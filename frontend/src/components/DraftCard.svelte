@@ -90,6 +90,7 @@
       const pos = $draftPosition;
       const card = await CreateCard($draftListKey!, draftTitle.trim(), draftBody, pos);
       addCardToBoard($draftListKey!, card, pos);
+      addToast("Card created", "success");
 
       draftTitle = "";
       draftBody = "";

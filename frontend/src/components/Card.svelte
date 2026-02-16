@@ -123,7 +123,7 @@
     padding: 8px 10px;
     min-height: 54px;
     margin: 0 6px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.25);
+    border-bottom: 1px solid var(--color-border);
     color: var(--color-text-primary);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
     cursor: pointer;
@@ -188,7 +188,7 @@
     font-weight: 600;
     padding: 2px 8px;
     border-radius: 3px;
-    color: #fff;
+    color: var(--color-text-inverse);
 
     &.collapsed {
       padding: 0 6px;

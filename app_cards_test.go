@@ -1,0 +1,667 @@
+package main
+
+import (
+	"daedalus/pkg/daedalus"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+// GetCardContent should return the full markdown body for a valid card path.
+func TestGetCardContent_Success(t *testing.T) {
+	app, root := setupTestBoard(t)
+	cardPath := filepath.Join(root, "test", "1.md")
+
+	content, err := app.GetCardContent(cardPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expected := "# Hello\n\nBody content.\n"
+	if content != expected {
+		t.Errorf("got %q, want %q", content, expected)
+	}
+}
+
+// Paths that escape the board root via .. should be rejected.
+func TestGetCardContent_PathTraversal(t *testing.T) {
+	app, root := setupTestBoard(t)
+	outsideFile := filepath.Join(root, "..", "etc", "passwd")
+
+	_, err := app.GetCardContent(outsideFile)
+	if err == nil {
+		t.Fatal("expected error for path traversal attempt")
+	}
+	if err.Error() != "path outside board directory" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// GetCardContent should fail when no board has been loaded yet.
+func TestGetCardContent_BoardNotLoaded(t *testing.T) {
+	app := NewApp()
+	_, err := app.GetCardContent("/some/path.md")
+	if err == nil {
+		t.Fatal("expected error when board not loaded")
+	}
+	if err.Error() != "board not loaded" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// Requesting a card file that doesn't exist on disk should return an error.
+func TestGetCardContent_NonexistentFile(t *testing.T) {
+	app, root := setupTestBoard(t)
+	badPath := filepath.Join(root, "test", "999.md")
+
+	_, err := app.GetCardContent(badPath)
+	if err == nil {
+		t.Fatal("expected error for nonexistent file")
+	}
+}
+
+// Paths using .. segments that resolve outside the board root should be blocked,
+// even when they start inside a valid list directory.
+func TestGetCardContent_DotDotInPath(t *testing.T) {
+	app, root := setupTestBoard(t)
+	traversal := filepath.Join(root, "test", "..", "..", "secret.md")
+
+	_, err := app.GetCardContent(traversal)
+	if err == nil {
+		t.Fatal("expected error for .. path traversal")
+	}
+}
+
+// Passing the board root directory itself (not a file inside it) should be rejected.
+func TestGetCardContent_ExactRootPath(t *testing.T) {
+	app, root := setupTestBoard(t)
+	_, err := app.GetCardContent(root)
+	if err == nil {
+		t.Fatal("expected error when path is the root itself")
+	}
+}
+
+// A relative path that resolves outside the board root should be rejected.
+func TestGetCardContent_RelativePath(t *testing.T) {
+	root := t.TempDir()
+	list := filepath.Join(root, "test")
+	mustMkdir(t, list)
+	mustWrite(t, filepath.Join(list, "1.md"), []byte("---\ntitle: \"T\"\nid: 1\n---\nBody\n"))
+
+	app := NewApp()
+	app.board = &daedalus.BoardState{
+		RootPath: root,
+	}
+
+	_, err := app.GetCardContent("./1.md")
+	if err == nil {
+		t.Fatal("expected error for relative path outside board")
+	}
+}
+
+// SaveCard should write updated title and body to disk and return the updated card.
+func TestSaveCard_Success(t *testing.T) {
+	app, root := setupTestBoard(t)
+	cardPath := filepath.Join(root, "test", "1.md")
+
+	meta := daedalus.CardMetadata{
+		ID:        1,
+		Title:     "Updated Title",
+		ListOrder: 1,
+	}
+
+	result, err := app.SaveCard(cardPath, meta, "# Updated Title\n\nNew body.\n")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Metadata.Title != "Updated Title" {
+		t.Errorf("title: got %q, want %q", result.Metadata.Title, "Updated Title")
+	}
+
+	// Read file back to verify
+	content, err := os.ReadFile(cardPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(content), "Updated Title") {
+		t.Error("file should contain updated title")
+	}
+	if !strings.Contains(string(content), "New body.") {
+		t.Error("file should contain new body")
+	}
+}
+
+// SaveCard should reject paths that escape the board root directory.
+func TestSaveCard_PathTraversal(t *testing.T) {
+	app, root := setupTestBoard(t)
+	outsidePath := filepath.Join(root, "..", "evil.md")
+
+	meta := daedalus.CardMetadata{ID: 1, Title: "Evil"}
+	_, err := app.SaveCard(outsidePath, meta, "hacked")
+	if err == nil {
+		t.Fatal("expected error for path traversal")
+	}
+	if err.Error() != "path outside board directory" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// SaveCard should return an error when the board has not been loaded.
+func TestSaveCard_BoardNotLoaded(t *testing.T) {
+	app := NewApp()
+	meta := daedalus.CardMetadata{ID: 1, Title: "Test"}
+
+	_, err := app.SaveCard("/some/path.md", meta, "body")
+	if err == nil {
+		t.Fatal("expected error when board not loaded")
+	}
+	if err.Error() != "board not loaded" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// After SaveCard, the in-memory board state should reflect the updated card data.
+func TestSaveCard_UpdatesInMemory(t *testing.T) {
+	app, root := setupTestBoard(t)
+	cardPath := filepath.Join(root, "test", "1.md")
+
+	meta := daedalus.CardMetadata{
+		ID:        1,
+		Title:     "Memory Update",
+		ListOrder: 1,
+	}
+
+	_, err := app.SaveCard(cardPath, meta, "# Memory Update\n")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cards := app.board.Lists["test"]
+	found := false
+	for _, card := range cards {
+		if card.FilePath == cardPath {
+			found = true
+			if card.Metadata.Title != "Memory Update" {
+				t.Errorf("in-memory title: got %q, want %q", card.Metadata.Title, "Memory Update")
+			}
+			if card.Metadata.Updated == nil {
+				t.Error("expected Updated timestamp to be set")
+			}
+		}
+	}
+	if !found {
+		t.Error("card not found in board lists after save")
+	}
+}
+
+// CreateCard should increment MaxID, write the file to disk, and prepend the card to the list.
+func TestCreateCard_Success(t *testing.T) {
+	app, root := setupTestBoard(t)
+
+	oldMaxID := app.board.MaxID
+	card, err := app.CreateCard("test", "New Card", "Some body text", "top")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if card.Metadata.ID != oldMaxID+1 {
+		t.Errorf("ID: got %d, want %d", card.Metadata.ID, oldMaxID+1)
+	}
+	if app.board.MaxID != oldMaxID+1 {
+		t.Errorf("MaxID: got %d, want %d", app.board.MaxID, oldMaxID+1)
+	}
+
+	// File should exist on disk
+	expectedPath := filepath.Join(root, "test", fmt.Sprintf("%d.md", card.Metadata.ID))
+	if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
+		t.Error("expected card file to exist on disk")
+	}
+
+	// Card should be prepended (first in list)
+	cards := app.board.Lists["test"]
+	if len(cards) < 2 {
+		t.Fatalf("expected at least 2 cards, got %d", len(cards))
+	}
+	if cards[0].Metadata.ID != card.Metadata.ID {
+		t.Errorf("new card should be first in list, got ID %d", cards[0].Metadata.ID)
+	}
+
+	// New card's list_order should be less than the original card's
+	if cards[0].Metadata.ListOrder >= cards[1].Metadata.ListOrder {
+		t.Errorf("new card list_order (%f) should be less than existing (%f)",
+			cards[0].Metadata.ListOrder, cards[1].Metadata.ListOrder)
+	}
+
+	// ListName should be set
+	if card.ListName != "test" {
+		t.Errorf("ListName: got %q, want %q", card.ListName, "test")
+	}
+
+	// Title should match the provided title
+	if card.Metadata.Title != "New Card" {
+		t.Errorf("Title: got %q, want %q", card.Metadata.Title, "New Card")
+	}
+
+	// PreviewText should match the provided body
+	if card.PreviewText != "Some body text" {
+		t.Errorf("PreviewText: got %q, want %q", card.PreviewText, "Some body text")
+	}
+}
+
+// CreateCard should return an error when no board has been loaded.
+func TestCreateCard_BoardNotLoaded(t *testing.T) {
+	app := NewApp()
+	_, err := app.CreateCard("test", "", "", "top")
+	if err == nil {
+		t.Fatal("expected error when board not loaded")
+	}
+	if err.Error() != "board not loaded" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// CreateCard should return an error for a nonexistent list directory.
+func TestCreateCard_InvalidList(t *testing.T) {
+	app, _ := setupTestBoard(t)
+
+	_, err := app.CreateCard("nonexistent", "", "", "top")
+	if err == nil {
+		t.Fatal("expected error for invalid list")
+	}
+	if !strings.Contains(err.Error(), "list not found") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// CreateCard with an empty title should fall back to using the ID as the title.
+func TestCreateCard_EmptyTitle(t *testing.T) {
+	app, _ := setupTestBoard(t)
+
+	card, err := app.CreateCard("test", "", "some body", "top")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expected := fmt.Sprintf("%d", card.Metadata.ID)
+	if card.Metadata.Title != expected {
+		t.Errorf("Title: got %q, want %q", card.Metadata.Title, expected)
+	}
+}
+
+// CreateCard should truncate the preview text at 150 characters for long bodies.
+func TestCreateCard_LongBodyPreview(t *testing.T) {
+	app, _ := setupTestBoard(t)
+
+	longBody := strings.Repeat("x", 300)
+	card, err := app.CreateCard("test", "Title", longBody, "top")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(card.PreviewText) != 150 {
+		t.Errorf("PreviewText length: got %d, want 150", len(card.PreviewText))
+	}
+}
+
+// CreateCard with position "bottom" should place the new card after all existing cards.
+func TestCreateCard_Bottom(t *testing.T) {
+	app, root := setupTestBoard(t)
+
+	card, err := app.CreateCard("test", "Bottom Card", "bottom body", "bottom")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// File should exist on disk
+	expectedPath := filepath.Join(root, "test", fmt.Sprintf("%d.md", card.Metadata.ID))
+	if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
+		t.Error("expected card file to exist on disk")
+	}
+
+	// Card should be last in the list
+	cards := app.board.Lists["test"]
+	if len(cards) < 2 {
+		t.Fatalf("expected at least 2 cards, got %d", len(cards))
+	}
+	last := cards[len(cards)-1]
+	if last.Metadata.ID != card.Metadata.ID {
+		t.Errorf("new card should be last in list, got ID %d", last.Metadata.ID)
+	}
+
+	// New card's list_order should be greater than the previous last card's
+	prev := cards[len(cards)-2]
+	if last.Metadata.ListOrder <= prev.Metadata.ListOrder {
+		t.Errorf("new card list_order (%f) should be greater than previous last (%f)",
+			last.Metadata.ListOrder, prev.Metadata.ListOrder)
+	}
+}
+
+// CreateCard with a numeric position "1" should insert between the first and second cards.
+func TestCreateCard_NumericMiddle(t *testing.T) {
+	app, _ := setupTestBoardMulti(t)
+
+	card, err := app.CreateCard("open", "Middle Card", "body", "1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// list_order should be midpoint of cards[0] (1.0) and cards[1] (2.0)
+	if card.Metadata.ListOrder != 1.5 {
+		t.Errorf("ListOrder: got %f, want 1.5", card.Metadata.ListOrder)
+	}
+
+	cards := app.board.Lists["open"]
+	if len(cards) != 4 {
+		t.Fatalf("expected 4 cards, got %d", len(cards))
+	}
+	if cards[1].Metadata.ID != card.Metadata.ID {
+		t.Errorf("new card should be at index 1, got ID %d", cards[1].Metadata.ID)
+	}
+}
+
+// CreateCard with numeric position "0" should behave like top.
+func TestCreateCard_NumericZero(t *testing.T) {
+	app, _ := setupTestBoardMulti(t)
+
+	card, err := app.CreateCard("open", "Zero Card", "body", "0")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cards := app.board.Lists["open"]
+	if cards[0].Metadata.ID != card.Metadata.ID {
+		t.Errorf("new card should be first, got ID %d", cards[0].Metadata.ID)
+	}
+	if card.Metadata.ListOrder >= cards[1].Metadata.ListOrder {
+		t.Errorf("list_order (%f) should be less than first existing (%f)",
+			card.Metadata.ListOrder, cards[1].Metadata.ListOrder)
+	}
+}
+
+// CreateCard with a numeric position beyond the end should behave like bottom.
+func TestCreateCard_NumericBeyondEnd(t *testing.T) {
+	app, _ := setupTestBoardMulti(t)
+
+	card, err := app.CreateCard("open", "Beyond Card", "body", "99")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cards := app.board.Lists["open"]
+	last := cards[len(cards)-1]
+	if last.Metadata.ID != card.Metadata.ID {
+		t.Errorf("new card should be last, got ID %d", last.Metadata.ID)
+	}
+
+	prev := cards[len(cards)-2]
+	if card.Metadata.ListOrder <= prev.Metadata.ListOrder {
+		t.Errorf("list_order (%f) should be greater than previous last (%f)",
+			card.Metadata.ListOrder, prev.Metadata.ListOrder)
+	}
+}
+
+// CreateCard with a numeric position in an empty list should default to list_order 0.
+func TestCreateCard_NumericEmptyList(t *testing.T) {
+	app, _ := setupTestBoardMulti(t)
+
+	card, err := app.CreateCard("done", "Empty List Card", "body", "5")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if card.Metadata.ListOrder != 0 {
+		t.Errorf("ListOrder: got %f, want 0", card.Metadata.ListOrder)
+	}
+
+	cards := app.board.Lists["done"]
+	if len(cards) != 1 {
+		t.Fatalf("expected 1 card, got %d", len(cards))
+	}
+}
+
+// DeleteCard should remove the file from disk, remove it from in-memory lists, and leave MaxID unchanged.
+func TestDeleteCard_Success(t *testing.T) {
+	app, root := setupTestBoard(t)
+
+	cardPath := filepath.Join(root, "test", "1.md")
+	oldMaxID := app.board.MaxID
+
+	err := app.DeleteCard(cardPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// File should be gone from disk
+	if _, err := os.Stat(cardPath); !os.IsNotExist(err) {
+		t.Error("expected card file to be deleted from disk")
+	}
+
+	// Card should be removed from in-memory lists
+	for _, cards := range app.board.Lists {
+		for _, card := range cards {
+			if card.FilePath == cardPath {
+				t.Error("card should not exist in board lists after delete")
+			}
+		}
+	}
+
+	// MaxID should NOT be decremented
+	if app.board.MaxID != oldMaxID {
+		t.Errorf("MaxID changed: got %d, want %d", app.board.MaxID, oldMaxID)
+	}
+}
+
+// DeleteCard should reject paths that escape the board root directory.
+func TestDeleteCard_PathTraversal(t *testing.T) {
+	app, root := setupTestBoard(t)
+	outsidePath := filepath.Join(root, "..", "evil.md")
+
+	err := app.DeleteCard(outsidePath)
+	if err == nil {
+		t.Fatal("expected error for path traversal")
+	}
+	if err.Error() != "path outside board directory" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// DeleteCard should return an error when no board has been loaded.
+func TestDeleteCard_BoardNotLoaded(t *testing.T) {
+	app := NewApp()
+	err := app.DeleteCard("/some/path.md")
+	if err == nil {
+		t.Fatal("expected error when board not loaded")
+	}
+	if err.Error() != "board not loaded" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// DeleteCard should return an error when the file does not exist.
+func TestDeleteCard_NonexistentFile(t *testing.T) {
+	app, root := setupTestBoard(t)
+	badPath := filepath.Join(root, "test", "999.md")
+
+	err := app.DeleteCard(badPath)
+	if err == nil {
+		t.Fatal("expected error for nonexistent file")
+	}
+	if !strings.Contains(err.Error(), "removing card file") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// DeleteCard should decrement TotalFileBytes by the size of the removed file.
+func TestDeleteCard_UpdatesTotalFileBytes(t *testing.T) {
+	app, root := setupTestBoard(t)
+
+	cardPath := filepath.Join(root, "test", "1.md")
+	info, err := os.Stat(cardPath)
+	if err != nil {
+		t.Fatalf("could not stat card file: %v", err)
+	}
+	fileSize := info.Size()
+	bytesBefore := app.board.TotalFileBytes
+
+	err = app.DeleteCard(cardPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expected := bytesBefore - fileSize
+	if app.board.TotalFileBytes != expected {
+		t.Errorf("TotalFileBytes: got %d, want %d", app.board.TotalFileBytes, expected)
+	}
+}
+
+// MoveCard should reorder a card within the same list by updating list_order.
+func TestMoveCard_SameList(t *testing.T) {
+	app, _ := setupTestBoardMulti(t)
+
+	// Move card 3 (list_order=3) to between card A and card B (list_order=1.5)
+	cardPath := app.board.Lists["open"][2].FilePath
+	result, err := app.MoveCard(cardPath, "open", 1.5)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.Metadata.ListOrder != 1.5 {
+		t.Errorf("ListOrder: got %f, want 1.5", result.Metadata.ListOrder)
+	}
+
+	// Verify in-memory order: A(1), C(1.5), B(2)
+	cards := app.board.Lists["open"]
+	if len(cards) != 3 {
+		t.Fatalf("expected 3 cards, got %d", len(cards))
+	}
+	if cards[0].Metadata.ID != 1 || cards[1].Metadata.ID != 3 || cards[2].Metadata.ID != 2 {
+		t.Errorf("unexpected order: IDs %d, %d, %d", cards[0].Metadata.ID, cards[1].Metadata.ID, cards[2].Metadata.ID)
+	}
+}
+
+// MoveCard should move a card between lists, renaming the file on disk.
+func TestMoveCard_CrossList(t *testing.T) {
+	app, root := setupTestBoardMulti(t)
+
+	cardPath := app.board.Lists["open"][0].FilePath
+	result, err := app.MoveCard(cardPath, "done", 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// File should exist in new directory
+	newPath := filepath.Join(root, "done", "1.md")
+	if _, err := os.Stat(newPath); os.IsNotExist(err) {
+		t.Error("expected file to exist in target directory")
+	}
+
+	// File should be gone from old directory
+	if _, err := os.Stat(cardPath); !os.IsNotExist(err) {
+		t.Error("expected file to be removed from source directory")
+	}
+
+	// Source list should have 2 cards, target should have 1
+	if len(app.board.Lists["open"]) != 2 {
+		t.Errorf("source list: got %d cards, want 2", len(app.board.Lists["open"]))
+	}
+	if len(app.board.Lists["done"]) != 1 {
+		t.Errorf("target list: got %d cards, want 1", len(app.board.Lists["done"]))
+	}
+
+	if result.FilePath != newPath {
+		t.Errorf("FilePath: got %q, want %q", result.FilePath, newPath)
+	}
+}
+
+// MoveCard should reject paths that escape the board root.
+func TestMoveCard_PathTraversal(t *testing.T) {
+	app, root := setupTestBoardMulti(t)
+	outsidePath := filepath.Join(root, "..", "evil.md")
+
+	_, err := app.MoveCard(outsidePath, "open", 0)
+	if err == nil {
+		t.Fatal("expected error for path traversal")
+	}
+	if err.Error() != "path outside board directory" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// MoveCard should return an error when no board has been loaded.
+func TestMoveCard_BoardNotLoaded(t *testing.T) {
+	app := NewApp()
+	_, err := app.MoveCard("/some/path.md", "open", 0)
+	if err == nil {
+		t.Fatal("expected error when board not loaded")
+	}
+	if err.Error() != "board not loaded" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// MoveCard should return an error for a nonexistent target list.
+func TestMoveCard_InvalidTargetList(t *testing.T) {
+	app, _ := setupTestBoardMulti(t)
+	cardPath := app.board.Lists["open"][0].FilePath
+
+	_, err := app.MoveCard(cardPath, "nonexistent", 0)
+	if err == nil {
+		t.Fatal("expected error for invalid target list")
+	}
+	if !strings.Contains(err.Error(), "target list not found") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// MoveCard should reject moves out of a locked source list.
+func TestMoveCard_LockedSource(t *testing.T) {
+	app, _ := setupTestBoardMulti(t)
+
+	if err := app.SaveLockedLists([]string{"open"}); err != nil {
+		t.Fatalf("unexpected error locking: %v", err)
+	}
+
+	cardPath := app.board.Lists["open"][0].FilePath
+	_, err := app.MoveCard(cardPath, "done", 0)
+	if err == nil {
+		t.Fatal("expected error for locked source list")
+	}
+	if !strings.Contains(err.Error(), "locked") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// MoveCard should reject moves into a locked target list.
+func TestMoveCard_LockedTarget(t *testing.T) {
+	app, _ := setupTestBoardMulti(t)
+
+	if err := app.SaveLockedLists([]string{"done"}); err != nil {
+		t.Fatalf("unexpected error locking: %v", err)
+	}
+
+	cardPath := app.board.Lists["open"][0].FilePath
+	_, err := app.MoveCard(cardPath, "done", 0)
+	if err == nil {
+		t.Fatal("expected error for locked target list")
+	}
+	if !strings.Contains(err.Error(), "locked") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+// MoveCard should return an error when the card is not found in any list.
+func TestMoveCard_CardNotFound(t *testing.T) {
+	app, root := setupTestBoardMulti(t)
+	// Valid path within board root but not a card in any list
+	fakePath := filepath.Join(root, "open", "999.md")
+
+	_, err := app.MoveCard(fakePath, "open", 0)
+	if err == nil {
+		t.Fatal("expected error for card not found")
+	}
+	if !strings.Contains(err.Error(), "card not found") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}

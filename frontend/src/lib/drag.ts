@@ -37,7 +37,7 @@ export function setBoardContainer(el: HTMLDivElement | undefined): void {
 // Clears drop indicator classes from tracked elements.
 export function clearDropIndicators(): void {
   for (const el of activeIndicators) {
-    el.classList.remove("drop-above", "drop-below", "drop-bottom");
+    el.classList.remove("drop-above", "drop-below");
   }
   activeIndicators.clear();
 }

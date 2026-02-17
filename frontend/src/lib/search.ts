@@ -39,7 +39,7 @@ export function parseSearchTokens(query: string): SearchToken[] {
 }
 
 // Returns true when a card matches a single search token.
-export function cardMatchesToken(card: daedalus.KanbanCard, token: SearchToken): boolean {
+function cardMatchesToken(card: daedalus.KanbanCard, token: SearchToken): boolean {
   if (token.type === "text") {
     const title = (card.metadata.title || "").toLowerCase();
     const preview = (card.previewText || "").toLowerCase();

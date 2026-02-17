@@ -48,6 +48,10 @@
   // Delete confirmation state
   let confirmingDelete = $state(false);
 
+  // URI edit state
+  let editingUri = $state(false);
+  let editUri = $state("");
+
   // Guards against stale async responses when rapidly switching cards.
   let loadGeneration = 0;
 
@@ -161,6 +165,34 @@
 
   function saveIcon(icon: string): Promise<void> {
     return saveCardMeta({ icon }, "save icon");
+  }
+
+  function saveUrl(url: string): Promise<void> {
+    return saveCardMeta({ url }, "save URL");
+  }
+
+  function startEditUri(): void {
+    editUri = meta?.url || "";
+    editingUri = true;
+  }
+
+  function blurUri(): void {
+    editingUri = false;
+    const trimmed = editUri.trim();
+    if (trimmed !== (meta?.url || "")) {
+      saveUrl(trimmed);
+    }
+  }
+
+  function openUri(): void {
+    if (meta?.url) {
+      saveWithToast(OpenURI(meta.url), "open URI");
+    }
+  }
+
+  function removeUri(): void {
+    editingUri = false;
+    saveUrl("");
   }
 
   function saveEstimate(estimate: number | null): Promise<void> {
@@ -291,6 +323,8 @@
     if (e.key === "Escape") {
       if (editingTitle) {
         editingTitle = false;
+      } else if (editingUri) {
+        editingUri = false;
       } else if (editingBody) {
         editingBody = false;
       } else if (confirmingDelete) {
@@ -326,6 +360,7 @@
     rawBody = "";
     editingTitle = false;
     editingBody = false;
+    editingUri = false;
     confirmingDelete = false;
 
     const shouldEdit = $openInEditMode;
@@ -426,6 +461,35 @@
       <div class="modal-body">
         <div class="main-col">
 
+          <!-- Primary URI -->
+          <div class="uri-row">
+            {#if editingUri}
+              <Icon name="link" size={14} style="color: var(--color-text-muted); flex-shrink: 0" />
+              <input class="uri-input" type="text" placeholder="https://..."
+                bind:value={editUri}
+                onblur={blurUri}
+                onkeydown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                use:autoFocus
+              />
+              <button class="uri-action-btn remove" title="Remove URI" onclick={removeUri}>
+                <Icon name="trash" size={12} />
+              </button>
+            {:else if meta.url}
+              <Icon name="link" size={14} style="color: var(--color-text-muted); flex-shrink: 0" />
+              <button class="uri-link" title={meta.url} onclick={openUri}>{meta.url}</button>
+              <button class="uri-action-btn" title="Edit URI" onclick={startEditUri}>
+                <Icon name="pencil" size={12} />
+              </button>
+              <button class="uri-action-btn remove" title="Remove URI" onclick={removeUri}>
+                <Icon name="trash" size={12} />
+              </button>
+            {:else}
+              <button class="uri-add-btn" onclick={startEditUri}>
+                <Icon name="link" size={12} /> Add URI
+              </button>
+            {/if}
+          </div>
+
           <!-- Description -->
           <div class="section">
             {#if editingBody}
@@ -509,6 +573,77 @@
   .main-col {
     flex: 1;
     min-width: 0;
+  }
+
+  /* Primary URI */
+  .uri-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 12px;
+    min-height: 24px;
+  }
+
+  .uri-link {
+    all: unset;
+    font-size: 0.8rem;
+    line-height: 1;
+    color: var(--color-accent);
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  .uri-input {
+    flex: 1;
+    min-width: 0;
+    background: var(--color-bg-base);
+    border: 1px solid var(--color-accent);
+    color: var(--color-text-primary);
+    font-size: 0.8rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    outline: none;
+    box-sizing: border-box;
+  }
+
+  .uri-action-btn {
+    all: unset;
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 2px;
+    border-radius: 3px;
+
+    &:hover {
+      color: var(--color-text-primary);
+    }
+
+    &.remove:hover {
+      color: var(--color-error);
+    }
+  }
+
+  .uri-add-btn {
+    all: unset;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--color-text-primary);
+    }
   }
 
   /* Sections */

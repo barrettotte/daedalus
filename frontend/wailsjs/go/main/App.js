@@ -18,12 +18,12 @@ export function DeleteCard(arg1) {
   return window['go']['main']['App']['DeleteCard'](arg1);
 }
 
-export function DeleteList(arg1) {
-  return window['go']['main']['App']['DeleteList'](arg1);
+export function DeleteIcon(arg1) {
+  return window['go']['main']['App']['DeleteIcon'](arg1);
 }
 
-export function DownloadIcon(arg1) {
-  return window['go']['main']['App']['DownloadIcon'](arg1);
+export function DeleteList(arg1) {
+  return window['go']['main']['App']['DeleteList'](arg1);
 }
 
 export function GetCardContent(arg1) {

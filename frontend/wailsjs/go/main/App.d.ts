@@ -11,9 +11,9 @@ export function DeleteAllCards(arg1:string):Promise<void>;
 
 export function DeleteCard(arg1:string):Promise<void>;
 
-export function DeleteList(arg1:string):Promise<void>;
+export function DeleteIcon(arg1:string):Promise<void>;
 
-export function DownloadIcon(arg1:string):Promise<string>;
+export function DeleteList(arg1:string):Promise<void>;
 
 export function GetCardContent(arg1:string):Promise<string>;
 

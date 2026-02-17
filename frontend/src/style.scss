@@ -46,9 +46,7 @@
 
     /* Status overlays */
     --overlay-success: rgba(75, 206, 151, 0.15);
-    --overlay-success-strong: rgba(75, 206, 151, 0.2);
     --overlay-error: rgba(247, 68, 68, 0.15);
-    --overlay-error-strong: rgba(247, 68, 68, 0.2);
     --overlay-error-limit: rgba(220, 50, 50, 0.3);
     --overlay-error-border: rgba(248, 113, 104, 0.3);
     --overlay-warning: rgba(255, 170, 50, 0.15);
@@ -58,6 +56,15 @@
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
     --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
     --shadow-side: 4px 0 8px rgba(0, 0, 0, 0.25);
+
+    /* Z-index layers */
+    --z-board: 1;
+    --z-board-raised: 2;
+    --z-list-menu-parent: 10;
+    --z-dropdown: 100;
+    --z-modal: 1000;
+    --z-modal-high: 2000;
+    --z-drag-ghost: 10000;
 
     /* Misc */
     --color-scrollbar-thumb: #444;
@@ -110,9 +117,7 @@
 
     /* Status overlays */
     --overlay-success: rgba(22, 163, 74, 0.1);
-    --overlay-success-strong: rgba(22, 163, 74, 0.15);
     --overlay-error: rgba(220, 38, 38, 0.1);
-    --overlay-error-strong: rgba(220, 38, 38, 0.15);
     --overlay-error-limit: rgba(220, 38, 38, 0.2);
     --overlay-error-border: rgba(220, 38, 38, 0.3);
     --overlay-warning: rgba(217, 119, 6, 0.12);
@@ -145,7 +150,6 @@ body {
     margin: 0;
     color: var(--color-text-primary);
     font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
-    // --font-mono: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: "JetBrains Mono", monospace;
 }
 
@@ -225,7 +229,7 @@ body {
     background: var(--overlay-backdrop);
     display: flex;
     justify-content: center;
-    z-index: 1000;
+    z-index: var(--z-modal);
 
     &.centered { align-items: center; }
     &.scrollable {
@@ -233,7 +237,7 @@ body {
         padding-top: 48px;
         overflow-y: auto;
     }
-    &.z-high { z-index: 2000; }
+    &.z-high { z-index: var(--z-modal-high); }
 }
 
 .modal-dialog {

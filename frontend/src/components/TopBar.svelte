@@ -14,6 +14,7 @@
     showYearProgress = $bindable(false),
     darkMode = $bindable(true),
     showLabelEditor = $bindable(false),
+    showIconManager = $bindable(false),
     showKeyboardHelp = $bindable(false),
     showAbout = $bindable(false),
     zoomLevel = 1.0,
@@ -26,6 +27,7 @@
     showYearProgress: boolean;
     darkMode: boolean;
     showLabelEditor: boolean;
+    showIconManager: boolean;
     showKeyboardHelp: boolean;
     showAbout: boolean;
     zoomLevel: number;
@@ -205,6 +207,9 @@
     {/if}
     <button class="top-btn" onclick={() => showLabelEditor = true} title="Label manager">
       <Icon name="tag" size={14} />
+    </button>
+    <button class="top-btn" onclick={() => showIconManager = true} title="Icon manager">
+      <Icon name="image" size={14} />
     </button>
     <button class="top-btn" class:active={$minimalView} onclick={toggleMinimalView} title="Minimal view (M)">
       <Icon name="list" size={14} />

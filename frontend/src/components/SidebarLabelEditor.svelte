@@ -31,7 +31,9 @@
 </script>
 
 <div class="sidebar-section" use:clickOutside={() => { labelDropdownOpen = false; }}>
-  <h4 class="sidebar-title">Labels</h4>
+  {#if labels.length > 0}
+    <h4 class="sidebar-title">Labels</h4>
+  {/if}
   {#if labels.length > 0}
     <div class="sidebar-labels">
       {#each [...labels].sort() as label}

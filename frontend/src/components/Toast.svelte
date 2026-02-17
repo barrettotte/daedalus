@@ -17,7 +17,7 @@
     position: fixed;
     bottom: 16px;
     right: 16px;
-    z-index: 2000;
+    z-index: var(--z-modal-high);
     display: flex;
     flex-direction: column;
     gap: 8px;

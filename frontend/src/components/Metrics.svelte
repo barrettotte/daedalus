@@ -114,7 +114,7 @@
     padding: 8px 12px;
     font-family: var(--font-mono);
     font-size: 0.75rem;
-    z-index: 100;
+    z-index: var(--z-dropdown);
     min-width: 150px;
 
     .metrics-row {

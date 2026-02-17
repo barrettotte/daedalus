@@ -166,7 +166,7 @@
 <style lang="scss">
   .context-menu {
     position: fixed;
-    z-index: 1000;
+    z-index: var(--z-modal);
     background: var(--color-bg-elevated);
     border: 1px solid var(--color-border);
     border-radius: 6px;
@@ -182,7 +182,7 @@
     gap: 8px;
     width: 100%;
     padding: 6px 12px;
-    font-size: 0.82rem;
+    font-size: 0.78rem;
     color: var(--color-text-primary);
     cursor: pointer;
     box-sizing: border-box;
@@ -254,7 +254,7 @@
   }
 
   .ctx-confirm-text {
-    font-size: 0.82rem;
+    font-size: 0.78rem;
     color: var(--color-error);
     font-weight: 600;
     margin-right: auto;

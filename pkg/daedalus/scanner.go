@@ -259,7 +259,7 @@ func WriteCardFile(path string, meta CardMetadata, body string) error {
 	knownMetaKeys := map[string]bool{
 		"id": true, "title": true, "list_order": true,
 		"created": true, "updated": true, "due": true, "range": true,
-		"labels": true, "icon": true, "estimate": true,
+		"labels": true, "icon": true, "url": true, "estimate": true,
 		"counter": true, "checklist_title": true, "checklist": true,
 	}
 	merged := metaRaw
@@ -281,7 +281,7 @@ func WriteCardFile(path string, meta CardMetadata, body string) error {
 	}
 
 	// Marshal fields in priority order: important metadata first, bulky data last
-	priorityKeys := []string{"id", "title", "list_order", "created", "updated", "due", "range", "labels", "icon", "estimate"}
+	priorityKeys := []string{"id", "title", "list_order", "created", "updated", "due", "range", "labels", "icon", "url", "estimate"}
 	added := make(map[string]bool)
 	var yamlBuf bytes.Buffer
 

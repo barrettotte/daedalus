@@ -446,7 +446,7 @@
     position: absolute;
     top: 100%;
     left: 0;
-    z-index: 100;
+    z-index: var(--z-dropdown);
 
     &.menu-flip {
       left: auto;
@@ -566,7 +566,7 @@
 
     &.over-limit {
       background: var(--overlay-error-limit);
-      color: #ff6b6b;
+      color: var(--color-error);
     }
   }
 

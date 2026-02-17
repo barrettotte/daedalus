@@ -3,7 +3,7 @@
 
 import {
   ListIcons, GetIconContent, SaveCustomIcon as SaveCustomIconRPC,
-  DownloadIcon as DownloadIconRPC,
+  DeleteIcon as DeleteIconRPC,
 } from "../../wailsjs/go/main/App";
 
 const contentCache: Map<string, string> = new Map();
@@ -37,14 +37,8 @@ export async function saveCustomIcon(
   contentCache.delete(name);
 }
 
-export async function downloadIcon(url: string): Promise<string> {
-  const filename = await DownloadIconRPC(url);
+export async function deleteIcon(name: string): Promise<void> {
+  await DeleteIconRPC(name);
   iconNamesCache = null;
-  contentCache.delete(filename);
-  return filename;
-}
-
-export function invalidateCache(): void {
-  contentCache.clear();
-  iconNamesCache = null;
+  contentCache.delete(name);
 }

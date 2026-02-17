@@ -39,6 +39,7 @@
   import KeyboardHelp from "./components/KeyboardHelp.svelte";
   import About from "./components/About.svelte";
   import LabelColorEditor from "./components/LabelColorEditor.svelte";
+  import IconManager from "./components/IconManager.svelte";
   import TopBar from "./components/TopBar.svelte";
   import Icon from "./components/Icon.svelte";
   import CardContextMenu from "./components/CardContextMenu.svelte";
@@ -52,6 +53,7 @@
   let showKeyboardHelp = $state(false);
   let showAbout = $state(false);
   let showLabelEditor = $state(false);
+  let showIconManager = $state(false);
   let showYearProgress = $state(false);
   let darkMode = $state(true);
   let zoomLevel = $state(1.0);
@@ -563,7 +565,7 @@
 
 <main>
   <TopBar bind:searchOpen bind:showYearProgress bind:darkMode
-    bind:showLabelEditor bind:showKeyboardHelp bind:showAbout
+    bind:showLabelEditor bind:showIconManager bind:showKeyboardHelp bind:showAbout
     {zoomLevel} onzoomin={zoomIn} onzoomout={zoomOut} onzoomreset={zoomReset}
     oncreatecard={createCardDefault}
   />
@@ -773,6 +775,9 @@
   {#if showLabelEditor}
     <LabelColorEditor onclose={() => showLabelEditor = false} onreload={initBoard} />
   {/if}
+  {#if showIconManager}
+    <IconManager onclose={() => showIconManager = false} />
+  {/if}
 
 </main>
 
@@ -822,10 +827,10 @@
     max-height: 100%;
     border: 1px solid var(--color-border-medium);
     position: relative;
-    z-index: 1;
+    z-index: var(--z-board);
 
     &:has(:global(.header-menu)) {
-      z-index: 10;
+      z-index: var(--z-list-menu-parent);
     }
 
     &.collapsed {
@@ -858,7 +863,7 @@
     &.pinned-left,
     &.pinned-right {
       position: sticky;
-      z-index: 2;
+      z-index: var(--z-board-raised);
     }
 
     &.pinned-left {
@@ -953,7 +958,7 @@
     right: 6px;
     height: 3px;
     background: var(--color-accent);
-    z-index: 2;
+    z-index: var(--z-board-raised);
   }
 
   :global(.item-slot.drop-below::after) {
@@ -964,13 +969,13 @@
     right: 6px;
     height: 3px;
     background: var(--color-accent);
-    z-index: 2;
+    z-index: var(--z-board-raised);
   }
 
   :global(.item-slot.drop-above),
   :global(.item-slot.drop-below) {
     position: relative;
-    z-index: 1;
+    z-index: var(--z-board);
   }
 
   .drag-ghost {
@@ -981,7 +986,7 @@
     padding: 8px 10px;
     color: var(--color-text-primary);
     pointer-events: none;
-    z-index: 10000;
+    z-index: var(--z-drag-ghost);
     opacity: 0.9;
     box-shadow: var(--shadow-lg);
     transform: rotate(3deg);
@@ -1022,7 +1027,7 @@
     width: 3px;
     background: var(--color-accent);
     border-radius: 2px;
-    z-index: 1;
+    z-index: var(--z-board);
     pointer-events: none;
   }
 

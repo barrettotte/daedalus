@@ -17,6 +17,7 @@
   let hasDescription = $derived(card.previewText && card.previewText.replace(/^#\s+.*\n*/, "").trim().length > 0);
   let checklistComplete = $derived(hasChecklist ? checkedCount === meta.checklist!.length : false);
   let counterComplete = $derived(meta.counter ? meta.counter.current === meta.counter.max : false);
+  let isFileIcon = $derived(meta.icon ? meta.icon.endsWith(".svg") || meta.icon.endsWith(".png") : false);
 
   // Sets this card as the selected card to open the detail modal.
   function openDetail(): void {
@@ -92,9 +93,16 @@
     </div>
 
     <div class="title">{meta.title}</div>
-    {#if meta.icon}<span class="card-icon"><CardIcon name={meta.icon} size={18} /></span>{/if}
+    {#if meta.icon}
+      <span class="card-icon">
+        {#if isFileIcon}<CardIcon name={meta.icon} size={18} />{:else}{meta.icon}{/if}
+      </span>
+    {/if}
 
     <div class="badges">
+      {#if meta.url}
+        <span class="badge-icon url-icon"><Icon name="link" size={12} /></span>
+      {/if}
       {#if hasDescription}
         <span class="badge-icon desc-icon"><Icon name="description" size={12} /></span>
       {/if}
@@ -193,9 +201,11 @@
 
   .card-icon {
     position: absolute;
-    bottom: 8px;
-    right: 10px;
+    bottom: 6px;
+    right: 8px;
     display: inline-flex;
+    font-size: 1rem;
+    line-height: 1;
     color: var(--color-text-tertiary);
   }
 
@@ -271,7 +281,7 @@
     padding: 1px 4px;
   }
 
-  .desc-icon {
+  .desc-icon, .url-icon {
     color: var(--color-text-tertiary);
   }
 

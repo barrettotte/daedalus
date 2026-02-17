@@ -369,6 +369,40 @@ func (a *App) DeleteAllCards(listDir string) error {
 	return nil
 }
 
+// GetScratchpad reads the board-level scratchpad.md file and returns its content.
+// Returns an empty string if the file does not exist.
+func (a *App) GetScratchpad() (string, error) {
+	if a.board == nil {
+		return "", fmt.Errorf("board not loaded")
+	}
+
+	path := filepath.Join(a.board.RootPath, "scratchpad.md")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("reading scratchpad: %w", err)
+	}
+	return string(data), nil
+}
+
+// SaveScratchpad writes the given content to the board-level scratchpad.md file.
+func (a *App) SaveScratchpad(content string) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+	a.pauseWatcher()
+
+	path := filepath.Join(a.board.RootPath, "scratchpad.md")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		slog.Error("failed to write scratchpad", "path", path, "error", err)
+		return fmt.Errorf("writing scratchpad: %w", err)
+	}
+	slog.Info("scratchpad saved", "bytes", len(content))
+	return nil
+}
+
 // findCardByPath searches all board lists for a card with the given file path.
 // Returns the list key, index within that list, and whether the card was found.
 func (a *App) findCardByPath(absPath string) (string, int, bool) {

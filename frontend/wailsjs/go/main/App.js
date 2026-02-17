@@ -38,6 +38,10 @@ export function GetMetrics() {
   return window['go']['main']['App']['GetMetrics']();
 }
 
+export function GetScratchpad() {
+  return window['go']['main']['App']['GetScratchpad']();
+}
+
 export function ListIcons() {
   return window['go']['main']['App']['ListIcons']();
 }
@@ -120,6 +124,10 @@ export function SaveMinimalView(arg1) {
 
 export function SavePinnedLists(arg1, arg2) {
   return window['go']['main']['App']['SavePinnedLists'](arg1, arg2);
+}
+
+export function SaveScratchpad(arg1) {
+  return window['go']['main']['App']['SaveScratchpad'](arg1);
 }
 
 export function SaveShowYearProgress(arg1) {

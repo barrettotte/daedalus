@@ -9,14 +9,14 @@
   import Icon from "./Icon.svelte";
   import CardIcon from "./CardIcon.svelte";
 
-  let { onclose }: { onclose: () => void } = $props();
+  let { onclose, onreload }: { onclose: () => void; onreload: () => Promise<void> } = $props();
 
-  let iconNames: string[] = $state([]);
+  let iconFileNames: string[] = $state([]);
   let confirmingDelete = $state<string | null>(null);
   let fileInput: HTMLInputElement | undefined = $state();
 
   function loadIcons(): void {
-    getIconNames().then(names => { iconNames = names; });
+    getIconNames().then(names => { iconFileNames = names; });
   }
 
   $effect(() => { loadIcons(); });
@@ -65,6 +65,7 @@
       await deleteIcon(name);
       confirmingDelete = null;
       loadIcons();
+      await onreload();
       addToast("Icon deleted", "success");
     } catch (err) {
       addToast(`Failed to delete icon: ${err}`);
@@ -100,7 +101,7 @@
       </div>
     </div>
     <div class="editor-body">
-      {#if iconNames.length === 0}
+      {#if iconFileNames.length === 0}
         <p class="empty-msg">No icons uploaded. Click Upload to add .svg or .png files.</p>
       {:else}
         <table class="icon-table">
@@ -112,7 +113,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each iconNames as name}
+            {#each iconFileNames as name}
               <tr class="icon-row">
                 <td class="col-preview">
                   <span class="icon-preview"><CardIcon name={name} size={20} /></span>

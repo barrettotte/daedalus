@@ -651,24 +651,6 @@
     margin-bottom: 20px;
   }
 
-  .save-body-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    background: var(--color-accent);
-    color: var(--color-text-inverse);
-    border: none;
-    padding: 3px 10px;
-    border-radius: 12px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    cursor: pointer;
-
-    &:hover {
-      filter: brightness(1.15);
-    }
-  }
-
   /* Markdown body */
   .loading-text {
     color: var(--color-text-muted);

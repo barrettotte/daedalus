@@ -227,7 +227,6 @@
     display: flex;
     gap: 4px;
     flex-wrap: wrap;
-    margin-left: 2px;
   }
 
   .label {

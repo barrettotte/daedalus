@@ -16,14 +16,14 @@
 
   let editorOpen = $state(false);
   let emojiValue = $state("");
-  let iconNames: string[] = $state([]);
+  let iconFileNames: string[] = $state([]);
 
   let isFileIcon = $derived(icon ? icon.endsWith(".svg") || icon.endsWith(".png") : false);
 
   function openEditor(): void {
     emojiValue = isFileIcon ? "" : icon;
     editorOpen = true;
-    getIconNames().then(names => { iconNames = names; });
+    getIconNames().then(names => { iconFileNames = names; });
   }
 
   function closeEditor(): void {
@@ -88,9 +88,9 @@
         <input class="emoji-input" type="text" placeholder="Type emoji..." bind:value={emojiValue} onkeydown={e => e.key === 'Enter' && commitEmoji()}/>
         <button class="emoji-save-btn" onclick={commitEmoji}>Set</button>
       </div>
-      {#if iconNames.length > 0}
+      {#if iconFileNames.length > 0}
         <div class="icon-grid">
-          {#each iconNames as name}
+          {#each iconFileNames as name}
             <button class="icon-option" class:active={name === icon} title={name} onclick={() => selectIcon(name)}>
               <CardIcon name={name} size={16} />
             </button>

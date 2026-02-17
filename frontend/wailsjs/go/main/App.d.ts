@@ -21,6 +21,8 @@ export function GetIconContent(arg1:string):Promise<string>;
 
 export function GetMetrics():Promise<main.AppMetrics>;
 
+export function GetScratchpad():Promise<string>;
+
 export function ListIcons():Promise<Array<string>>;
 
 export function LoadBoard(arg1:string):Promise<main.BoardResponse>;
@@ -62,6 +64,8 @@ export function SaveLockedLists(arg1:Array<string>):Promise<void>;
 export function SaveMinimalView(arg1:boolean):Promise<void>;
 
 export function SavePinnedLists(arg1:Array<string>,arg2:Array<string>):Promise<void>;
+
+export function SaveScratchpad(arg1:string):Promise<void>;
 
 export function SaveShowYearProgress(arg1:boolean):Promise<void>;
 

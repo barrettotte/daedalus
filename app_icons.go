@@ -1,6 +1,7 @@
 package main
 
 import (
+	"daedalus/pkg/daedalus"
 	"encoding/base64"
 	"fmt"
 	"log/slog"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 // iconsDir returns the path to the board's icons directory.
@@ -141,7 +143,9 @@ func (a *App) SaveCustomIcon(name string, content string) error {
 	return nil
 }
 
-// DeleteIcon removes an icon file from {boardRoot}/assets/icons/.
+// DeleteIcon removes an icon file from {boardRoot}/assets/icons/,
+// clears the icon field on any card that references it, and removes
+// the display name entry from board.yaml.
 func (a *App) DeleteIcon(name string) error {
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
@@ -167,6 +171,33 @@ func (a *App) DeleteIcon(name string) error {
 		return fmt.Errorf("deleting icon: %w", err)
 	}
 
-	slog.Info("icon deleted", "name", name)
+	// Strip icon from any card that references it.
+	affected := 0
+	for listKey, cards := range a.board.Lists {
+		for i, card := range cards {
+			if card.Metadata.Icon != name {
+				continue
+			}
+
+			card.Metadata.Icon = ""
+			now := time.Now()
+			card.Metadata.Updated = &now
+
+			body, err := daedalus.ReadCardContent(card.FilePath)
+			if err != nil {
+				slog.Error("failed to read card for icon cleanup", "path", card.FilePath, "error", err)
+				continue
+			}
+			if err := daedalus.WriteCardFile(card.FilePath, card.Metadata, body); err != nil {
+				slog.Error("failed to write card for icon cleanup", "path", card.FilePath, "error", err)
+				continue
+			}
+
+			a.board.Lists[listKey][i] = card
+			affected++
+		}
+	}
+
+	slog.Info("icon deleted", "name", name, "cardsAffected", affected)
 	return nil
 }

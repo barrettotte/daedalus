@@ -59,9 +59,15 @@ The prefix controls sort order.
 
 ## Custom Icons
 
-Custom icons on cards/lists are completely optional so this app does not ship with any to save size.
-Users can supply their own icons from sites like https://lucide.dev/icons/categories and they will be
-included with the user's kanban board data.
+Custom icons on cards/lists are completely optional so this app does not ship with any to stay slim and simple.
+
+Users can download icons from sites like https://lucide.dev/icons/categories or favicons and upload them to the board.
+Only `.png` and `.svg` are supported for simplicity, but see below for converting `.ico` files easily.
+
+```sh
+# one-liner to convert .ico to .png
+python3 -c "from PIL import Image; Image.open('favicon.ico').save('favicon.png')"
+```
 
 ## Development
 

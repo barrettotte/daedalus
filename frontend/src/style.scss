@@ -446,6 +446,25 @@ input[type="number"] {
     padding: 4px 12px;
 }
 
+.save-body-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--overlay-hover);
+    color: var(--color-success);
+    border: none;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+
+    &:hover {
+        background: var(--overlay-hover-strong);
+    }
+}
+
 .edit-body-textarea {
     width: 100%;
     min-height: 200px;

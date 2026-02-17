@@ -41,6 +41,7 @@
   import LabelColorEditor from "./components/LabelColorEditor.svelte";
   import IconManager from "./components/IconManager.svelte";
   import BoardStats from "./components/BoardStats.svelte";
+  import Scratchpad from "./components/Scratchpad.svelte";
   import TopBar from "./components/TopBar.svelte";
   import Icon from "./components/Icon.svelte";
   import CardContextMenu from "./components/CardContextMenu.svelte";
@@ -56,6 +57,7 @@
   let showLabelEditor = $state(false);
   let showIconManager = $state(false);
   let showBoardStats = $state(false);
+  let showScratchpad = $state(false);
   let showYearProgress = $state(false);
   let darkMode = $state(true);
   let zoomLevel = $state(1.0);
@@ -567,7 +569,7 @@
 
 <main>
   <TopBar bind:searchOpen bind:showYearProgress bind:darkMode
-    bind:showLabelEditor bind:showIconManager bind:showBoardStats bind:showKeyboardHelp bind:showAbout
+    bind:showLabelEditor bind:showIconManager bind:showScratchpad bind:showBoardStats bind:showKeyboardHelp bind:showAbout
     {zoomLevel} onzoomin={zoomIn} onzoomout={zoomOut} onzoomreset={zoomReset}
     oncreatecard={createCardDefault}
   />
@@ -778,10 +780,13 @@
     <LabelColorEditor onclose={() => showLabelEditor = false} onreload={initBoard} />
   {/if}
   {#if showIconManager}
-    <IconManager onclose={() => showIconManager = false} />
+    <IconManager onclose={() => showIconManager = false} onreload={initBoard} />
   {/if}
   {#if showBoardStats}
     <BoardStats onclose={() => showBoardStats = false} />
+  {/if}
+  {#if showScratchpad}
+    <Scratchpad onclose={() => showScratchpad = false} />
   {/if}
 
 </main>

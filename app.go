@@ -393,6 +393,21 @@ func (a *App) SaveMinimalView(minimal bool) error {
 	return nil
 }
 
+// SaveZoom persists the board zoom level to board.yaml.
+func (a *App) SaveZoom(level float64) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+	a.pauseWatcher()
+	a.board.Config.Zoom = &level
+	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
+		slog.Error("failed to save zoom level", "error", err)
+		return err
+	}
+	slog.Debug("zoom level saved", "level", level)
+	return nil
+}
+
 // SaveBoardTitle sets the board display title and persists to board.yaml.
 func (a *App) SaveBoardTitle(title string) error {
 	if a.board == nil {

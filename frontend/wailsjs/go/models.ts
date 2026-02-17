@@ -32,6 +32,7 @@ export namespace daedalus {
 	    showYearProgress?: boolean;
 	    darkMode?: boolean;
 	    minimalView?: boolean;
+	    zoom?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new BoardConfig(source);
@@ -46,6 +47,7 @@ export namespace daedalus {
 	        this.showYearProgress = source["showYearProgress"];
 	        this.darkMode = source["darkMode"];
 	        this.minimalView = source["minimalView"];
+	        this.zoom = source["zoom"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

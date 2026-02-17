@@ -125,3 +125,7 @@ export function SavePinnedLists(arg1, arg2) {
 export function SaveShowYearProgress(arg1) {
   return window['go']['main']['App']['SaveShowYearProgress'](arg1);
 }
+
+export function SaveZoom(arg1) {
+  return window['go']['main']['App']['SaveZoom'](arg1);
+}

@@ -122,6 +122,9 @@
     <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
     <circle cx="19" cy="12" r="1.5" fill="currentColor"/>
 
+  {:else if name === 'minus'}
+    <line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+
   {:else if name === 'moon'}
     <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 

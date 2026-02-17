@@ -31,6 +31,9 @@ export interface KeyboardActions {
   createCard: (listKey: string) => void;
   createCardDefault: () => void;
   toggleMinimalView: () => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  zoomReset: () => void;
   scrollListIntoView: (key: string) => void;
 }
 
@@ -113,6 +116,27 @@ export function handleBoardKeydown(e: KeyboardEvent, state: KeyboardState, actio
   if (e.key === "m" && !e.metaKey && !e.ctrlKey && !e.altKey) {
     e.preventDefault();
     actions.toggleMinimalView();
+    return;
+  }
+
+  // = or + - Zoom in
+  if ((e.key === "=" || e.key === "+") && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    e.preventDefault();
+    actions.zoomIn();
+    return;
+  }
+
+  // - (minus) - Zoom out
+  if (e.key === "-" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    e.preventDefault();
+    actions.zoomOut();
+    return;
+  }
+
+  // 0 - Reset zoom
+  if (e.key === "0" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    e.preventDefault();
+    actions.zoomReset();
     return;
   }
 

@@ -64,3 +64,5 @@ export function SaveMinimalView(arg1:boolean):Promise<void>;
 export function SavePinnedLists(arg1:Array<string>,arg2:Array<string>):Promise<void>;
 
 export function SaveShowYearProgress(arg1:boolean):Promise<void>;
+
+export function SaveZoom(arg1:number):Promise<void>;

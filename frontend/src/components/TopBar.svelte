@@ -16,7 +16,11 @@
     showLabelEditor = $bindable(false),
     showKeyboardHelp = $bindable(false),
     showAbout = $bindable(false),
+    zoomLevel = 1.0,
     oncreatecard,
+    onzoomin,
+    onzoomout,
+    onzoomreset,
   }: {
     searchOpen: boolean;
     showYearProgress: boolean;
@@ -24,7 +28,11 @@
     showLabelEditor: boolean;
     showKeyboardHelp: boolean;
     showAbout: boolean;
+    zoomLevel: number;
     oncreatecard: () => void;
+    onzoomin: () => void;
+    onzoomout: () => void;
+    onzoomreset: () => void;
   } = $props();
 
   let searchInputEl: HTMLInputElement | undefined = $state(undefined);
@@ -201,6 +209,17 @@
     <button class="top-btn" class:active={$minimalView} onclick={toggleMinimalView} title="Minimal view (M)">
       <Icon name="list" size={14} />
     </button>
+    <div class="zoom-controls">
+      <button class="zoom-btn" onclick={onzoomout} title="Zoom out (-)">
+        <Icon name="minus" size={10} />
+      </button>
+      <button class="zoom-label" onclick={onzoomreset} title="Reset zoom (0)">
+        {Math.round(zoomLevel * 100)}%
+      </button>
+      <button class="zoom-btn" onclick={onzoomin} title="Zoom in (+)">
+        <Icon name="plus" size={10} />
+      </button>
+    </div>
     <button class="top-btn" onclick={() => window.location.reload()} title="Reload board">
       <Icon name="refresh" size={14} />
     </button>
@@ -375,6 +394,48 @@
     &:hover {
       color: var(--color-text-primary);
       background: var(--overlay-hover-medium);
+    }
+  }
+
+  .zoom-controls {
+    display: flex;
+    align-items: center;
+    background: var(--overlay-hover-light);
+    border-radius: 4px;
+    border: 1px solid transparent;
+    height: 28px;
+  }
+
+  .zoom-btn {
+    all: unset;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 100%;
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    border-radius: 4px;
+
+    &:hover {
+      background: var(--overlay-hover-medium);
+      color: var(--color-text-primary);
+    }
+  }
+
+  .zoom-label {
+    all: unset;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    padding: 0 2px;
+    cursor: pointer;
+    min-width: 34px;
+    text-align: center;
+
+    &:hover {
+      color: var(--color-text-primary);
     }
   }
 

@@ -7,7 +7,7 @@
   import {
     LoadBoard, SaveCollapsedLists, SaveHalfCollapsedLists, SaveLockedLists,
     SavePinnedLists, DeleteList, DeleteAllCards, CreateList, MoveAllCards,
-    SaveLabelColors, SaveMinimalView, SaveListOrder,
+    SaveLabelColors, SaveMinimalView, SaveListOrder, SaveZoom,
   } from "../wailsjs/go/main/App";
   import { get } from "svelte/store";
   import {
@@ -54,6 +54,7 @@
   let showLabelEditor = $state(false);
   let showYearProgress = $state(false);
   let darkMode = $state(true);
+  let zoomLevel = $state(1.0);
 
   let boardContainerEl: HTMLDivElement | undefined = $state(undefined);
   let firstLoad = true;
@@ -323,6 +324,9 @@
       if (response.config?.darkMode !== undefined && response.config.darkMode !== null) {
         darkMode = response.config.darkMode;
       }
+      if (response.config?.zoom !== undefined && response.config.zoom !== null) {
+        zoomLevel = response.config.zoom;
+      }
       document.documentElement.classList.toggle("light", !darkMode);
 
       const p = response.profile;
@@ -395,6 +399,22 @@
     }
   }
 
+  // Zoom functions -- clamp between 0.5 and 1.5, step by 0.1.
+  function zoomIn(): void {
+    zoomLevel = Math.min(1.5, Math.round((zoomLevel + 0.1) * 10) / 10);
+    saveWithToast(SaveZoom(zoomLevel), "save zoom level");
+  }
+
+  function zoomOut(): void {
+    zoomLevel = Math.max(0.5, Math.round((zoomLevel - 0.1) * 10) / 10);
+    saveWithToast(SaveZoom(zoomLevel), "save zoom level");
+  }
+
+  function zoomReset(): void {
+    zoomLevel = 1.0;
+    saveWithToast(SaveZoom(zoomLevel), "save zoom level");
+  }
+
   // Dispatches global keyboard shortcuts to the extracted handler with current state.
   function handleGlobalKeydown(e: KeyboardEvent): void {
     handleBoardKeydown(e, {
@@ -425,6 +445,9 @@
           return next;
         });
       },
+      zoomIn,
+      zoomOut,
+      zoomReset,
       scrollListIntoView,
     });
   }
@@ -541,6 +564,7 @@
 <main>
   <TopBar bind:searchOpen bind:showYearProgress bind:darkMode
     bind:showLabelEditor bind:showKeyboardHelp bind:showAbout
+    {zoomLevel} onzoomin={zoomIn} onzoomout={zoomOut} onzoomreset={zoomReset}
     oncreatecard={createCardDefault}
   />
 
@@ -653,6 +677,7 @@
     <div class="error">{error}</div>
   {:else if $isLoaded}
     <div class="board-container" role="group" class:modal-open={$selectedCard || $draftListKey}
+      style="zoom: {zoomLevel}"
       bind:this={boardContainerEl}
       ondragover={(e) => { if ($listDragging && boardContainerEl) { computeListDragOver(e, boardContainerEl, scrollableKeys); } }}
       ondrop={(e) => { if ($listDragging) { handleListDrop(e); } }}

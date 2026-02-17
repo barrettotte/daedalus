@@ -52,6 +52,19 @@
   let editingUri = $state(false);
   let editUri = $state("");
 
+  // Suppress blur when a context menu just opened so right-click paste works.
+  let suppressNextBlur = false;
+  function onFieldContextMenu(): void {
+    suppressNextBlur = true;
+  }
+  function guardedBlur(fn: () => void): void {
+    if (suppressNextBlur) {
+      suppressNextBlur = false;
+      return;
+    }
+    fn();
+  }
+
   // Guards against stale async responses when rapidly switching cards.
   let loadGeneration = 0;
 
@@ -79,8 +92,9 @@
   // Saves the title on blur, or discards if unchanged. Defaults blank titles to the card number.
   async function blurTitle(): Promise<void> {
     editingTitle = false;
+    editTitle = editTitle.trim();
 
-    if (!editTitle || !editTitle.trim()) {
+    if (!editTitle) {
       editTitle = String(meta!.id);
     }
     if (editTitle === meta!.title) {
@@ -105,8 +119,18 @@
     editingBody = true;
   }
 
+  // Clears the description.
+  async function clearBody(): Promise<void> {
+    editBody = "";
+    await saveBody();
+    editingBody = false;
+  }
+
   // Handles clicks on the markdown body -- opens links via system handler, otherwise enters edit mode.
   function handleBodyClick(e: MouseEvent): void {
+    if (e.button !== 0) {
+      return;
+    }
     const target = e.target as HTMLElement;
     const anchor = target.closest("a");
 
@@ -121,6 +145,7 @@
 
   // Saves the body content to disk if changed. Does not close the editor.
   async function saveBody(): Promise<void> {
+    editBody = editBody.trim();
     if (editBody === rawBody) {
       return;
     }
@@ -213,7 +238,7 @@
   }
 
   function saveChecklistTitle(title: string): Promise<void> {
-    return saveCardMeta({ checklist_title: title }, "save checklist title");
+    return saveCardMeta({ checklist_title: title.trim() || "Checklist" }, "save checklist title");
   }
 
   function saveLabels(labels: string[]): Promise<void> {
@@ -427,9 +452,10 @@
     <div class="modal-dialog size-lg card-detail-dialog" role="dialog">
       <div class="modal-header card-editor">
         {#if editingTitle}
-          <input class="edit-title-input" type="text" bind:value={editTitle} onblur={blurTitle} use:blurOnEnter use:autoFocus/>
+          <input class="edit-title-input" type="text" bind:value={editTitle}
+            onblur={() => guardedBlur(blurTitle)} oncontextmenu={onFieldContextMenu} use:blurOnEnter use:autoFocus/>
         {:else}
-          <button class="card-title clickable" title="Click to edit title" onclick={startEditTitle}>{meta.title}</button>
+          <button class="card-title clickable" title="Click to edit title" onclick={(e) => e.button === 0 && startEditTitle()}>{meta.title}</button>
         {/if}
         <div class="header-btns">
           {#if !loading}
@@ -467,7 +493,7 @@
               <Icon name="link" size={14} style="color: var(--color-text-muted); flex-shrink: 0" />
               <input class="uri-input" type="text" placeholder="https://..."
                 bind:value={editUri}
-                onblur={blurUri}
+                onblur={() => guardedBlur(blurUri)} oncontextmenu={onFieldContextMenu}
                 onkeydown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
                 use:autoFocus
               />
@@ -476,7 +502,7 @@
               </button>
             {:else if meta.url}
               <Icon name="link" size={14} style="color: var(--color-text-muted); flex-shrink: 0" />
-              <button class="uri-link" title={meta.url} onclick={openUri}>{meta.url}</button>
+              <button class="uri-link" title={meta.url} onclick={(e) => e.button === 0 && openUri()}>{meta.url}</button>
               <button class="uri-action-btn" title="Edit URI" onclick={startEditUri}>
                 <Icon name="pencil" size={12} />
               </button>
@@ -484,8 +510,8 @@
                 <Icon name="trash" size={12} />
               </button>
             {:else}
-              <button class="uri-add-btn" onclick={startEditUri}>
-                <Icon name="link" size={12} /> Add URI
+              <button class="uri-add-btn" onclick={startEditUri} title="Primary URI">
+                <Icon name="link" size={12} /> Add Primay URI
               </button>
             {/if}
           </div>
@@ -493,7 +519,9 @@
           <!-- Description -->
           <div class="section">
             {#if editingBody}
-              <textarea class="edit-body-textarea" bind:value={editBody} onblur={blurBody} placeholder="Card description (markdown)" use:autoFocus></textarea>
+              <textarea class="edit-body-textarea" bind:value={editBody}
+                onblur={() => guardedBlur(blurBody)} oncontextmenu={onFieldContextMenu}
+                placeholder="Card description (markdown)" use:autoFocus></textarea>
               <div class="edit-footer">
                 <span>{charCount} chars, {wordCount} words</span>
                 <button class="save-body-btn" title="Save" onmousedown={e => { e.preventDefault(); blurBody(); }}>
@@ -503,11 +531,23 @@
             {:else if loading}
               <p class="loading-text">Loading...</p>
             {:else if bodyHtml.trim()}
-              <div class="markdown-body clickable" role="button" tabindex="0"
-                onclick={handleBodyClick} onkeydown={e => e.key === 'Enter' && startEditBody()}
-              >{@html bodyHtml}</div>
+              <div class="desc-wrapper">
+                <div class="desc-actions">
+                  <button class="uri-action-btn" title="Edit description" onclick={startEditBody}>
+                    <Icon name="pencil" size={12} />
+                  </button>
+                  <button class="uri-action-btn remove" title="Delete description" onclick={clearBody}>
+                    <Icon name="trash" size={12} />
+                  </button>
+                </div>
+                <div class="markdown-body clickable" role="button" tabindex="0"
+                  onclick={handleBodyClick} onkeydown={e => e.key === 'Enter' && startEditBody()}
+                >{@html bodyHtml}</div>
+              </div>
             {:else}
-              <button class="empty-desc clickable" title="Click to add description" onclick={startEditBody}>Enter description...</button>
+              <button class="empty-desc" title="Click to add description" onclick={startEditBody}>
+                <Icon name="pencil" size={12} /> Enter description...
+              </button>
             {/if}
           </div>
 
@@ -651,6 +691,25 @@
     margin-bottom: 20px;
   }
 
+  .desc-wrapper {
+    position: relative;
+  }
+
+  .desc-actions {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  .desc-wrapper:hover .desc-actions {
+    opacity: 1;
+  }
+
   /* Markdown body */
   .loading-text {
     color: var(--color-text-muted);
@@ -659,10 +718,16 @@
 
   .empty-desc {
     all: unset;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
     color: var(--color-text-muted);
-    font-size: 0.85rem;
-    font-style: italic;
-    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--color-text-primary);
+    }
   }
 
   /* Delete confirmation */

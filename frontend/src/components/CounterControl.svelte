@@ -93,7 +93,7 @@
 
     const updated = {
       ...counter,
-      label: editLabel,
+      label: editLabel.trim(),
       start: editStart,
       max: editMax,
       step: Math.max(1, editStep || 1),
@@ -219,6 +219,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
+    margin-top: 2px;
   }
 
   .counter-fraction {

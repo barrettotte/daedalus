@@ -17,12 +17,6 @@ func (a *App) iconsDir() string {
 	return filepath.Join(a.board.RootPath, "assets", "icons")
 }
 
-// isIconExt returns true if the file extension is a supported icon type (.svg or .png).
-func isIconExt(name string) bool {
-	ext := strings.ToLower(filepath.Ext(name))
-	return ext == ".svg" || ext == ".png"
-}
-
 // ListIcons returns a sorted list of icon filenames from {boardRoot}/assets/icons/.
 // Returns an empty list if the directory does not exist.
 func (a *App) ListIcons() ([]string, error) {
@@ -45,7 +39,7 @@ func (a *App) ListIcons() ([]string, error) {
 		if entry.IsDir() {
 			continue
 		}
-		if isIconExt(entry.Name()) {
+		if daedalus.IsIconExt(entry.Name()) {
 			names = append(names, entry.Name())
 		}
 	}
@@ -118,7 +112,8 @@ func (a *App) SaveCustomIcon(name string, content string) error {
 	}
 
 	ext := strings.ToLower(filepath.Ext(name))
-	if ext == ".svg" {
+	switch ext {
+	case ".svg":
 		if !strings.Contains(content, "<svg") {
 			return fmt.Errorf("invalid SVG content")
 		}
@@ -126,7 +121,7 @@ func (a *App) SaveCustomIcon(name string, content string) error {
 			slog.Error("failed to write SVG icon", "name", name, "error", err)
 			return fmt.Errorf("writing icon: %w", err)
 		}
-	} else if ext == ".png" {
+	case ".png":
 		data, err := base64.StdEncoding.DecodeString(content)
 		if err != nil {
 			return fmt.Errorf("invalid base64 content: %w", err)
@@ -135,7 +130,7 @@ func (a *App) SaveCustomIcon(name string, content string) error {
 			slog.Error("failed to write PNG icon", "name", name, "error", err)
 			return fmt.Errorf("writing icon: %w", err)
 		}
-	} else {
+	default:
 		return fmt.Errorf("unsupported icon type: %s", ext)
 	}
 

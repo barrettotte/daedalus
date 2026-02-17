@@ -8,6 +8,7 @@
   import { SaveShowYearProgress, SaveDarkMode, SaveBoardTitle, SaveMinimalView } from "../../wailsjs/go/main/App";
   import { autoFocus } from "../lib/utils";
   import Icon from "./Icon.svelte";
+  import appIcon from "../assets/images/daedalus.svg";
 
   let {
     searchOpen = $bindable(false),
@@ -172,13 +173,16 @@
 </script>
 
 <div class="top-bar">
-  {#if editingTitle}
-    <input class="board-title-input" type="text" bind:value={editTitleValue} onblur={saveTitle} onkeydown={handleTitleKeydown} use:autoFocus/>
-  {:else}
-    <button class="board-title" onclick={startEditTitle} title="Click to edit board title">
-      {$boardTitle}
-    </button>
-  {/if}
+  <div class="top-bar-brand">
+    <img src={appIcon} alt="" class="app-icon" />
+    {#if editingTitle}
+      <input class="board-title-input" type="text" bind:value={editTitleValue} onblur={saveTitle} onkeydown={handleTitleKeydown} use:autoFocus/>
+    {:else}
+      <button class="board-title" onclick={startEditTitle} title="Click to edit board title">
+        {$boardTitle}
+      </button>
+    {/if}
+  </div>
   <div class="top-bar-actions">
     <button class="top-btn" onclick={oncreatecard} title="New card (N)">
       <Icon name="plus" size={14} />
@@ -209,21 +213,6 @@
         <Icon name="search" size={14} />
       </button>
     {/if}
-    <button class="top-btn" onclick={() => showLabelEditor = true} title="Label manager">
-      <Icon name="tag" size={14} />
-    </button>
-    <button class="top-btn" onclick={() => showIconManager = true} title="Icon manager">
-      <Icon name="image" size={14} />
-    </button>
-    <button class="top-btn" onclick={() => showScratchpad = true} title="Scratchpad">
-      <Icon name="notepad" size={14} />
-    </button>
-    <button class="top-btn" onclick={() => showBoardStats = true} title="Board statistics">
-      <Icon name="chart-bar" size={14} />
-    </button>
-    <button class="top-btn" class:active={$minimalView} onclick={toggleMinimalView} title="Minimal view (M)">
-      <Icon name="list" size={14} />
-    </button>
     <div class="zoom-controls">
       <button class="zoom-btn" onclick={onzoomout} title="Zoom out (-)">
         <Icon name="minus" size={10} />
@@ -238,6 +227,20 @@
     <button class="top-btn" onclick={() => window.location.reload()} title="Reload board">
       <Icon name="refresh" size={14} />
     </button>
+    <span class="top-bar-divider"></span>
+    <button class="top-btn" onclick={() => showLabelEditor = true} title="Label manager">
+      <Icon name="tag" size={14} />
+    </button>
+    <button class="top-btn" onclick={() => showIconManager = true} title="Icon manager">
+      <Icon name="image" size={14} />
+    </button>
+    <button class="top-btn" onclick={() => showScratchpad = true} title="Scratchpad">
+      <Icon name="notepad" size={14} />
+    </button>
+    <button class="top-btn" onclick={() => showBoardStats = true} title="Board statistics">
+      <Icon name="chart-bar" size={14} />
+    </button>
+    <span class="top-bar-divider"></span>
     <button class="top-btn" class:active={showYearProgress} onclick={toggleYearProgress} title="Year progress">
       <Icon name="hourglass" size={14} />
     </button>
@@ -245,7 +248,10 @@
       <Icon name={darkMode ? "sun" : "moon"} size={14} />
     </button>
     <button class="top-btn" class:active={$showMetrics} onclick={() => showMetrics.update(v => !v)} title="Toggle metrics">
-      <Icon name="gauge" size={14} />
+      <Icon name="activity" size={14} />
+    </button>
+    <button class="top-btn" class:active={$minimalView} onclick={toggleMinimalView} title="Minimal view (M)">
+      <Icon name="list" size={14} />
     </button>
     <button class="top-btn" onclick={() => showKeyboardHelp = true} title="Keyboard shortcuts (?)">
       <Icon name="keyboard" size={14} />
@@ -268,22 +274,42 @@
 
 <style lang="scss">
   .top-bar {
-    height: 50px;
+    min-height: 62px;
     background: var(--color-bg-inset);
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    padding: 0 20px;
+    padding: 0 16px 0 10px;
+    gap: 6px;
     border-bottom: 1px solid var(--color-border);
+  }
+
+  .top-bar-brand {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .app-icon {
+    height: 42px;
+    width: 42px;
+    flex-shrink: 0;
+    margin-right: 6px;
   }
 
   .board-title {
     all: unset;
-    font-size: 1.1rem;
+    font-size: 1.4rem;
     font-weight: 700;
     color: var(--color-text-primary);
     cursor: pointer;
     padding: 2px 6px;
     border-radius: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 1;
+    min-width: 0;
 
     &:hover {
       background: var(--overlay-hover);
@@ -294,7 +320,7 @@
     background: var(--color-bg-base);
     border: 1px solid var(--color-accent);
     color: var(--color-text-primary);
-    font-size: 1.1rem;
+    font-size: 1.4rem;
     font-weight: 700;
     padding: 2px 6px;
     border-radius: 4px;
@@ -353,6 +379,7 @@
     display: flex;
     align-items: center;
     width: 280px;
+    max-width: 100%;
     background: var(--overlay-hover-light);
     border: 1px solid var(--color-border-medium);
     border-radius: 4px;
@@ -416,9 +443,9 @@
     display: flex;
     align-items: center;
     background: var(--overlay-hover-light);
-    border-radius: 4px;
+    border-radius: 5px;
     border: 1px solid transparent;
-    height: 28px;
+    height: 34px;
   }
 
   .zoom-btn {
@@ -456,8 +483,39 @@
 
   .top-bar-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 6px;
+    align-items: center;
     margin-left: auto;
+    justify-content: flex-end;
+  }
+
+  @media (max-width: 960px) {
+    .top-bar {
+      justify-content: center;
+      padding-top: 8px;
+      padding-bottom: 8px;
+    }
+
+    .top-bar-brand {
+      width: 100%;
+      justify-content: center;
+      margin-bottom: 4px;
+    }
+
+    .top-bar-actions {
+      justify-content: center;
+      margin-left: 0;
+      width: 100%;
+    }
+  }
+
+  .top-bar-divider {
+    width: 2px;
+    height: 26px;
+    background: var(--color-border-medium);
+    margin: 0 8px;
+    flex-shrink: 0;
   }
 
   .top-btn {
@@ -469,8 +527,8 @@
     color: var(--color-text-secondary);
     font-size: 0.78rem;
     font-weight: 500;
-    padding: 5px 10px;
-    border-radius: 4px;
+    padding: 9px 11px;
+    border-radius: 5px;
     cursor: pointer;
     transition: background 0.15s, color 0.15s;
 

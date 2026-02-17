@@ -37,7 +37,7 @@ export function formatDate(d: string | null | undefined): string {
   return `${y}-${m}-${day}`;
 }
 
-// Formats a date value as "YYYY-MM-DD, h:mm AM/PM".
+// Formats a date value as "YYYY-MM-DD h:mm AM/PM".
 export function formatDateTime(d: string | null | undefined): string {
   if (!d) {
     return "";
@@ -49,8 +49,9 @@ export function formatDateTime(d: string | null | undefined): string {
   const min = String(dt.getMinutes()).padStart(2, "0");
   const ampm = h >= 12 ? "PM" : "AM";
   h = h % 12 || 12;
+  const hStr = String(h).padStart(2, "\u00A0");
 
-  return `${date} ${h}:${min} ${ampm}`;
+  return `${date} ${hStr}:${min} ${ampm}`;
 }
 
 // Returns the config title override if set, otherwise the formatted directory name.
@@ -117,10 +118,16 @@ export function backdropClose(node: HTMLElement, onclose: () => void): ActionRet
   let mouseDownOnBackdrop = false;
 
   function handleMousedown(e: MouseEvent): void {
+    if (e.button !== 0) {
+      return;
+    }
     mouseDownOnBackdrop = e.target === e.currentTarget;
   }
 
   function handleMouseup(e: MouseEvent): void {
+    if (e.button !== 0) {
+      return;
+    }
     if (mouseDownOnBackdrop && e.target === e.currentTarget) {
       onclose();
     }
@@ -144,6 +151,9 @@ export function backdropClose(node: HTMLElement, onclose: () => void): ActionRet
 // Svelte action that calls a callback when a click lands outside the attached element.
 export function clickOutside(node: HTMLElement, callback: () => void): ActionReturn<() => void> {
   function handleClick(e: MouseEvent): void {
+    if (e.button !== 0) {
+      return;
+    }
     const target = e.target as Node;
     if (!target.isConnected) {
       return;

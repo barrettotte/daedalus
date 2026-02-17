@@ -82,7 +82,7 @@ func (a *App) DeleteList(listDirName string) error {
 	// Sum file bytes for metrics update
 	var totalBytes int64
 	for _, card := range cards {
-		totalBytes += getFileSize(card.FilePath)
+		totalBytes += daedalus.GetFileSize(card.FilePath)
 	}
 
 	// Remove directory from disk
@@ -194,8 +194,3 @@ func (a *App) SaveLockedLists(locked []string) error {
 	return nil
 }
 
-// isListLocked returns true if the given list directory is marked as locked in the config.
-func isListLocked(config *daedalus.BoardConfig, dir string) bool {
-	idx := daedalus.FindListEntry(config.Lists, dir)
-	return idx >= 0 && config.Lists[idx].Locked
-}

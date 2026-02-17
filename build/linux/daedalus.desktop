@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Daedalus
+Comment=Kanban board desktop app
+Exec=daedalus
+Icon=ICON_PATH
+Type=Application
+Categories=Office;ProjectManagement;
+StartupWMClass=daedalus

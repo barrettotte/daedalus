@@ -4,6 +4,7 @@
 
   import { labelColors } from "../stores/board";
   import { labelColor, clickOutside } from "../lib/utils";
+  import Icon from "./Icon.svelte";
 
   let {
     labels,
@@ -30,41 +31,72 @@
   }
 </script>
 
-<div class="sidebar-section" use:clickOutside={() => { labelDropdownOpen = false; }}>
-  {#if labels.length > 0}
-    <h4 class="sidebar-title">Labels</h4>
-  {/if}
-  {#if labels.length > 0}
+{#if labels.length > 0}
+  <div class="sidebar-section label-section" use:clickOutside={() => { labelDropdownOpen = false; }}>
+    <div class="section-header">
+      <h4 class="sidebar-title">Labels</h4>
+      <div class="section-header-actions">
+        {#if availableLabels.length > 0}
+          <button class="counter-header-btn" title="Add label" onclick={() => labelDropdownOpen = !labelDropdownOpen}>
+            <Icon name="plus" size={12} />
+          </button>
+        {/if}
+        <button class="counter-header-btn remove" title="Remove all labels" onclick={() => onchange([])}>
+          <Icon name="trash" size={12} />
+        </button>
+      </div>
+    </div>
     <div class="sidebar-labels">
       {#each [...labels].sort() as label}
-        <button class="label label-removable" title="Remove {label}" style="background: {labelColor(label, $labelColors)}" onclick={() => removeLabel(label)}>
+        <button class="label label-removable" title="Remove {label}"
+          style="background: {labelColor(label, $labelColors)}"
+          onclick={() => removeLabel(label)}
+        >
           {label}
         </button>
       {/each}
     </div>
-  {/if}
-  {#if availableLabels.length > 0}
-    <div class="label-add-wrapper">
-      <button class="add-counter-btn" onclick={() => labelDropdownOpen = !labelDropdownOpen}>+ Add label</button>
-      {#if labelDropdownOpen}
-        <div class="label-add-menu">
-          {#each availableLabels as label}
-            <button class="label-add-option" onclick={() => addLabel(label)}>
-              <span class="label-add-swatch" style="background: {$labelColors[label]}"></span>
-              {label}
-            </button>
-          {/each}
-        </div>
-      {/if}
-    </div>
-  {/if}
-</div>
+    {#if labelDropdownOpen && availableLabels.length > 0}
+      <div class="label-add-menu">
+        {#each availableLabels as label}
+          <button class="label-add-option" onclick={() => addLabel(label)}>
+            <span class="label-add-swatch" style="background: {$labelColors[label]}"></span>
+            {label}
+          </button>
+        {/each}
+      </div>
+    {/if}
+  </div>
+{:else}
+  <div class="sidebar-section" use:clickOutside={() => { labelDropdownOpen = false; }}>
+    {#if availableLabels.length > 0}
+      <div class="label-add-wrapper">
+        <button class="add-counter-btn" onclick={() => labelDropdownOpen = !labelDropdownOpen}>+ Add label</button>
+        {#if labelDropdownOpen}
+          <div class="label-add-menu">
+            {#each availableLabels as label}
+              <button class="label-add-option" onclick={() => addLabel(label)}>
+                <span class="label-add-swatch" style="background: {$labelColors[label]}"></span>
+                {label}
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/if}
+  </div>
+{/if}
 
 <style lang="scss">
+  .label-section {
+    position: relative;
+  }
+
   .sidebar-labels {
     display: flex;
     gap: 4px;
     flex-wrap: wrap;
+    margin-top: 2px;
   }
 
   .label {
@@ -93,7 +125,6 @@
 
   .label-add-wrapper {
     position: relative;
-    margin-top: 4px;
   }
 
   .label-add-menu {
@@ -108,6 +139,12 @@
     z-index: 10;
     max-height: 200px;
     overflow-y: auto;
+  }
+
+  .label-section > .label-add-menu {
+    top: auto;
+    margin-top: 4px;
+    position: relative;
   }
 
   .label-add-option {

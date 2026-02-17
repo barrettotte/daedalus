@@ -54,11 +54,14 @@
     <div class="section-header">
       <h4 class="sidebar-title">Icon</h4>
       <span class="sidebar-inline-detail">
-        {#if isFileIcon}
-          <span class="icon-display"><CardIcon name={icon} size={14} /></span>
-        {:else}
-          <span class="icon-display">{icon}</span>
-        {/if}
+        <span class="sidebar-inline-sep">-</span>
+        <button class="icon-display-btn" onclick={openEditor} title="Change icon">
+          {#if isFileIcon}
+            <CardIcon name={icon} size={14} />
+          {:else}
+            {icon}
+          {/if}
+        </button>
       </span>
       <div class="section-header-actions">
         <button class="counter-header-btn" title="Change icon" onclick={openEditor}>
@@ -106,15 +109,19 @@
 {/if}
 
 <style lang="scss">
-  .sidebar-inline-detail {
-    margin-left: 8px;
-  }
-
-  .icon-display {
+  .icon-display-btn {
+    all: unset;
     display: inline-flex;
     font-size: 1rem;
     line-height: 1;
     color: var(--color-text-secondary);
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 2px 4px;
+
+    &:hover {
+      background: var(--overlay-hover);
+    }
   }
 
   .icon-editor-body {

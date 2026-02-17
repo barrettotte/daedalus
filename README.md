@@ -15,7 +15,8 @@ I really don't care for the obsessive customization and installing a bunch of co
 I've used dataviews, bases, and the Kanban plugin, but none of them accomplished exactly what I want.
 So this was built specifically as a complementary application to Obsidian.
 
-Additionally, my single board on Trello was using ~3GB of RAM which is stupid.
+Additionally, my single board on Trello was using between 1-3 GB of RAM which is stupid.
+Often times dragging cards around would lag and not work at all.
 So this is meant to be a lightweight and fast replacement.
 
 The user is put in charge of data retention. 

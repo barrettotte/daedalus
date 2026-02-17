@@ -1,6 +1,11 @@
+PREFIX ?= $(HOME)/.local
+BINDIR = $(PREFIX)/bin
+DATADIR = $(PREFIX)/share/daedalus
+APPDIR = $(PREFIX)/share/applications
+
 .PHONY: \
 	dev build test lint fmt \
-	clean \
+	clean install uninstall \
 	frontend-install frontend-dev frontend-build frontend-check
 
 dev:
@@ -22,6 +27,25 @@ fmt:
 clean:
 	rm -rf build/bin
 	rm -rf frontend/dist
+
+install:
+	mkdir -p $(BINDIR) $(DATADIR) $(APPDIR)
+	cp build/bin/daedalus $(BINDIR)/daedalus
+	cp build/linux/daedalus.svg $(DATADIR)/daedalus.svg
+	sed 's|ICON_PATH|$(DATADIR)/daedalus.svg|' build/linux/daedalus.desktop > $(APPDIR)/daedalus.desktop
+    # for GNOME
+	-update-desktop-database $(APPDIR) 2>/dev/null
+    # for KDE
+	-kbuildsycoca6 2>/dev/null
+
+uninstall:
+	rm -f $(BINDIR)/daedalus
+	rm -rf $(DATADIR)
+	rm -f $(APPDIR)/daedalus.desktop
+    # for GNOME
+	-update-desktop-database $(APPDIR) 2>/dev/null
+    # for KDE
+	-kbuildsycoca6 2>/dev/null
 
 # FRONTEND
 

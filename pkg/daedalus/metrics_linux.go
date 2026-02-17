@@ -1,6 +1,6 @@
 //go:build linux
 
-package main
+package daedalus
 
 import (
 	"fmt"
@@ -9,8 +9,8 @@ import (
 	"strings"
 )
 
-// readProcessRSS reads the resident set size from /proc/self/statm in megabytes.
-func readProcessRSS() float64 {
+// ReadProcessRSS reads the resident set size from /proc/self/statm in megabytes.
+func ReadProcessRSS() float64 {
 	data, err := os.ReadFile("/proc/self/statm")
 	if err != nil {
 		return 0
@@ -22,8 +22,8 @@ func readProcessRSS() float64 {
 	return float64(resident*int64(os.Getpagesize())) / 1024 / 1024
 }
 
-// readProcessCPUTicks reads utime + stime from /proc/self/stat in clock ticks.
-func readProcessCPUTicks() int64 {
+// ReadProcessCPUTicks reads utime + stime from /proc/self/stat in clock ticks.
+func ReadProcessCPUTicks() int64 {
 	data, err := os.ReadFile("/proc/self/stat")
 	if err != nil {
 		return 0

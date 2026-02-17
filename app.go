@@ -194,9 +194,9 @@ func (a *App) GetMetrics() AppMetrics {
 	}
 
 	// Process-level metrics from /proc/self
-	processRSS := readProcessRSS()
+	processRSS := daedalus.ReadProcessRSS()
 	processCPU := 0.0
-	cpuTicks := readProcessCPUTicks()
+	cpuTicks := daedalus.ReadProcessCPUTicks()
 	now := time.Now()
 	if a.prevCPUTicks > 0 && !a.prevWallTime.IsZero() {
 		wallDelta := now.Sub(a.prevWallTime).Seconds()

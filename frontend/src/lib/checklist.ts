@@ -8,13 +8,17 @@ export function toggleChecklistItem(items: daedalus.CheckListItem[], idx: number
 }
 
 export function addChecklistItem(items: daedalus.CheckListItem[], desc: string): daedalus.CheckListItem[] {
+  const trimmed = desc.trim();
+  if (!trimmed) {
+    return items;
+  }
   const maxIdx = items.length > 0 ? Math.max(...items.map(i => i.idx)) : -1;
-  const newItem = { idx: maxIdx + 1, desc, done: false } as daedalus.CheckListItem;
+  const newItem = { idx: maxIdx + 1, desc: trimmed, done: false } as daedalus.CheckListItem;
   return [...items, newItem];
 }
 
 export function editChecklistItem(items: daedalus.CheckListItem[], idx: number, desc: string): daedalus.CheckListItem[] {
-  return items.map((item, i) => (i === idx ? { ...item, desc } : { ...item }));
+  return items.map((item, i) => (i === idx ? { ...item, desc: desc.trim() } : { ...item }));
 }
 
 export function removeChecklistItem(items: daedalus.CheckListItem[], idx: number): daedalus.CheckListItem[] {

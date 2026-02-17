@@ -299,6 +299,10 @@ body {
     border-radius: 6px;
     padding: 8px 10px;
     margin-bottom: 6px;
+    min-height: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 
 .sidebar-title {
@@ -313,8 +317,12 @@ body {
 .section-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 4px;
     margin-bottom: 4px;
+
+    &:last-child {
+        margin-bottom: 0;
+    }
 
     .sidebar-title {
         margin: 0;
@@ -325,6 +333,7 @@ body {
     display: flex;
     align-items: center;
     gap: 4px;
+    margin-left: auto;
 }
 
 .sidebar-value {

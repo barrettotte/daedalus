@@ -149,7 +149,7 @@
 
 <div class="sidebar">
   <div class="sidebar-section">
-    <h4 class="sidebar-title">Card #{meta.id}</h4>
+    <h4 class="sidebar-title card-id">Card #{meta.id}</h4>
     <SidebarPositionEditor
       listKey={selectedListKey}
       position={selectedPosition}
@@ -201,6 +201,10 @@
     overflow: hidden;
   }
 
+  .card-id {
+    text-align: center;
+  }
+
   .timestamps {
     display: flex;
     flex-direction: column;
@@ -227,5 +231,7 @@
     font-size: 0.65rem;
     color: var(--color-text-secondary);
     white-space: nowrap;
+    margin-left: auto;
+    text-align: right;
   }
 </style>

@@ -2,9 +2,20 @@
 
 import type { ActionReturn } from "svelte/action";
 import type { BoardLists, BoardConfigMap } from "../stores/board";
+import { addToast } from "../stores/board";
 
 // Max cards shown in half-collapsed lists before the "Show N more" button.
 export const HALF_COLLAPSED_CARD_LIMIT = 5;
+
+// Copies text to the clipboard and shows a success/error toast.
+export async function copyToClipboard(text: string, label: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+    addToast(`${label} copied`, "success");
+  } catch {
+    addToast(`Failed to copy ${label}`);
+  }
+}
 
 // Returns a color for a label - custom override if set, otherwise a deterministic HSL hash.
 export function labelColor(label: string, customColors?: Record<string, string>): string {

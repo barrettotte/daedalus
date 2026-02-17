@@ -584,6 +584,11 @@
   .card-detail-dialog {
     margin-bottom: 48px;
     position: relative;
+
+    :global(.header-btns) {
+      min-width: 200px;
+      justify-content: flex-end;
+    }
   }
 
   .card-title {

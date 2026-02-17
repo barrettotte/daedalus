@@ -8,7 +8,7 @@
   } from "../stores/board";
   import { MoveCard, DeleteCard, LoadBoard } from "../../wailsjs/go/main/App";
   import type { daedalus } from "../../wailsjs/go/models";
-  import { getDisplayTitle, clickOutside } from "../lib/utils";
+  import { getDisplayTitle, clickOutside, copyToClipboard } from "../lib/utils";
   import Icon from "./Icon.svelte";
 
   let moveSubmenuOpen = $state(false);
@@ -125,6 +125,13 @@
     <button class="ctx-item" onclick={editCard}>
       <Icon name="pencil" size={14} /> Edit
     </button>
+    <button class="ctx-item" onclick={() => { copyToClipboard(String(menu!.card.metadata.id), "Card ID"); close(); }}>
+      <Icon name="copy" size={14} /> Copy ID
+    </button>
+    <button class="ctx-item" onclick={() => { copyToClipboard(menu!.card.filePath, "Card path"); close(); }}>
+      <Icon name="folder" size={14} /> Copy path
+    </button>
+    <div class="ctx-separator"></div>
 
     <button class="ctx-item has-submenu" onclick={() => moveSubmenuOpen = !moveSubmenuOpen}>
       <Icon name="move" size={14} /> Move to...

@@ -7,7 +7,7 @@
     selectedCard, boardConfig, boardData,
     moveCardInBoard, computeListOrder, isAtLimit, isLocked,
   } from "../stores/board";
-  import { formatDateTime } from "../lib/utils";
+  import { formatDateTime, copyToClipboard } from "../lib/utils";
   import { MoveCard, LoadBoard } from "../../wailsjs/go/main/App";
   import type { daedalus } from "../../wailsjs/go/models";
   import CounterControl from "./CounterControl.svelte";
@@ -17,6 +17,7 @@
   import SidebarEstimateEditor from "./SidebarEstimateEditor.svelte";
   import SidebarChecklistSummary from "./SidebarChecklistSummary.svelte";
   import SidebarPositionEditor from "./SidebarPositionEditor.svelte";
+  import Icon from "./Icon.svelte";
 
   let {
     meta,
@@ -148,8 +149,16 @@
 </script>
 
 <div class="sidebar">
-  <div class="sidebar-section">
-    <h4 class="sidebar-title card-id">Card #{meta.id}</h4>
+  <div class="sidebar-section card-top-section">
+    {#if $selectedCard?.filePath}
+      <button class="file-path-btn" title={$selectedCard.filePath} onclick={() => copyToClipboard($selectedCard!.filePath, "File path")}>
+        <Icon name="file-text" size={12} />
+      </button>
+    {/if}
+    <button class="card-id-btn" title="Copy ID" onclick={() => copyToClipboard(String(meta.id), "Card ID")}>
+      Card #{meta.id}
+    </button>
+
     <SidebarPositionEditor
       listKey={selectedListKey}
       position={selectedPosition}
@@ -201,8 +210,44 @@
     overflow: hidden;
   }
 
-  .card-id {
-    text-align: center;
+  .card-top-section {
+    position: relative;
+  }
+
+  .card-id-btn {
+    all: unset;
+    align-self: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+
+    &:hover {
+      background: var(--overlay-hover);
+      color: var(--color-text-primary);
+    }
+  }
+
+  .file-path-btn {
+    all: unset;
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    border-radius: 3px;
+
+    &:hover {
+      background: var(--overlay-hover);
+      color: var(--color-text-primary);
+    }
   }
 
   .timestamps {

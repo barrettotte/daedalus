@@ -2,11 +2,11 @@
   // Top navigation bar with board title, search, label editor, and toggle buttons for dark mode, metrics, and help.
 
   import {
-    searchQuery, filteredBoardData, boardData, boardTitle, showMetrics, addToast, saveWithToast, minimalView,
+    searchQuery, filteredBoardData, boardData, boardTitle, boardPath, showMetrics, addToast, saveWithToast, minimalView,
   } from "../stores/board";
   import type { daedalus } from "../../wailsjs/go/models";
   import { SaveShowYearProgress, SaveDarkMode, SaveBoardTitle, SaveMinimalView } from "../../wailsjs/go/main/App";
-  import { autoFocus } from "../lib/utils";
+  import { autoFocus, copyToClipboard } from "../lib/utils";
   import Icon from "./Icon.svelte";
   import appIcon from "../assets/images/daedalus.svg";
 
@@ -174,7 +174,9 @@
 
 <div class="top-bar">
   <div class="top-bar-brand">
-    <img src={appIcon} alt="" class="app-icon" />
+    <button class="app-icon-btn" title="Copy board path" onclick={() => $boardPath && copyToClipboard($boardPath, "Board path")}>
+      <img src={appIcon} alt="" class="app-icon" />
+    </button>
     {#if editingTitle}
       <input class="board-title-input" type="text" bind:value={editTitleValue} onblur={saveTitle} onkeydown={handleTitleKeydown} use:autoFocus/>
     {:else}
@@ -290,11 +292,23 @@
     min-width: 0;
   }
 
+  .app-icon-btn {
+    all: unset;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-right: 6px;
+    border-radius: 6px;
+
+    &:hover {
+      opacity: 0.8;
+    }
+  }
+
   .app-icon {
     height: 42px;
     width: 42px;
-    flex-shrink: 0;
-    margin-right: 6px;
   }
 
   .board-title {

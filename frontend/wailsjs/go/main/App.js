@@ -10,6 +10,10 @@ export function CreateList(arg1) {
   return window['go']['main']['App']['CreateList'](arg1);
 }
 
+export function DeleteAllCards(arg1) {
+  return window['go']['main']['App']['DeleteAllCards'](arg1);
+}
+
 export function DeleteCard(arg1) {
   return window['go']['main']['App']['DeleteCard'](arg1);
 }
@@ -40,6 +44,10 @@ export function ListIcons() {
 
 export function LoadBoard(arg1) {
   return window['go']['main']['App']['LoadBoard'](arg1);
+}
+
+export function MoveAllCards(arg1, arg2) {
+  return window['go']['main']['App']['MoveAllCards'](arg1, arg2);
 }
 
 export function MoveCard(arg1, arg2, arg3) {

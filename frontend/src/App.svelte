@@ -6,8 +6,8 @@
   import { WindowSetTitle, EventsOn, EventsOff } from "../wailsjs/runtime/runtime";
   import {
     LoadBoard, SaveCollapsedLists, SaveHalfCollapsedLists, SaveLockedLists,
-    SavePinnedLists, DeleteList, CreateList,
-    SaveLabelColors, SaveMinimalView,
+    SavePinnedLists, DeleteList, DeleteAllCards, CreateList, MoveAllCards,
+    SaveLabelColors, SaveMinimalView, SaveListOrder,
   } from "../wailsjs/go/main/App";
   import { get } from "svelte/store";
   import {
@@ -181,6 +181,44 @@
     }
   }
 
+  // Moves all cards from one list to another via the backend, then updates the store.
+  async function moveAllCards(sourceKey: string, targetKey: string): Promise<void> {
+    try {
+      await MoveAllCards(sourceKey, targetKey);
+
+      boardData.update(lists => {
+        const moved = lists[sourceKey] || [];
+        lists[targetKey] = [...(lists[targetKey] || []), ...moved];
+        lists[sourceKey] = [];
+        return lists;
+      });
+      addToast(`Moved all cards to ${getDisplayTitle(targetKey, $boardConfig)}`, "success");
+
+    } catch (err) {
+      addToast(`Failed to move cards: ${err}`);
+      const response = await LoadBoard("");
+      boardData.update(() => response.lists);
+    }
+  }
+
+  // Deletes all cards in a list via the backend, then clears the store.
+  async function deleteAllCards(listKey: string): Promise<void> {
+    try {
+      await DeleteAllCards(listKey);
+
+      boardData.update(lists => {
+        lists[listKey] = [];
+        return lists;
+      });
+      addToast(`Deleted all cards from ${getDisplayTitle(listKey, $boardConfig)}`, "success");
+
+    } catch (err) {
+      addToast(`Failed to delete cards: ${err}`);
+      const response = await LoadBoard("");
+      boardData.update(() => response.lists);
+    }
+  }
+
   // Submits the new list name to the backend, reloads the board on success.
   async function submitNewList(): Promise<void> {
     const name = newListName.trim();
@@ -190,12 +228,27 @@
       return;
     }
 
+    const side = addingList;
     try {
       await CreateList(name);
-      addToast(`List "${name}" created`);
       addingList = false;
       newListName = "";
       await initBoard();
+
+      // If added from the left button, move the new list to the front of the order.
+      if (side === 'left') {
+        const order = [...$listOrder];
+        const idx = order.indexOf(name);
+
+        if (idx > 0) {
+          order.splice(idx, 1);
+          order.unshift(name);
+          listOrder.set(order);
+          saveWithToast(SaveListOrder(order), "save list order");
+        }
+      }
+      addToast(`List "${name}" created`, "success");
+
     } catch (err) {
       addToast(`Failed to create list: ${err}`);
     }
@@ -488,7 +541,7 @@
 <main>
   <TopBar bind:searchOpen bind:showYearProgress bind:darkMode
     bind:showLabelEditor bind:showKeyboardHelp bind:showAbout
-    oninitboard={initBoard} oncreatecard={createCardDefault}
+    oncreatecard={createCardDefault}
   />
 
   {#snippet renderList(listKey: string)}
@@ -529,6 +582,8 @@
           onreload={initBoard}
           onlistdragstart={() => startListDrag(listKey, !!getPinState(listKey))}
           onlistdragend={endListDrag}
+          onmoveallcards={(target) => moveAllCards(listKey, target)}
+          ondeleteallcards={() => deleteAllCards(listKey)}
           ondelete={() => deleteList(listKey)}
         />
         <div class="list-body half-collapsed-body" role="list">
@@ -568,6 +623,8 @@
           onreload={initBoard}
           onlistdragstart={() => startListDrag(listKey, !!getPinState(listKey))}
           onlistdragend={endListDrag}
+          onmoveallcards={(target) => moveAllCards(listKey, target)}
+          ondeleteallcards={() => deleteAllCards(listKey)}
           ondelete={() => deleteList(listKey)}
         />
         <div class="list-body" role="list"

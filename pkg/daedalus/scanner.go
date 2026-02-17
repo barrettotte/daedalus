@@ -83,7 +83,7 @@ func scanList(listPath, realName, displayName string) ([]KanbanCard, int, int64)
 		return nil, 0, 0
 	}
 
-	var cards []KanbanCard
+	cards := []KanbanCard{}
 	localMaxID := 0
 	var localBytes int64
 

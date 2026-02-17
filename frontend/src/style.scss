@@ -507,8 +507,9 @@ input[type="number"] {
     color: var(--color-text-secondary);
     background: var(--overlay-subtle);
     border-radius: 6px;
-    padding: 12px 16px;
-    overflow-x: auto;
+    padding: 0px 16px;
+    max-height: 40vh;
+    overflow: auto;
     white-space: nowrap;
 
     h1, h2, h3 {

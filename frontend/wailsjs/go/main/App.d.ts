@@ -7,6 +7,8 @@ export function CreateCard(arg1:string,arg2:string,arg3:string,arg4:string):Prom
 
 export function CreateList(arg1:string):Promise<void>;
 
+export function DeleteAllCards(arg1:string):Promise<void>;
+
 export function DeleteCard(arg1:string):Promise<void>;
 
 export function DeleteList(arg1:string):Promise<void>;
@@ -22,6 +24,8 @@ export function GetMetrics():Promise<main.AppMetrics>;
 export function ListIcons():Promise<Array<string>>;
 
 export function LoadBoard(arg1:string):Promise<main.BoardResponse>;
+
+export function MoveAllCards(arg1:string,arg2:string):Promise<void>;
 
 export function MoveCard(arg1:string,arg2:string,arg3:number):Promise<daedalus.KanbanCard>;
 

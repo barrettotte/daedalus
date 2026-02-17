@@ -993,6 +993,117 @@ func (a *App) MoveCard(filePath string, targetListDirName string, newListOrder f
 	return &card, nil
 }
 
+// MoveAllCards moves every card from sourceDir into targetDir, appending after existing cards.
+func (a *App) MoveAllCards(sourceDir, targetDir string) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+	if sourceDir == targetDir {
+		return fmt.Errorf("source and target lists are the same")
+	}
+
+	// Validate both lists exist.
+	if _, ok := a.board.Lists[sourceDir]; !ok {
+		return fmt.Errorf("source list not found: %s", sourceDir)
+	}
+	if _, ok := a.board.Lists[targetDir]; !ok {
+		return fmt.Errorf("target list not found: %s", targetDir)
+	}
+
+	// Block if either list is locked.
+	if isListLocked(a.board.Config, sourceDir) {
+		return fmt.Errorf("source list is locked")
+	}
+	if isListLocked(a.board.Config, targetDir) {
+		return fmt.Errorf("target list is locked")
+	}
+
+	srcCards := a.board.Lists[sourceDir]
+	if len(srcCards) == 0 {
+		return nil
+	}
+
+	a.pauseWatcher()
+
+	// Find max ListOrder in target to append after existing cards.
+	maxOrder := 0.0
+	if targetCards := a.board.Lists[targetDir]; len(targetCards) > 0 {
+		maxOrder = targetCards[len(targetCards)-1].Metadata.ListOrder
+	}
+
+	now := time.Now()
+
+	for i, card := range srcCards {
+		body, err := daedalus.ReadCardContent(card.FilePath)
+		if err != nil {
+			slog.Error("failed to read card content for move-all", "path", card.FilePath, "error", err)
+			return fmt.Errorf("reading card %d: %w", card.Metadata.ID, err)
+		}
+
+		card.Metadata.Updated = &now
+		card.Metadata.ListOrder = maxOrder + float64(i) + 1.0
+
+		filename := filepath.Base(card.FilePath)
+		newPath := filepath.Join(a.board.RootPath, targetDir, filename)
+
+		if err := os.Rename(card.FilePath, newPath); err != nil {
+			slog.Error("failed to move card file", "from", card.FilePath, "to", newPath, "error", err)
+			return fmt.Errorf("moving card %d: %w", card.Metadata.ID, err)
+		}
+
+		card.FilePath = newPath
+		card.ListName = targetDir
+
+		if err := daedalus.WriteCardFile(card.FilePath, card.Metadata, body); err != nil {
+			slog.Error("failed to write card after move-all", "path", card.FilePath, "error", err)
+			return fmt.Errorf("writing card %d: %w", card.Metadata.ID, err)
+		}
+
+		a.board.Lists[targetDir] = append(a.board.Lists[targetDir], card)
+	}
+
+	a.board.Lists[sourceDir] = []daedalus.KanbanCard{}
+	slog.Info("moved all cards", "from", sourceDir, "to", targetDir, "count", len(srcCards))
+	return nil
+}
+
+// DeleteAllCards removes every card file in a list directory while keeping the list itself intact.
+func (a *App) DeleteAllCards(listDir string) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+
+	cards, ok := a.board.Lists[listDir]
+	if !ok {
+		return fmt.Errorf("list not found: %s", listDir)
+	}
+
+	if isListLocked(a.board.Config, listDir) {
+		return fmt.Errorf("list is locked")
+	}
+
+	if len(cards) == 0 {
+		return nil
+	}
+
+	a.pauseWatcher()
+
+	var totalBytes int64
+	for _, card := range cards {
+		totalBytes += getFileSize(card.FilePath)
+		if err := os.Remove(card.FilePath); err != nil {
+			slog.Error("failed to remove card file", "path", card.FilePath, "error", err)
+			return fmt.Errorf("removing card %d: %w", card.Metadata.ID, err)
+		}
+	}
+
+	a.board.Lists[listDir] = []daedalus.KanbanCard{}
+	a.board.TotalFileBytes -= totalBytes
+
+	slog.Info("deleted all cards in list", "list", listDir, "count", len(cards), "bytesFreed", totalBytes)
+	return nil
+}
+
 // findCardByPath searches all board lists for a card with the given file path.
 // Returns the list key, index within that list, and whether the card was found.
 func (a *App) findCardByPath(absPath string) (string, int, bool) {

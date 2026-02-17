@@ -7,6 +7,7 @@
     removeCardFromBoard, addToast, isAtLimit, isLocked,
   } from "../stores/board";
   import { MoveCard, DeleteCard, LoadBoard } from "../../wailsjs/go/main/App";
+  import type { daedalus } from "../../wailsjs/go/models";
   import { getDisplayTitle, clickOutside } from "../lib/utils";
   import Icon from "./Icon.svelte";
 
@@ -56,7 +57,21 @@
     close();
 
     try {
-      await MoveCard(originalPath, targetListKey, newListOrder);
+      const result = await MoveCard(originalPath, targetListKey, newListOrder);
+
+      // Sync filePath if it changed (cross-list move renames the file on disk).
+      if (result.filePath !== originalPath) {
+        boardData.update(lists => {
+          const tc = lists[targetListKey];
+          if (tc) {
+            const idx = tc.findIndex(c => c.metadata.id === result.metadata.id);
+            if (idx !== -1) {
+              tc[idx] = { ...tc[idx], filePath: result.filePath, listName: result.listName } as daedalus.KanbanCard;
+            }
+          }
+          return lists;
+        });
+      }
       addToast("Card moved", "success");
     } catch (err) {
       addToast(`Failed to move card: ${err}`);

@@ -1,7 +1,10 @@
 <script lang="ts">
   // List column header with inline title editing, card count, drag handle, and a three-dot menu for list operations.
 
-  import { boardConfig, boardData, boardPath, addToast, saveWithToast, isAtLimit, listOrder } from "../stores/board";
+  import {
+    boardConfig, boardData, boardPath, addToast, saveWithToast,
+    isAtLimit, isLocked, listOrder, sortedListKeys,
+  } from "../stores/board";
   import { SaveListConfig, OpenFileExternal, SaveListOrder } from "../../wailsjs/go/main/App";
   import {
     getDisplayTitle, getCountDisplay, isOverLimit,
@@ -29,6 +32,8 @@
     onreload,
     onlistdragstart,
     onlistdragend,
+    onmoveallcards,
+    ondeleteallcards,
     ondelete,
   }: {
     listKey: string;
@@ -47,6 +52,8 @@
     onreload: () => void;
     onlistdragstart: () => void;
     onlistdragend: () => void;
+    onmoveallcards: (targetKey: string) => void;
+    ondeleteallcards: () => void;
     ondelete: () => void;
   } = $props();
 
@@ -55,16 +62,29 @@
   let editTitleValue = $state("");
   let editLimitValue = $state(0);
   let confirmingDelete = $state(false);
+  let confirmingDeleteAll = $state(false);
   let menuOpen = $state(false);
   let menuRef: HTMLDivElement | undefined = $state();
   let menuFlip = $derived(pinState === 'right' || isLastList);
   let movingPosition = $state(false);
   let movePositionValue = $state(1);
+  let movingAllCards = $state(false);
 
   // Auto-cancel delete confirmation after 3 seconds.
   $effect(() => {
     if (confirmingDelete) {
       const timer = setTimeout(() => { confirmingDelete = false; }, 3000);
+      return () => clearTimeout(timer);
+    }
+  });
+
+  // Auto-cancel delete-all confirmation after 3 seconds.
+  $effect(() => {
+    if (confirmingDeleteAll) {
+      const timer = setTimeout(() => {
+        confirmingDeleteAll = false;
+      }, 3000);
+
       return () => clearTimeout(timer);
     }
   });
@@ -76,6 +96,7 @@
       if (menuRef && !menuRef.contains(e.target as Node)) {
         menuOpen = false;
         movingPosition = false;
+        movingAllCards = false;
       }
     }
     document.addEventListener("click", handleClick, true);
@@ -291,6 +312,24 @@
             <Icon name={locked ? "lock-open" : "lock"} size={12} />
             {locked ? "Unlock list" : "Lock list"}
           </button>
+          {#if !locked && ($boardData[listKey]?.length || 0) > 0}
+            {#if movingAllCards}
+              <div class="menu-submenu">
+                {#each sortedListKeys($boardData, $listOrder) as targetKey}
+                  {#if targetKey !== listKey && !isLocked(targetKey, $boardConfig)}
+                    <button class="menu-item" onclick={() => { menuOpen = false; movingAllCards = false; onmoveallcards(targetKey); }}>
+                      {getDisplayTitle(targetKey, $boardConfig)}
+                    </button>
+                  {/if}
+                {/each}
+              </div>
+            {:else}
+              <button class="menu-item" title="Move all cards from this list to another" onclick={() => { movingAllCards = true; }}>
+                <Icon name="move" size={12} />
+                Move all cards to...
+              </button>
+            {/if}
+          {/if}
           {#if movingPosition}
             <div class="menu-item move-position-row">
               <Icon name="move" size={12} />
@@ -326,12 +365,37 @@
             {/if}
           {/if}
           <div class="menu-divider"></div>
+          {#if !locked && ($boardData[listKey]?.length || 0) > 0}
+            {#if confirmingDeleteAll}
+              <button class="menu-item menu-item-danger" title="Click to permanently delete all cards in this list"
+                onclick={() => {
+                  menuOpen = false; confirmingDeleteAll = false; ondeleteallcards();
+                }}
+              >
+                Confirm delete all?
+              </button>
+            {:else}
+              <button class="menu-item menu-item-danger" title="Remove all cards but keep the list"
+                onclick={() => { confirmingDeleteAll = true; }}
+              >
+                <Icon name="trash" size={12} />
+                Delete all cards
+              </button>
+            {/if}
+          {/if}
           {#if confirmingDelete}
-            <button class="menu-item menu-item-danger" title="Click to permanently delete this list and all cards" onclick={() => { menuOpen = false; ondelete(); }}>
+            <button class="menu-item menu-item-danger"
+              title="Click to permanently delete this list and all cards"
+              onclick={() => {
+                menuOpen = false; ondelete();
+              }}
+            >
               Confirm delete?
             </button>
           {:else}
-            <button class="menu-item menu-item-danger" title="Remove this list and all its cards" onclick={() => { confirmingDelete = true; }}>
+            <button class="menu-item menu-item-danger" title="Remove this list and all its cards"
+              onclick={() => { confirmingDelete = true; }}
+            >
               <Icon name="trash" size={12} />
               Delete list
             </button>
@@ -394,6 +458,14 @@
     padding: 4px 0;
     min-width: 160px;
     box-shadow: var(--shadow-sm);
+  }
+
+  .menu-submenu {
+    border-top: 1px solid var(--color-border-medium);
+    border-bottom: 1px solid var(--color-border-medium);
+    padding: 4px 0;
+    max-height: 200px;
+    overflow-y: auto;
   }
 
   .menu-divider {

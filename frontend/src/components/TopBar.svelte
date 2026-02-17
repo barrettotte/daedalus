@@ -16,7 +16,6 @@
     showLabelEditor = $bindable(false),
     showKeyboardHelp = $bindable(false),
     showAbout = $bindable(false),
-    oninitboard,
     oncreatecard,
   }: {
     searchOpen: boolean;
@@ -25,7 +24,6 @@
     showLabelEditor: boolean;
     showKeyboardHelp: boolean;
     showAbout: boolean;
-    oninitboard: () => Promise<void>;
     oncreatecard: () => void;
   } = $props();
 
@@ -203,7 +201,7 @@
     <button class="top-btn" class:active={$minimalView} onclick={toggleMinimalView} title="Minimal view (M)">
       <Icon name="list" size={14} />
     </button>
-    <button class="top-btn" onclick={oninitboard} title="Reload board">
+    <button class="top-btn" onclick={() => window.location.reload()} title="Reload board">
       <Icon name="refresh" size={14} />
     </button>
     <button class="top-btn" class:active={showYearProgress} onclick={toggleYearProgress} title="Year progress">

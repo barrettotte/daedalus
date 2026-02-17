@@ -15,6 +15,7 @@
     darkMode = $bindable(true),
     showLabelEditor = $bindable(false),
     showIconManager = $bindable(false),
+    showBoardStats = $bindable(false),
     showKeyboardHelp = $bindable(false),
     showAbout = $bindable(false),
     zoomLevel = 1.0,
@@ -28,6 +29,7 @@
     darkMode: boolean;
     showLabelEditor: boolean;
     showIconManager: boolean;
+    showBoardStats: boolean;
     showKeyboardHelp: boolean;
     showAbout: boolean;
     zoomLevel: number;
@@ -211,6 +213,9 @@
     <button class="top-btn" onclick={() => showIconManager = true} title="Icon manager">
       <Icon name="image" size={14} />
     </button>
+    <button class="top-btn" onclick={() => showBoardStats = true} title="Board statistics">
+      <Icon name="chart-bar" size={14} />
+    </button>
     <button class="top-btn" class:active={$minimalView} onclick={toggleMinimalView} title="Minimal view (M)">
       <Icon name="list" size={14} />
     </button>
@@ -235,7 +240,7 @@
       <Icon name={darkMode ? "sun" : "moon"} size={14} />
     </button>
     <button class="top-btn" class:active={$showMetrics} onclick={() => showMetrics.update(v => !v)} title="Toggle metrics">
-      <Icon name="chart-bar" size={14} />
+      <Icon name="gauge" size={14} />
     </button>
     <button class="top-btn" onclick={() => showKeyboardHelp = true} title="Keyboard shortcuts (?)">
       <Icon name="keyboard" size={14} />

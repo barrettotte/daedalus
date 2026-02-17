@@ -88,6 +88,11 @@
       fill="none" stroke="currentColor" stroke-width="2"
     />
 
+  {:else if name === 'gauge'}
+    <path d="M12 15.5A3.5 3.5 0 1 0 8.5 12H12v3.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M16.24 7.76l-2.12 2.12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+
   {:else if name === 'hourglass'}
     <path d="M6 2h12v6l-4 4 4 4v6H6v-6l4-4-4-4V2z" fill="none" stroke="currentColor"  stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 

@@ -374,8 +374,8 @@
           {/if}
           {#if iconPickerOpen}
             <div class="icon-picker-panel">
-              <div class="icon-emoji-row">
-                <input class="form-input icon-emoji-input" type="text" placeholder="Type emoji..."
+              <div class="emoji-row">
+                <input class="form-input emoji-input" type="text" placeholder="Type emoji..."
                   bind:value={iconEmojiValue}
                   onkeydown={e => {
                     if (e.key === 'Enter') {
@@ -384,14 +384,14 @@
                     }
                   }}
                 />
-                <button class="icon-emoji-set-btn" onclick={() => { saveIcon(iconEmojiValue.trim()); iconPickerOpen = false; }}>
+                <button class="emoji-save-btn" onclick={() => { saveIcon(iconEmojiValue.trim()); iconPickerOpen = false; }}>
                   Set
                 </button>
               </div>
               {#if iconFileNames.length > 0}
-                <div class="icon-picker-grid">
+                <div class="icon-grid">
                   {#each iconFileNames as name}
-                    <button class="icon-picker-option" class:active={name === icon} title={name} onclick={() => { saveIcon(name); iconPickerOpen = false; }}>
+                    <button class="icon-grid-option" class:active={name === icon} title={name} onclick={() => { saveIcon(name); iconPickerOpen = false; }}>
                       <CardIcon name={name} size={16} />
                     </button>
                   {/each}
@@ -589,7 +589,7 @@
     gap: 8px;
     width: 100%;
     padding: 6px 12px;
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     color: var(--color-text-secondary);
     cursor: pointer;
     box-sizing: border-box;
@@ -748,58 +748,5 @@
     gap: 6px;
   }
 
-  .icon-emoji-row {
-    display: flex;
-    gap: 4px;
-  }
 
-  .icon-emoji-input {
-    flex: 1;
-    min-width: 0;
-    font-size: 0.8rem;
-  }
-
-  .icon-emoji-set-btn {
-    all: unset;
-    font-size: 0.68rem;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-    background: var(--overlay-hover-light);
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-    padding: 2px 8px;
-    cursor: pointer;
-
-    &:hover {
-      background: var(--overlay-hover-medium);
-      color: var(--color-text-primary);
-    }
-  }
-
-  .icon-picker-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 2px;
-  }
-
-  .icon-picker-option {
-    all: unset;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 6px;
-    border-radius: 4px;
-    color: var(--color-text-tertiary);
-    cursor: pointer;
-
-    &:hover {
-      background: var(--overlay-hover);
-      color: var(--color-text-primary);
-    }
-
-    &.active {
-      background: var(--overlay-hover-medium);
-      color: var(--color-accent);
-    }
-  }
 </style>

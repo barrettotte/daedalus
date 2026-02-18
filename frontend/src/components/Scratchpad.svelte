@@ -159,16 +159,7 @@
   }
 
   .empty-desc {
-    all: unset;
-    color: var(--color-text-muted);
     font-size: 0.85rem;
     font-style: italic;
-    cursor: pointer;
-
-    &:hover {
-      color: var(--color-text-secondary);
-    }
   }
-
-
 </style>

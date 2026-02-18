@@ -57,9 +57,9 @@
       {/each}
     </div>
     {#if labelDropdownOpen && availableLabels.length > 0}
-      <div class="label-add-menu">
+      <div class="dropdown-menu">
         {#each availableLabels as label}
-          <button class="label-add-option" onclick={() => addLabel(label)}>
+          <button class="dropdown-option" onclick={() => addLabel(label)}>
             <span class="label-add-swatch" style="background: {$labelColors[label]}"></span>
             {label}
           </button>
@@ -73,9 +73,9 @@
       <div class="label-add-wrapper">
         <button class="add-counter-btn" onclick={() => labelDropdownOpen = !labelDropdownOpen}>+ Add label</button>
         {#if labelDropdownOpen}
-          <div class="label-add-menu">
+          <div class="dropdown-menu">
             {#each availableLabels as label}
-              <button class="label-add-option" onclick={() => addLabel(label)}>
+              <button class="dropdown-option" onclick={() => addLabel(label)}>
                 <span class="label-add-swatch" style="background: {$labelColors[label]}"></span>
                 {label}
               </button>
@@ -127,41 +127,15 @@
     position: relative;
   }
 
-  .label-add-menu {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-    padding: 4px 0;
-    z-index: 10;
-    max-height: 200px;
-    overflow-y: auto;
-  }
-
-  .label-section > .label-add-menu {
+  .label-section > :global(.dropdown-menu) {
     top: auto;
     margin-top: 4px;
     position: relative;
   }
 
-  .label-add-option {
-    all: unset;
-    display: flex;
-    align-items: center;
+  .label-section :global(.dropdown-option),
+  .label-add-wrapper :global(.dropdown-option) {
     gap: 6px;
-    width: 100%;
-    padding: 5px 8px;
-    font-size: 0.8rem;
-    color: var(--color-text-primary);
-    cursor: pointer;
-    box-sizing: border-box;
-
-    &:hover {
-      background: var(--overlay-hover);
-    }
   }
 
   .label-add-swatch {

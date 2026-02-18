@@ -95,7 +95,7 @@
       {#if iconFileNames.length > 0}
         <div class="icon-grid">
           {#each iconFileNames as name}
-            <button class="icon-option" class:active={name === icon} title={name} onclick={() => selectIcon(name)}>
+            <button class="icon-grid-option" class:active={name === icon} title={name} onclick={() => selectIcon(name)}>
               <CardIcon name={name} size={16} />
             </button>
           {/each}
@@ -130,60 +130,5 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-  }
-
-  .emoji-row {
-    display: flex;
-    gap: 4px;
-  }
-
-  .emoji-input {
-    flex: 1;
-    min-width: 0;
-    font-size: 0.8rem;
-  }
-
-  .emoji-save-btn {
-    all: unset;
-    font-size: 0.68rem;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-    background: var(--overlay-hover-light);
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-    padding: 2px 8px;
-    cursor: pointer;
-
-    &:hover {
-      background: var(--overlay-hover-medium);
-      color: var(--color-text-primary);
-    }
-  }
-
-  .icon-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 2px;
-  }
-
-  .icon-option {
-    all: unset;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 6px;
-    border-radius: 4px;
-    color: var(--color-text-tertiary);
-    cursor: pointer;
-
-    &:hover {
-      background: var(--overlay-hover);
-      color: var(--color-text-primary);
-    }
-
-    &.active {
-      background: var(--overlay-hover-medium);
-      color: var(--color-accent);
-    }
   }
 </style>

@@ -5,6 +5,7 @@
   import { boardData, templates } from "../stores/board";
   import type { daedalus } from "../../wailsjs/go/models";
   import { clickOutside } from "../lib/utils";
+  import Icon from "./Icon.svelte";
   import CounterControl from "./CounterControl.svelte";
   import DateSection from "./DateSection.svelte";
   import SidebarLabelEditor from "./SidebarLabelEditor.svelte";
@@ -136,22 +137,18 @@
   {#if $templates.length > 0}
     <div class="sidebar-section template-section">
       <span class="template-label">Template</span>
-      <div class="tmpl-dropdown" use:clickOutside={() => { templateDropdownOpen = false; }}>
-        <button class="tmpl-trigger" onclick={() => { templateDropdownOpen = !templateDropdownOpen; }}>
-          <span class="tmpl-trigger-text">{selectedTemplateName || "None"}</span>
-          <svg class="tmpl-chevron" class:open={templateDropdownOpen} viewBox="0 0 16 16" width="12" height="12">
-            <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+      <div class="dropdown-wrap" use:clickOutside={() => { templateDropdownOpen = false; }}>
+        <button class="dropdown-trigger" onclick={() => { templateDropdownOpen = !templateDropdownOpen; }}>
+          <span class="dropdown-trigger-text">{selectedTemplateName || "None"}</span>
+          <span class="dropdown-chevron" class:open={templateDropdownOpen}>
+            <Icon name="chevron-down" size={12} />
+          </span>
         </button>
         {#if templateDropdownOpen}
-          <div class="tmpl-menu">
-            <button class="tmpl-option" class:active={!selectedTemplateName}
-              onclick={() => applyTemplate("")}
-            >None</button>
+          <div class="dropdown-menu">
+            <button class="dropdown-option" class:active={!selectedTemplateName} onclick={() => applyTemplate("")}>None</button>
             {#each $templates as tmpl}
-              <button class="tmpl-option" class:active={tmpl.name === selectedTemplateName}
-                onclick={() => applyTemplate(tmpl.name)}
-              >{tmpl.name}</button>
+              <button class="dropdown-option" class:active={tmpl.name === selectedTemplateName} onclick={() => applyTemplate(tmpl.name)}>{tmpl.name}</button>
             {/each}
           </div>
         {/if}
@@ -174,7 +171,6 @@
 </div>
 
 <style lang="scss">
-
   .sidebar-title {
     text-align: center;
   }
@@ -193,81 +189,5 @@
     color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.04em;
-  }
-
-  .tmpl-dropdown {
-    position: relative;
-  }
-
-  .tmpl-trigger {
-    all: unset;
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 4px;
-    background: var(--color-bg-base);
-    border: 1px solid var(--color-border);
-    color: var(--color-text-primary);
-    font-size: 0.8rem;
-    padding: 4px 6px;
-    border-radius: 4px;
-    cursor: pointer;
-    box-sizing: border-box;
-
-    &:hover {
-      border-color: var(--color-text-tertiary);
-    }
-  }
-
-  .tmpl-trigger-text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    min-width: 0;
-  }
-
-  .tmpl-chevron {
-    color: var(--color-text-tertiary);
-    transition: transform 0.15s;
-    flex-shrink: 0;
-
-    &.open {
-      transform: rotate(180deg);
-    }
-  }
-
-  .tmpl-menu {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
-    background: var(--color-bg-elevated);
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-    padding: 4px 0;
-    z-index: 10;
-    max-height: 200px;
-    overflow-y: auto;
-  }
-
-  .tmpl-option {
-    all: unset;
-    display: flex;
-    align-items: center;
-    width: 100%;
-    padding: 5px 8px;
-    font-size: 0.8rem;
-    color: var(--color-text-primary);
-    cursor: pointer;
-    box-sizing: border-box;
-
-    &:hover {
-      background: var(--overlay-hover);
-    }
-
-    &.active {
-      color: var(--color-accent);
-    }
   }
 </style>

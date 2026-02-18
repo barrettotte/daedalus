@@ -639,73 +639,7 @@
 
   /* Primary URI */
   .uri-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
     margin-bottom: 12px;
-    min-height: 24px;
-  }
-
-  .uri-link {
-    all: unset;
-    font-size: 0.8rem;
-    line-height: 1;
-    color: var(--color-accent);
-    cursor: pointer;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    min-width: 0;
-
-    &:hover {
-      text-decoration: underline;
-    }
-  }
-
-  .uri-input {
-    flex: 1;
-    min-width: 0;
-    background: var(--color-bg-base);
-    border: 1px solid var(--color-accent);
-    color: var(--color-text-primary);
-    font-size: 0.8rem;
-    padding: 2px 6px;
-    border-radius: 4px;
-    outline: none;
-    box-sizing: border-box;
-  }
-
-  .uri-action-btn {
-    all: unset;
-    display: inline-flex;
-    align-items: center;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    flex-shrink: 0;
-    padding: 2px;
-    border-radius: 3px;
-
-    &:hover {
-      color: var(--color-text-primary);
-    }
-
-    &.remove:hover {
-      color: var(--color-error);
-    }
-  }
-
-  .uri-add-btn {
-    all: unset;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 0.75rem;
-    color: var(--color-text-muted);
-    cursor: pointer;
-
-    &:hover {
-      color: var(--color-text-primary);
-    }
   }
 
   /* Sections */
@@ -713,43 +647,10 @@
     margin-bottom: 20px;
   }
 
-  .desc-wrapper {
-    position: relative;
-  }
-
-  .desc-actions {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    opacity: 0;
-    transition: opacity 0.15s;
-  }
-
-  .desc-wrapper:hover .desc-actions {
-    opacity: 1;
-  }
-
   /* Markdown body */
   .loading-text {
     color: var(--color-text-muted);
     font-size: 0.85rem;
-  }
-
-  .empty-desc {
-    all: unset;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 0.75rem;
-    color: var(--color-text-muted);
-    cursor: pointer;
-
-    &:hover {
-      color: var(--color-text-primary);
-    }
   }
 
   /* Delete confirmation */

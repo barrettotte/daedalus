@@ -344,7 +344,7 @@
                         {#if iconFileNames.length > 0}
                           <div class="icon-grid">
                             {#each iconFileNames as name}
-                              <button class="icon-option" class:active={name === editingTemplate.icon} title={name} onclick={() => selectFileIcon(name)}>
+                              <button class="icon-grid-option" class:active={name === editingTemplate.icon} title={name} onclick={() => selectFileIcon(name)}>
                                 <CardIcon name={name} size={16} />
                               </button>
                             {/each}
@@ -636,34 +636,6 @@
     line-height: 1;
   }
 
-  .emoji-row {
-    display: flex;
-    gap: 4px;
-  }
-
-  .emoji-input {
-    flex: 1;
-    min-width: 0;
-    font-size: 0.8rem;
-  }
-
-  .emoji-save-btn {
-    all: unset;
-    font-size: 0.68rem;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-    background: var(--overlay-hover-light);
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-    padding: 2px 8px;
-    cursor: pointer;
-
-    &:hover {
-      background: var(--overlay-hover-medium);
-      color: var(--color-text-primary);
-    }
-  }
-
   .icon-clear-btn {
     all: unset;
     display: inline-flex;
@@ -681,34 +653,15 @@
   }
 
   .icon-grid {
-    display: grid;
     grid-template-columns: repeat(auto-fill, minmax(30px, 1fr));
-    gap: 2px;
     background: var(--overlay-subtle);
     border-radius: 4px;
     padding: 4px;
   }
 
-  .icon-option {
-    all: unset;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 5px;
-    border-radius: 4px;
-    color: var(--color-text-tertiary);
-    cursor: pointer;
-
-    &:hover {
-      background: var(--overlay-hover);
-      color: var(--color-text-primary);
-    }
-
-    &.active {
-      background: var(--overlay-accent);
-      color: var(--color-accent);
-      box-shadow: inset 0 0 0 1px var(--overlay-accent-border);
-    }
+  .icon-grid-option.active {
+    background: var(--overlay-accent);
+    box-shadow: inset 0 0 0 1px var(--overlay-accent-border);
   }
 
   .counter-row {

@@ -6,7 +6,7 @@
     addCardToBoard, boardConfig, boardData, addToast, isAtLimit,
   } from "../stores/board";
   import { CreateCard, SaveCard } from "../../wailsjs/go/main/App";
-  import { autoFocus, backdropClose } from "../lib/utils";
+  import { autoFocus, backdropClose, wordCount } from "../lib/utils";
   import type { daedalus } from "../../wailsjs/go/models";
   import {
     toggleChecklistItem, addChecklistItem, editChecklistItem,
@@ -22,7 +22,7 @@
 
   // Live character and word counts for the body textarea.
   let charCount = $derived(draftBody.length);
-  let wordCount = $derived(draftBody.trim() ? draftBody.trim().split(/\s+/).length : 0);
+  let wCount = $derived(wordCount(draftBody));
 
   // Sidebar metadata fields bound to DraftSidebar.
   let draftLabels = $state<string[]>([]);
@@ -204,7 +204,7 @@
         <div class="main-col">
           <textarea class="edit-body-textarea" bind:value={draftBody} placeholder="Card description (markdown)"></textarea>
           <div class="edit-footer">
-            <span>{charCount} chars, {wordCount} words</span>
+            <span>{charCount} chars, {wCount} words</span>
           </div>
           {#if draftChecklist}
             <ChecklistSection
@@ -251,8 +251,6 @@
   }
 
   .main-col {
-    flex: 1;
-    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -285,17 +283,4 @@
     }
   }
 
-  .cancel-btn {
-    background: none;
-    border: 1px solid var(--color-border);
-    color: var(--color-text-secondary);
-    padding: 8px 16px;
-    border-radius: 4px;
-    font-size: 0.85rem;
-    cursor: pointer;
-
-    &:hover {
-      border-color: var(--color-text-tertiary);
-    }
-  }
 </style>

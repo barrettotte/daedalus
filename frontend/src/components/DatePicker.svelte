@@ -226,9 +226,9 @@
     <div class="datepicker-backdrop" onclick={onBackdropClick} role="presentation"></div>
     <div class="datepicker-dropdown" style="top: {dropdownTop}px; left: {dropdownLeft}px;">
       <div class="datepicker-nav">
-        <button class="datepicker-nav-btn" title="Previous month" onclick={() => changeMonth(-1)}>&lt;</button>
+        <button class="btn-icon datepicker-nav-btn" title="Previous month" onclick={() => changeMonth(-1)}>&lt;</button>
         <span class="datepicker-month-label">{monthNames[viewMonth]} {viewYear}</span>
-        <button class="datepicker-nav-btn" title="Next month" onclick={() => changeMonth(1)}>&gt;</button>
+        <button class="btn-icon datepicker-nav-btn" title="Next month" onclick={() => changeMonth(1)}>&gt;</button>
       </div>
       <div class="datepicker-grid">
         {#each dayHeaders as dh}
@@ -324,7 +324,7 @@
   .datepicker-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 99;
+    z-index: var(--z-dropdown);
   }
 
   .datepicker-dropdown {
@@ -334,7 +334,7 @@
     border: 1px solid var(--color-border);
     border-radius: 6px;
     padding: 8px;
-    z-index: 100;
+    z-index: calc(var(--z-dropdown) + 1);
     width: 230px;
     box-sizing: border-box;
   }
@@ -347,20 +347,8 @@
   }
 
   .datepicker-nav-btn {
-    all: unset;
     width: 22px;
     height: 22px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 4px;
-    color: var(--color-text-primary);
-    font-size: 0.8rem;
-    cursor: pointer;
-
-    &:hover {
-      background: var(--overlay-hover);
-    }
   }
 
   .datepicker-month-label {

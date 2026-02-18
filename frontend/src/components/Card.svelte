@@ -3,9 +3,11 @@
 
   import Icon from "./Icon.svelte";
   import CardIcon from "./CardIcon.svelte";
-  import { selectedCard, labelsExpanded, labelColors, dragState, saveWithToast, contextMenu, minimalView } from "../stores/board";
-  import { SaveLabelsExpanded } from "../../wailsjs/go/main/App";
-  import { labelColor, formatDate, formatDateTime } from "../lib/utils";
+  import {
+    selectedCard, labelsExpanded, labelColors, dragState, contextMenu, minimalView, toggleLabelsExpanded,
+  } from "../stores/board";
+  import { labelColor, formatDate, formatDateTime, isFileIcon as checkFileIcon } from "../lib/utils";
+  import { hideDefaultDragGhost } from "../lib/drag";
   import type { daedalus } from "../../wailsjs/go/models";
 
   let { card, listKey = "", focused = false }: { card: daedalus.KanbanCard; listKey?: string; focused?: boolean } = $props();
@@ -17,7 +19,7 @@
   let hasDescription = $derived(card.previewText && card.previewText.replace(/^#\s+.*\n*/, "").trim().length > 0);
   let checklistComplete = $derived(hasChecklist ? checkedCount === meta.checklist!.length : false);
   let counterComplete = $derived(meta.counter ? meta.counter.current === meta.counter.max : false);
-  let isFileIcon = $derived(meta.icon ? meta.icon.endsWith(".svg") || meta.icon.endsWith(".png") : false);
+  let isFile = $derived(checkFileIcon(meta.icon));
 
   // Sets this card as the selected card to open the detail modal.
   function openDetail(): void {
@@ -32,15 +34,7 @@
     e.dataTransfer!.setData("text/plain", card.filePath);
     e.dataTransfer!.effectAllowed = "move";
 
-    // Hide default drag ghost
-    const ghost = document.createElement("div");
-    ghost.style.width = "1px";
-    ghost.style.height = "1px";
-    ghost.style.opacity = "0";
-
-    document.body.appendChild(ghost);
-    e.dataTransfer!.setDragImage(ghost, 0, 0);
-    requestAnimationFrame(() => document.body.removeChild(ghost));
+    hideDefaultDragGhost(e);
   }
 
   // Ends drag operation
@@ -54,14 +48,6 @@
     contextMenu.set({ card, listKey, x: e.clientX, y: e.clientY });
   }
 
-  // Toggles all labels board-wide between expanded text and collapsed color pills, persisting to board.yaml.
-  function toggleLabels(): void {
-    labelsExpanded.update(v => {
-      const next = !v;
-      saveWithToast(SaveLabelsExpanded(next), "save label state");
-      return next;
-    });
-  }
 </script>
 
 {#if $minimalView}
@@ -83,8 +69,8 @@
           {#each [...meta.labels].sort() as label}
             <span class="label" class:collapsed={!$labelsExpanded} style="background: {labelColor(label, $labelColors)}"
               title={$labelsExpanded ? '' : label} role="button" tabindex="0"
-              onclick={(e: MouseEvent) => { e.stopPropagation(); toggleLabels(); }}
-              onkeydown={(e: KeyboardEvent) => { e.stopPropagation(); e.key === 'Enter' && toggleLabels(); }}
+              onclick={(e: MouseEvent) => { e.stopPropagation(); toggleLabelsExpanded(); }}
+              onkeydown={(e: KeyboardEvent) => { e.stopPropagation(); e.key === 'Enter' && toggleLabelsExpanded(); }}
             >{#if $labelsExpanded}{label}{/if}</span>
           {/each}
         </div>
@@ -95,7 +81,7 @@
     <div class="title">{meta.title}</div>
     {#if meta.icon}
       <span class="card-icon">
-        {#if isFileIcon}<CardIcon name={meta.icon} size={18} />{:else}{meta.icon}{/if}
+        {#if isFile}<CardIcon name={meta.icon} size={18} />{:else}{meta.icon}{/if}
       </span>
     {/if}
 

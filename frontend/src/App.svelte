@@ -6,15 +6,15 @@
   import { WindowSetTitle, EventsOn, EventsOff } from "../wailsjs/runtime/runtime";
   import {
     LoadBoard, SaveCollapsedLists, SaveHalfCollapsedLists, SaveLockedLists,
-    SavePinnedLists, DeleteList, DeleteAllCards, CreateList, MoveAllCards,
-    SaveLabelColors, SaveMinimalView, SaveListOrder, SaveZoom,
+    SavePinnedLists, DeleteList, DeleteAllCards, MoveAllCards,
+    SaveLabelColors, SaveListOrder, SaveZoom,
   } from "../wailsjs/go/main/App";
   import { get } from "svelte/store";
   import {
     boardData, boardTitle, boardConfig, boardPath, sortedListKeys, isLoaded,
     selectedCard, draftListKey, draftPosition,
     labelsExpanded, minimalView, labelColors, dragState, dropTarget, focusedCard, openInEditMode,
-    removeCardFromBoard, addToast, saveWithToast, isAtLimit, isLocked, listOrder, loadProfile,
+    removeCardFromBoard, addToast, saveWithToast, isAtLimit, isLocked, listOrder, loadProfile, toggleMinimalView,
     searchQuery, filteredBoardData,
   } from "./stores/board";
   import type { daedalus } from "../wailsjs/go/models";
@@ -42,11 +42,11 @@
   import IconManager from "./components/IconManager.svelte";
   import BoardStats from "./components/BoardStats.svelte";
   import Scratchpad from "./components/Scratchpad.svelte";
+  import NewListModal from "./components/NewListModal.svelte";
   import TopBar from "./components/TopBar.svelte";
   import Icon from "./components/Icon.svelte";
   import CardContextMenu from "./components/CardContextMenu.svelte";
 
-  let error = $state("");
   let collapsedLists = $state(new SvelteSet<string>());
   let halfCollapsedLists = $state(new SvelteSet<string>());
   let lockedLists = $state(new SvelteSet<string>());
@@ -59,14 +59,12 @@
   let showBoardStats = $state(false);
   let showScratchpad = $state(false);
   let showYearProgress = $state(false);
+  let showNewList = $state(false);
   let darkMode = $state(true);
   let zoomLevel = $state(1.0);
 
   let boardContainerEl: HTMLDivElement | undefined = $state(undefined);
-  let firstLoad = true;
   let searchOpen = $state(false);
-  let addingList = $state<'left' | 'right' | false>(false);
-  let newListName = $state("");
 
   // Opens the search bar with an optional prefill string (used by keyboard handler).
   function openSearch(prefill: string = ""): void {
@@ -226,44 +224,8 @@
     }
   }
 
-  // Submits the new list name to the backend, reloads the board on success.
-  async function submitNewList(): Promise<void> {
-    const name = newListName.trim();
-    if (!name) {
-      addingList = false;
-      newListName = "";
-      return;
-    }
-
-    const side = addingList;
-    try {
-      await CreateList(name);
-      addingList = false;
-      newListName = "";
-      await initBoard();
-
-      // If added from the left button, move the new list to the front of the order.
-      if (side === 'left') {
-        const order = [...$listOrder];
-        const idx = order.indexOf(name);
-
-        if (idx > 0) {
-          order.splice(idx, 1);
-          order.unshift(name);
-          listOrder.set(order);
-          saveWithToast(SaveListOrder(order), "save list order");
-        }
-      }
-      addToast(`List "${name}" created`, "success");
-
-    } catch (err) {
-      addToast(`Failed to create list: ${err}`);
-    }
-  }
-
   // Loads the board from the backend and unpacks lists + config into separate stores.
   async function initBoard(): Promise<void> {
-    error = "";
     try {
       const t0 = performance.now();
       const response = await LoadBoard("");
@@ -347,21 +309,8 @@
 
       isLoaded.set(true);
 
-      // On first load, scroll past the left add-list button so it's out of view.
-      if (firstLoad) {
-        firstLoad = false;
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            if (boardContainerEl) {
-              boardContainerEl.scrollLeft = 60;
-            }
-          });
-        });
-      }
-
     } catch (e) {
-      error = (e as Error).toString();
-      addToast(`Failed to load board: ${error}`);
+      addToast(`Failed to load board: ${e}`);
     }
   }
 
@@ -375,23 +324,13 @@
     createCard(keys[0]);
   }
 
-  // Opens the draft-creation modal for the given list, defaulting to top placement.
-  function createCard(listKey: string): void {
+  // Opens the draft-creation modal for the given list at the specified position.
+  function createCard(listKey: string, position: string = "top"): void {
     if (isAtLimit(listKey, $boardData, $boardConfig)) {
       addToast("List is at its card limit");
       return;
     }
-    draftPosition.set("top");
-    draftListKey.set(listKey);
-  }
-
-  // Opens the draft-creation modal for the given list, defaulting to bottom placement.
-  function createCardBottom(listKey: string): void {
-    if (isAtLimit(listKey, $boardData, $boardConfig)) {
-      addToast("List is at its card limit");
-      return;
-    }
-    draftPosition.set("bottom");
+    draftPosition.set(position);
     draftListKey.set(listKey);
   }
 
@@ -445,13 +384,7 @@
       openSearch,
       createCard,
       createCardDefault,
-      toggleMinimalView: () => {
-        minimalView.update(v => {
-          const next = !v;
-          saveWithToast(SaveMinimalView(next), "save minimal view");
-          return next;
-        });
-      },
+      toggleMinimalView,
       zoomIn,
       zoomOut,
       zoomReset,
@@ -524,19 +457,6 @@
     }
   }
 
-  // Svelte action to auto-focus an input element and scroll the board to show it.
-  function autofocus(node: HTMLInputElement): void {
-    node.focus();
-    // Double rAF: first frame inserts into layout, second frame has final scrollWidth.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (boardContainerEl) {
-          boardContainerEl.scrollLeft = addingList === 'left' ? 0 : boardContainerEl.scrollWidth;
-        }
-      });
-    });
-  }
-
   onMount(() => {
     document.addEventListener("dragover", handleGlobalDragOver, true);
     initBoard();
@@ -569,7 +489,7 @@
 }} />
 
 <main>
-  <TopBar bind:searchOpen bind:showYearProgress bind:darkMode
+  <TopBar bind:searchOpen bind:showYearProgress bind:darkMode bind:showNewList
     bind:showLabelEditor bind:showIconManager bind:showScratchpad bind:showBoardStats bind:showKeyboardHelp bind:showAbout
     {zoomLevel} onzoomin={zoomIn} onzoomout={zoomOut} onzoomreset={zoomReset}
     oncreatecard={createCardDefault}
@@ -636,9 +556,11 @@
       <div class="list-column" data-list-key={listKey} role="group"
         class:pinned-left={getPinState(listKey) === 'left'}
         class:pinned-right={getPinState(listKey) === 'right'}
-        class:list-full={$dragState
+        class:list-full={
+          $dragState
           && $dragState.sourceListKey !== listKey
-          && isAtLimit(listKey, $boardData, $boardConfig)}
+          && isAtLimit(listKey, $boardData, $boardConfig)
+        }
         class:list-locked={$dragState && locked}
         class:list-dragging={$listDragging === listKey}
       >
@@ -673,7 +595,7 @@
           />
         </div>
         <button class="list-footer-add" title="Add card to bottom"
-          onclick={() => createCardBottom(listKey)}
+          onclick={() => createCard(listKey, "bottom")}
           ondragenter={handleDragEnter}
           ondragover={(e) => handleFooterDragOver(e, listKey)}
           ondrop={(e) => handleDrop(e, listKey, initBoard)}
@@ -684,64 +606,16 @@
     {/if}
   {/snippet}
 
-  {#if error}
-    <div class="error">{error}</div>
-  {:else if $isLoaded}
+  {#if $isLoaded}
     <div class="board-container" role="group" class:modal-open={$selectedCard || $draftListKey}
       style="zoom: {zoomLevel}"
       bind:this={boardContainerEl}
       ondragover={(e) => { if ($listDragging && boardContainerEl) { computeListDragOver(e, boardContainerEl, scrollableKeys); } }}
       ondrop={(e) => { if ($listDragging) { handleListDrop(e); } }}
     >
-      {#if addingList === 'left'}
-        <div class="add-list-input">
-          <input type="text" placeholder="List name..."
-            bind:value={newListName}
-            use:autofocus
-            onkeydown={(e) => {
-              if (e.key === 'Enter') {
-                submitNewList();
-              }
-              if (e.key === 'Escape') {
-                addingList = false;
-                newListName = "";
-              }
-            }}
-            onblur={() => submitNewList()}
-          />
-        </div>
-      {:else}
-        <button class="add-list-btn" title="Add new list to start" onclick={() => { addingList = 'left'; }}>
-          <Icon name="plus" size={18} />
-        </button>
-      {/if}
-
       {#each visualKeys as listKey}
         {@render renderList(listKey)}
       {/each}
-
-      {#if addingList === 'right'}
-        <div class="add-list-input">
-          <input type="text" placeholder="List name..."
-            bind:value={newListName}
-            use:autofocus
-            onkeydown={(e) => {
-              if (e.key === 'Enter') {
-                submitNewList();
-              }
-              if (e.key === 'Escape') {
-                addingList = false;
-                newListName = "";
-              }
-            }}
-            onblur={() => submitNewList()}
-          />
-        </div>
-      {:else}
-        <button class="add-list-btn" title="Add new list to end" onclick={() => { addingList = 'right'; }}>
-          <Icon name="plus" size={18} />
-        </button>
-      {/if}
     </div>
   {:else}
     <div class="loading">Loading cards...</div>
@@ -792,6 +666,9 @@
   {/if}
   {#if showScratchpad}
     <Scratchpad onclose={() => showScratchpad = false} />
+  {/if}
+  {#if showNewList}
+    <NewListModal onclose={() => showNewList = false} onreload={initBoard} />
   {/if}
 
 </main>
@@ -1046,43 +923,5 @@
     pointer-events: none;
   }
 
-  .add-list-btn {
-    flex: 0 0 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    border: 2px dashed var(--color-border-medium);
-    border-radius: 8px;
-    cursor: pointer;
-    color: var(--color-text-muted);
-    transition: border-color 0.15s, color 0.15s, background 0.15s;
-    align-self: stretch;
-
-    &:hover {
-      border-color: var(--color-text-secondary);
-      color: var(--color-text-secondary);
-      background: var(--overlay-hover-faint);
-    }
-  }
-
-  .add-list-input {
-    flex: 0 0 280px;
-    display: flex;
-    align-items: flex-start;
-    padding-top: 6px;
-
-    input {
-      width: 100%;
-      padding: 8px 10px;
-      border: 1px solid var(--color-accent);
-      border-radius: 6px;
-      background: var(--color-bg-list);
-      color: var(--color-text-primary);
-      font-size: 0.9rem;
-      outline: none;
-      box-sizing: border-box;
-    }
-  }
 
 </style>

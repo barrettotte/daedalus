@@ -3,9 +3,9 @@
   // counter, checklist summary, and timestamps.
 
   import {
-    addToast,
-    selectedCard, boardConfig, boardData,
-    moveCardInBoard, computeListOrder, isAtLimit, isLocked,
+    addToast, boardData,
+    selectedCard, boardConfig,
+    moveCardInBoard, computeListOrder, isAtLimit, isLocked, syncCardAfterMove,
   } from "../stores/board";
   import { formatDateTime, copyToClipboard } from "../lib/utils";
   import { MoveCard, LoadBoard } from "../../wailsjs/go/main/App";
@@ -125,18 +125,8 @@
     try {
       const result = await MoveCard(originalPath, selectedListKey, newListOrder);
 
-      // Sync file path if it changed (cross-list move).
       if (result.filePath !== originalPath) {
-        boardData.update(lists => {
-          const tc = lists[selectedListKey];
-          if (tc) {
-            const idx = tc.findIndex(c => c.metadata.id === result.metadata.id);
-            if (idx !== -1) {
-              tc[idx] = { ...tc[idx], filePath: result.filePath, listName: result.listName } as daedalus.KanbanCard;
-            }
-          }
-          return lists;
-        });
+        syncCardAfterMove(selectedListKey, result.metadata.id, result);
       }
       selectedCard.set(result);
       addToast("Card moved", "success");
@@ -204,11 +194,6 @@
 </div>
 
 <style lang="scss">
-  .sidebar {
-    flex: 0 0 200px;
-    min-width: 0;
-    overflow: hidden;
-  }
 
   .card-top-section {
     position: relative;

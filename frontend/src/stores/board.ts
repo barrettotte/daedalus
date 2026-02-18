@@ -4,6 +4,7 @@ import { writable, derived } from 'svelte/store';
 import type { Writable, Readable } from 'svelte/store';
 import type { daedalus } from '../../wailsjs/go/models';
 import { filterBoard } from '../lib/search';
+import { SaveLabelsExpanded, SaveMinimalView } from '../../wailsjs/go/main/App';
 
 // Map of list directory names to their sorted card arrays.
 export type BoardLists = Record<string, daedalus.KanbanCard[]>;
@@ -226,4 +227,36 @@ export function addToast(
 // Fire-and-forget wrapper that catches promise rejections and shows an error toast.
 export function saveWithToast(promise: Promise<unknown>, action: string): void {
   promise.catch(e => addToast(`Failed to ${action}: ${e}`));
+}
+
+// Syncs a card's filePath and listName in the store after a cross-list move renames the file on disk.
+export function syncCardAfterMove(targetListKey: string, cardId: number, result: daedalus.KanbanCard): void {
+  boardData.update(lists => {
+    const tc = lists[targetListKey];
+    if (tc) {
+      const idx = tc.findIndex(c => c.metadata.id === cardId);
+      if (idx !== -1) {
+        tc[idx] = { ...tc[idx], filePath: result.filePath, listName: result.listName } as daedalus.KanbanCard;
+      }
+    }
+    return lists;
+  });
+}
+
+// Toggles labels between expanded text and collapsed color pills on all cards, persisting to board.yaml.
+export function toggleLabelsExpanded(): void {
+  labelsExpanded.update(v => {
+    const next = !v;
+    saveWithToast(SaveLabelsExpanded(next), "save label state");
+    return next;
+  });
+}
+
+// Toggles minimal card view on/off, persisting to board.yaml.
+export function toggleMinimalView(): void {
+  minimalView.update(v => {
+    const next = !v;
+    saveWithToast(SaveMinimalView(next), "save minimal view state");
+    return next;
+  });
 }

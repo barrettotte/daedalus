@@ -4,7 +4,7 @@
   import { onMount } from "svelte";
   import { GetScratchpad, SaveScratchpad, OpenFileExternal } from "../../wailsjs/go/main/App";
   import { marked } from "marked";
-  import { backdropClose } from "../lib/utils";
+  import { backdropClose, wordCount } from "../lib/utils";
   import { addToast, saveWithToast, boardPath } from "../stores/board";
   import Icon from "./Icon.svelte";
 
@@ -17,7 +17,7 @@
   let loading = $state(true);
 
   let charCount = $derived(editing ? editText.length : 0);
-  let wordCount = $derived(editing && editText.trim() ? editText.trim().split(/\s+/).length : 0);
+  let wCount = $derived(editing ? wordCount(editText) : 0);
 
   onMount(async () => {
     try {
@@ -87,11 +87,12 @@
         </button>
       </div>
     </div>
+
     <div class="scratchpad-body">
       {#if editing}
         <textarea class="edit-body-textarea scratchpad-textarea" bind:value={editText} onblur={blurEditor} placeholder="Write notes here (markdown supported)..."></textarea>
         <div class="edit-footer">
-          <span>{charCount} chars, {wordCount} words</span>
+          <span>{charCount} chars, {wCount} words</span>
           <button class="save-body-btn" title="Save" onmousedown={e => { e.preventDefault(); blurEditor(); }}>
             <Icon name="check" size={12} /> Save
           </button>
@@ -125,11 +126,6 @@
     min-height: 400px;
   }
 
-  .header-btns {
-    display: flex;
-    gap: 4px;
-  }
-
   .loading-text {
     color: var(--color-text-muted);
     font-size: 0.85rem;
@@ -147,14 +143,5 @@
     }
   }
 
-  .clickable {
-    cursor: pointer;
-
-    &:hover {
-      outline: 1px solid var(--overlay-hover-medium);
-      outline-offset: 4px;
-      border-radius: 4px;
-    }
-  }
 
 </style>

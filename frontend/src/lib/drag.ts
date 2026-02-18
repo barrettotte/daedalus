@@ -5,10 +5,20 @@ import { get, writable } from "svelte/store";
 import type { Writable } from "svelte/store";
 import {
   boardData, boardConfig, dragState, dropTarget,
-  moveCardInBoard, computeListOrder, isAtLimit, isLocked, addToast,
+  moveCardInBoard, computeListOrder, isAtLimit, isLocked, addToast, syncCardAfterMove,
 } from "../stores/board";
 import { MoveCard } from "../../wailsjs/go/main/App";
 import type { daedalus } from "../../wailsjs/go/models";
+
+// Hides the default browser drag ghost by using a 1px invisible element.
+export function hideDefaultDragGhost(e: DragEvent): void {
+  const ghost = document.createElement("div");
+  ghost.style.cssText = "width:1px;height:1px;opacity:0";
+  document.body.appendChild(ghost);
+
+  e.dataTransfer!.setDragImage(ghost, 0, 0);
+  requestAnimationFrame(() => document.body.removeChild(ghost));
+}
 
 // Reactive cursor position for the drag ghost overlay.
 export const dragPos: Writable<{ x: number; y: number }> = writable({ x: 0, y: 0 });
@@ -230,22 +240,8 @@ export async function handleDrop(e: DragEvent, listKey: string, onError: () => v
   try {
     const result = await MoveCard(originalPath, listKey, newListOrder);
 
-    // Cross-list moves change the filePath on disk. Sync the store with the backend response
     if (result.filePath !== originalPath) {
-      boardData.update(bLists => {
-        const listCards = bLists[listKey];
-        if (listCards) {
-          const idx = listCards.findIndex(c => c.metadata.id === drag.card.metadata.id);
-          if (idx !== -1) {
-            listCards[idx] = {
-              ...listCards[idx],
-              filePath: result.filePath,
-              listName: result.listName,
-            } as daedalus.KanbanCard;
-          }
-        }
-        return bLists;
-      });
+      syncCardAfterMove(listKey, drag.card.metadata.id, result);
     }
   } catch (err) {
     addToast(`Failed to move card: ${err}`);

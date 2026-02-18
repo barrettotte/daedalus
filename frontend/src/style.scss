@@ -402,6 +402,44 @@ body {
     line-height: 0;
 }
 
+// -- Shared form input base --
+
+.form-input {
+    background: var(--color-bg-inset);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-primary);
+    padding: 3px 6px;
+    border-radius: 4px;
+    outline: none;
+    box-sizing: border-box;
+
+    &:focus {
+        border-color: var(--color-accent);
+    }
+
+    &::placeholder {
+        color: var(--color-text-muted);
+    }
+}
+
+// -- Shared icon button base --
+
+.btn-icon {
+    all: unset;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 4px;
+    color: var(--color-text-muted);
+    transition: color 0.15s;
+
+    &:hover {
+        color: var(--color-text-secondary);
+        background: var(--overlay-hover);
+    }
+}
+
 // -- Shared number input styles --
 
 input[type="number"] {
@@ -508,6 +546,103 @@ input[type="number"] {
     &:hover {
         background: var(--overlay-hover-strong);
         color: var(--color-text-primary);
+    }
+}
+
+// -- Shared layout classes --
+
+.clickable {
+    cursor: pointer;
+
+    &:hover {
+        outline: 1px solid var(--overlay-hover-medium);
+        outline-offset: 4px;
+        border-radius: 4px;
+    }
+}
+
+.sidebar {
+    flex: 0 0 200px;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.main-col {
+    flex: 1;
+    min-width: 0;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.editor-body {
+    padding: 12px 20px 20px 20px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.empty-msg {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    margin: 0;
+}
+
+.manager-table {
+    width: 100%;
+    border-collapse: collapse;
+    border-spacing: 0;
+
+    th {
+        font-size: 0.68rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--color-text-muted);
+        text-align: left;
+        padding: 0 16px 8px 0;
+        border-bottom: 1px solid var(--color-border);
+        white-space: nowrap;
+    }
+
+    td {
+        padding: 6px 16px 6px 0;
+        vertical-align: middle;
+        border-bottom: 1px solid var(--color-border);
+    }
+}
+
+.pos-presets {
+    margin-left: auto;
+    display: flex;
+    gap: 3px;
+}
+
+.pos-preset {
+    all: unset;
+    font-size: 0.58rem;
+    font-weight: 700;
+    width: 14px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    cursor: pointer;
+    background: var(--color-bg-inset);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+    transition: background 0.15s, color 0.15s;
+
+    &:hover {
+        color: var(--color-text-primary);
+        background: var(--overlay-hover);
+    }
+
+    &.active {
+        color: var(--color-accent);
     }
 }
 

@@ -105,9 +105,8 @@
 </div>
 
 <style lang="scss">
-  .sidebar {
-    flex: 0 0 200px;
-    min-width: 0;
-    overflow: hidden;
+
+  .sidebar-title {
+    text-align: center;
   }
 </style>

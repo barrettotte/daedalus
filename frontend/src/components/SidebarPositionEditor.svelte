@@ -87,7 +87,15 @@
     </div>
   </div>
   <div class="position-field">
-    <span class="position-label">Position</span>
+    <span class="position-label">
+      Position
+      <span class="pos-presets">
+        <button type="button" class="pos-preset" class:active={position === 0}
+          onclick={() => selectPosition(0)} title="Top position (first)">T</button>
+        <button type="button" class="pos-preset" class:active={positionCount > 1 && position === positionCount - 1}
+          onclick={() => selectPosition(positionCount - 1)} title="Bottom position (last)">B</button>
+      </span>
+    </span>
     <div class="pos-dropdown" use:clickOutside={() => { positionDropdownOpen = false; }}>
       <button class="pos-trigger mono" onclick={() => positionDropdownOpen = !positionDropdownOpen}>
         <span class="pos-trigger-text">{selectedPositionDisplay}</span>
@@ -125,12 +133,15 @@
   }
 
   .position-label {
+    display: flex;
+    align-items: center;
     font-size: 0.68rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--color-text-muted);
   }
+
 
   .pos-dropdown {
     position: relative;
@@ -224,18 +235,17 @@
   }
 
   .position-move-btn {
-    all: unset;
-    text-align: center;
     background: var(--color-accent);
     color: var(--color-text-inverse);
+    border: none;
     font-size: 0.78rem;
     font-weight: 600;
-    padding: 4px 8px;
+    padding: 5px 8px;
     border-radius: 4px;
     cursor: pointer;
 
     &:hover {
-      opacity: 0.9;
+      background: var(--color-accent-hover);
     }
   }
 </style>

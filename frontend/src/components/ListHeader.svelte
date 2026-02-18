@@ -8,12 +8,14 @@
   import { SaveListConfig, OpenFileExternal, SaveListOrder } from "../../wailsjs/go/main/App";
   import {
     getDisplayTitle, getCountDisplay, isOverLimit,
-    formatListName, autoFocus,
+    formatListName, autoFocus, clickOutside,
   } from "../lib/utils";
+  import { hideDefaultDragGhost } from "../lib/drag";
   import {
     handleDragEnter, handleHeaderDragOver, handleDrop,
   } from "../lib/drag";
   import Icon from "./Icon.svelte";
+  import ColorPicker from "./ColorPicker.svelte";
 
   let {
     listKey,
@@ -66,34 +68,11 @@
   let confirmingDelete = $state(false);
   let confirmingDeleteAll = $state(false);
   let menuOpen = $state(false);
-  let menuRef: HTMLDivElement | undefined = $state();
   let menuFlip = $derived(pinState === 'right' || isLastList);
   let movingPosition = $state(false);
   let movePositionValue = $state(1);
   let movingAllCards = $state(false);
   let colorPickerOpen = $state(false);
-  let customColorOpen = $state(false);
-  let hexInput = $state("");
-
-  const PALETTE = [
-    "#dc2626", "#ea580c", "#ca8a04", "#16a34a", "#0d9488",
-    "#2563eb", "#7c3aed", "#c026d3", "#64748b", "#78716c",
-  ];
-
-  // Converts an HSL hue (0-360) to a hex color at fixed saturation/lightness.
-  function hueToHex(hue: number): string {
-    const s = 0.55;
-    const l = 0.45;
-    const a = s * Math.min(l, 1 - l);
-
-    const f = (n: number) => {
-      const k = (n + hue / 30) % 12;
-      const c = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-      return Math.round(255 * c).toString(16).padStart(2, "0");
-    };
-
-    return `#${f(0)}${f(8)}${f(4)}`;
-  }
 
   // Saves a color for this list via the backend and updates the store.
   async function saveColor(hex: string): Promise<void> {
@@ -107,36 +86,6 @@
     } catch (e) {
       addToast(`Failed to save list color: ${e}`);
     }
-  }
-
-  // Picks a palette swatch color.
-  function pickSwatchColor(hex: string): void {
-    hexInput = hex;
-    saveColor(hex);
-  }
-
-  // Picks a color from the hue bar based on click x-position.
-  function handleHueBarClick(e: MouseEvent): void {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const hue = Math.round(((e.clientX - rect.left) / rect.width) * 360);
-    const hex = hueToHex(Math.max(0, Math.min(360, hue)));
-    hexInput = hex;
-    saveColor(hex);
-  }
-
-  // Applies the hex input value if it's a valid hex color.
-  function applyHexInput(): void {
-    const trimmed = hexInput.trim();
-    if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) {
-      saveColor(trimmed);
-    }
-  }
-
-  // Resets (clears) the list color.
-  function resetColor(): void {
-    hexInput = "";
-    customColorOpen = false;
-    saveColor("");
   }
 
   // Auto-cancel delete confirmation after 3 seconds.
@@ -158,21 +107,13 @@
     }
   });
 
-  // Close menu when clicking outside.
-  $effect(() => {
-    if (!menuOpen) { return; }
-    function handleClick(e: MouseEvent) {
-      if (menuRef && !menuRef.contains(e.target as Node)) {
-        menuOpen = false;
-        movingPosition = false;
-        movingAllCards = false;
-        colorPickerOpen = false;
-        customColorOpen = false;
-      }
-    }
-    document.addEventListener("click", handleClick, true);
-    return () => document.removeEventListener("click", handleClick, true);
-  });
+  // Resets all menu state when clicking outside the menu wrapper.
+  function closeMenu(): void {
+    menuOpen = false;
+    movingPosition = false;
+    movingAllCards = false;
+    colorPickerOpen = false;
+  }
 
   // Starts inline editing of the list title.
   function startEditTitle(): void {
@@ -317,12 +258,7 @@
         e.dataTransfer!.setData('text/plain', listKey);
         e.dataTransfer!.effectAllowed = 'move';
 
-        const ghost = document.createElement('div');
-        ghost.style.cssText = 'width:1px;height:1px;opacity:0';
-        document.body.appendChild(ghost);
-
-        e.dataTransfer!.setDragImage(ghost, 0, 0);
-        requestAnimationFrame(() => document.body.removeChild(ghost));
+        hideDefaultDragGhost(e);
         onlistdragstart();
       }}
       ondragend={onlistdragend}
@@ -332,7 +268,7 @@
     </div>
   {/if}
   {#if editingTitle}
-    <input class="edit-title-input" type="text" bind:value={editTitleValue} onblur={saveTitle} onkeydown={handleTitleKeydown} use:autoFocus/>
+    <input class="form-input edit-title-input" type="text" bind:value={editTitleValue} onblur={saveTitle} onkeydown={handleTitleKeydown} use:autoFocus/>
   {:else}
     <button class="list-title-btn" title={locked ? "" : "Click to edit list name"} onclick={() => !locked && startEditTitle()}>
       {#if pinState}
@@ -345,11 +281,11 @@
     </button>
   {/if}
   <div class="header-right">
-    <button class="collapse-btn" onclick={oncreatecard} title="Add card">
+    <button class="btn-icon collapse-btn" onclick={oncreatecard} title="Add card">
       <Icon name="plus" size={12} />
     </button>
     {#if editingLimit}
-      <input class="edit-limit-input" type="number" min="0" bind:value={editLimitValue}
+      <input class="form-input edit-limit-input" type="number" min="0" bind:value={editLimitValue}
         onblur={saveLimit} onkeydown={handleLimitKeydown} use:autoFocus
       />
     {:else}
@@ -361,8 +297,8 @@
         {getCountDisplay(listKey, $boardData, $boardConfig)}
       </button>
     {/if}
-    <div class="menu-wrapper" bind:this={menuRef}>
-      <button class="collapse-btn" onclick={() => menuOpen = !menuOpen} title="More actions">
+    <div class="menu-wrapper" use:clickOutside={closeMenu}>
+      <button class="btn-icon collapse-btn" onclick={() => menuOpen = !menuOpen} title="More actions">
         <Icon name="menu-dots" size={12} />
       </button>
       {#if menuOpen}
@@ -376,6 +312,7 @@
             Full collapse
           </button>
           <div class="menu-divider"></div>
+
           <button class="menu-item" title="Open this list's directory in your file manager" onclick={() => { menuOpen = false; openInExplorer(); }}>
             <Icon name="folder" size={12} />
             Open in explorer
@@ -388,44 +325,10 @@
           </button>
           {#if colorPickerOpen}
             <div class="color-picker-panel">
-              <div class="color-swatch-row">
-                {#each PALETTE as swatch}
-                  <button class="color-swatch" class:selected={color === swatch}
-                    style="background: {swatch}" title={swatch}
-                    onclick={() => pickSwatchColor(swatch)}
-                  ></button>
-                {/each}
-                <button class="color-custom-toggle" class:active={customColorOpen}
-                  onclick={() => { customColorOpen = !customColorOpen; hexInput = color || ''; }}
-                  title="Custom color"
-                >
-                  <span class="color-custom-rainbow"></span>
-                  <span class="color-custom-plus">+</span>
-                </button>
-              </div>
-              {#if customColorOpen}
-                <div class="color-custom-picker">
-                  <button type="button" class="color-hue-bar" title="Pick hue" onclick={handleHueBarClick}></button>
-                  <div class="color-hex-row">
-                    <div class="color-hex-preview" style="background: {color || 'transparent'}"></div>
-                    <input type="text" class="color-hex-input" placeholder="#000000"
-                      bind:value={hexInput} onblur={applyHexInput}
-                      onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyHexInput(); } }}
-                    />
-                  </div>
-                </div>
-              {/if}
-              {#if color}
-                <button class="menu-item color-reset-btn" onclick={resetColor}>
-                  <Icon name="refresh" size={12} />
-                  Reset color
-                </button>
-              {/if}
+              <ColorPicker bind:color onchange={saveColor} />
             </div>
           {:else}
-            <button class="menu-item" title="Set a color accent for this list"
-              onclick={() => { colorPickerOpen = true; hexInput = color || ''; }}
-            >
+            <button class="menu-item" title="Set a color accent for this list" onclick={() => { colorPickerOpen = true; }}>
               <span class="color-indicator" style={color ? `background: ${color}` : ''}></span>
               List color
             </button>
@@ -452,7 +355,7 @@
             <div class="menu-item move-position-row">
               <Icon name="move" size={12} />
               <span>Position</span>
-              <input class="move-position-input" type="number" min="1" max={$listOrder.length}
+              <input class="form-input move-position-input" type="number" min="1" max={$listOrder.length}
                 bind:value={movePositionValue} onblur={commitMovePosition} onkeydown={handleMoveKeydown} use:autoFocus
               />
             </div>
@@ -463,6 +366,7 @@
             </button>
           {/if}
           <div class="menu-divider"></div>
+
           {#if pinState}
             <button class="menu-item" title="Return this list to the scrollable area" onclick={() => { menuOpen = false; onunpin(); }}>
               <Icon name="unpin" size={12} style="opacity: 0.6" />
@@ -483,6 +387,7 @@
             {/if}
           {/if}
           <div class="menu-divider"></div>
+
           {#if !locked && ($boardData[listKey]?.length || 0) > 0}
             {#if confirmingDeleteAll}
               <button class="menu-item menu-item-danger" title="Click to permanently delete all cards in this list"
@@ -626,20 +531,8 @@
   }
 
   .collapse-btn {
-    all: unset;
-    cursor: pointer;
-    color: var(--color-text-muted);
-    display: flex;
-    align-items: center;
-    justify-content: center;
     width: 22px;
     height: 22px;
-    border-radius: 4px;
-
-    &:hover {
-      color: var(--color-text-secondary);
-      background: var(--overlay-hover);
-    }
   }
 
   .list-title-btn {
@@ -697,44 +590,33 @@
   }
 
   .move-position-input {
-    background: var(--color-bg-inset);
-    border: 1px solid var(--color-accent);
-    color: var(--color-text-primary);
     font-family: var(--font-mono);
     font-size: 0.78rem;
     padding: 2px 4px;
-    border-radius: 4px;
-    outline: none;
     width: 40px;
     text-align: center;
+    border-color: var(--color-accent);
   }
 
   .edit-title-input {
-    background: var(--color-bg-inset);
-    border: 1px solid var(--color-accent);
-    color: var(--color-text-primary);
     font-size: 0.85rem;
     font-weight: 600;
     padding: 2px 6px;
-    border-radius: 4px;
-    outline: none;
     width: 100%;
     min-width: 0;
     margin-right: 8px;
+    border-color: var(--color-accent);
   }
 
   .edit-limit-input {
-    background: var(--color-bg-inset);
-    border: 1px solid var(--color-accent);
-    color: var(--color-text-primary);
     font-family: var(--font-mono);
     font-size: 0.8rem;
     padding: 2px 6px;
     border-radius: 10px;
-    outline: none;
     width: 60px;
     text-align: center;
     flex-shrink: 0;
+    border-color: var(--color-accent);
   }
 
   .accent-bar {
@@ -755,151 +637,5 @@
 
   .color-picker-panel {
     padding: 6px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .color-swatch-row {
-    display: flex;
-    gap: 5px;
-    flex-wrap: wrap;
-    align-items: center;
-  }
-
-  .color-swatch {
-    all: unset;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    cursor: pointer;
-    border: 2px solid transparent;
-    box-sizing: border-box;
-    transition: border-color 0.15s, transform 0.15s;
-
-    &:hover {
-      transform: scale(1.15);
-    }
-
-    &.selected {
-      border-color: var(--color-text-primary);
-    }
-  }
-
-  .color-custom-toggle {
-    all: unset;
-    position: relative;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    cursor: pointer;
-    border: 2px solid transparent;
-    box-sizing: border-box;
-    transition: border-color 0.15s, transform 0.15s;
-
-    &:hover {
-      transform: scale(1.15);
-    }
-
-    &.active {
-      border-color: var(--color-text-primary);
-    }
-  }
-
-  .color-custom-rainbow {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    background: conic-gradient(
-      #dc2626, #ea580c, #ca8a04, #16a34a, #0d9488,
-      #2563eb, #7c3aed, #c026d3, #dc2626
-    );
-  }
-
-  .color-custom-plus {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.65rem;
-    font-weight: 700;
-    color: #fff;
-    text-shadow: 0 0 3px rgba(0, 0, 0, 0.7);
-  }
-
-  .color-custom-picker {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .color-hue-bar {
-    height: 14px;
-    border-radius: 4px;
-    cursor: crosshair;
-    background: linear-gradient(
-      to right,
-      hsl(0, 55%, 45%),
-      hsl(30, 55%, 45%),
-      hsl(60, 55%, 45%),
-      hsl(90, 55%, 45%),
-      hsl(120, 55%, 45%),
-      hsl(150, 55%, 45%),
-      hsl(180, 55%, 45%),
-      hsl(210, 55%, 45%),
-      hsl(240, 55%, 45%),
-      hsl(270, 55%, 45%),
-      hsl(300, 55%, 45%),
-      hsl(330, 55%, 45%),
-      hsl(360, 55%, 45%)
-    );
-    border: 1px solid var(--color-border-medium);
-
-    &:hover {
-      opacity: 0.9;
-    }
-  }
-
-  .color-hex-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .color-hex-preview {
-    width: 20px;
-    height: 20px;
-    border-radius: 4px;
-    border: 1px solid var(--color-border-medium);
-    flex-shrink: 0;
-  }
-
-  .color-hex-input {
-    flex: 1;
-    background: var(--color-bg-inset);
-    border: 1px solid var(--color-border);
-    color: var(--color-text-primary);
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    padding: 3px 6px;
-    border-radius: 4px;
-    outline: none;
-    min-width: 0;
-
-    &:focus {
-      border-color: var(--color-accent);
-    }
-
-    &::placeholder {
-      color: var(--color-text-muted);
-    }
-  }
-
-  .color-reset-btn {
-    margin-top: 2px;
-    padding: 4px 0 !important;
-    color: var(--color-text-muted) !important;
-    font-size: 0.72rem !important;
   }
 </style>

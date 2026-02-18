@@ -2,10 +2,11 @@
   // Top navigation bar with board title, search, label editor, and toggle buttons for dark mode, metrics, and help.
 
   import {
-    searchQuery, filteredBoardData, boardData, boardTitle, boardPath, showMetrics, addToast, saveWithToast, minimalView,
+    searchQuery, filteredBoardData, boardData, boardTitle, boardPath, showMetrics,
+    addToast, saveWithToast, minimalView, toggleMinimalView,
   } from "../stores/board";
   import type { daedalus } from "../../wailsjs/go/models";
-  import { SaveShowYearProgress, SaveDarkMode, SaveBoardTitle, SaveMinimalView } from "../../wailsjs/go/main/App";
+  import { SaveShowYearProgress, SaveDarkMode, SaveBoardTitle } from "../../wailsjs/go/main/App";
   import { autoFocus, copyToClipboard } from "../lib/utils";
   import Icon from "./Icon.svelte";
   import appIcon from "../assets/images/daedalus.svg";
@@ -20,6 +21,7 @@
     showBoardStats = $bindable(false),
     showKeyboardHelp = $bindable(false),
     showAbout = $bindable(false),
+    showNewList = $bindable(false),
     zoomLevel = 1.0,
     oncreatecard,
     onzoomin,
@@ -35,6 +37,7 @@
     showBoardStats: boolean;
     showKeyboardHelp: boolean;
     showAbout: boolean;
+    showNewList: boolean;
     zoomLevel: number;
     oncreatecard: () => void;
     onzoomin: () => void;
@@ -155,14 +158,6 @@
     saveWithToast(SaveShowYearProgress(showYearProgress), "save year progress state");
   }
 
-  // Toggles minimal card view and persists to board.yaml.
-  function toggleMinimalView(): void {
-    minimalView.update(v => {
-      const next = !v;
-      saveWithToast(SaveMinimalView(next), "save minimal view state");
-      return next;
-    });
-  }
 
   // Toggles between dark and light mode, applying the CSS class and persisting to board.yaml.
   function toggleDarkMode(): void {
@@ -188,6 +183,9 @@
   <div class="top-bar-actions">
     <button class="top-btn" onclick={oncreatecard} title="New card (N)">
       <Icon name="plus" size={14} />
+    </button>
+    <button class="top-btn" onclick={() => showNewList = true} title="New list">
+      <Icon name="list-plus" size={14} />
     </button>
     {#if searchOpen}
       <div class="search-bar" role="toolbar" aria-label="Search" tabindex="-1"

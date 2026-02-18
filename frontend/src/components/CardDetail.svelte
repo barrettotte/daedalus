@@ -10,7 +10,7 @@
     GetCardContent, SaveCard, OpenFileExternal, DeleteCard, OpenURI,
   } from "../../wailsjs/go/main/App";
   import { marked } from "marked";
-  import { autoFocus, blurOnEnter, backdropClose } from "../lib/utils";
+  import { autoFocus, blurOnEnter, backdropClose, wordCount } from "../lib/utils";
 
   // Strip title attributes from links to prevent browser tooltips.
   marked.use({
@@ -43,7 +43,7 @@
 
   // Live character and word counts for the body edit textarea.
   let charCount = $derived(editingBody ? editBody.length : 0);
-  let wordCount = $derived(editingBody && editBody.trim() ? editBody.trim().split(/\s+/).length : 0);
+  let wCount = $derived(editingBody ? wordCount(editBody) : 0);
 
   // Delete confirmation state
   let confirmingDelete = $state(false);
@@ -149,7 +149,6 @@
     if (editBody === rawBody) {
       return;
     }
-
     const fullBody = `# ${meta!.title}\n\n${editBody}`;
 
     try {
@@ -511,7 +510,7 @@
               </button>
             {:else}
               <button class="uri-add-btn" onclick={startEditUri} title="Primary URI">
-                <Icon name="link" size={12} /> Add Primay URI
+                <Icon name="link" size={12} /> Add Primary URI
               </button>
             {/if}
           </div>
@@ -523,7 +522,7 @@
                 onblur={() => guardedBlur(blurBody)} oncontextmenu={onFieldContextMenu}
                 placeholder="Card description (markdown)" use:autoFocus></textarea>
               <div class="edit-footer">
-                <span>{charCount} chars, {wordCount} words</span>
+                <span>{charCount} chars, {wCount} words</span>
                 <button class="save-body-btn" title="Save" onmousedown={e => { e.preventDefault(); blurBody(); }}>
                   <Icon name="check" size={12} /> Save
                 </button>
@@ -605,20 +604,6 @@
     text-align: left;
   }
 
-  .clickable {
-    cursor: pointer;
-
-    &:hover {
-      outline: 1px solid var(--overlay-hover-medium);
-      outline-offset: 4px;
-      border-radius: 4px;
-    }
-  }
-
-  .main-col {
-    flex: 1;
-    min-width: 0;
-  }
 
   /* Primary URI */
   .uri-row {

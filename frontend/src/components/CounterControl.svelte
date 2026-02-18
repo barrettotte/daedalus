@@ -142,18 +142,18 @@
       </div>
     </div>
     <div class="counter-progress-row">
-      <button class="counter-btn" title="Decrease" disabled={atStart} onclick={() => adjustCounter(countingDown ? 1 : -1)}>-</button>
+      <button class="btn-icon counter-btn" title="Decrease" disabled={atStart} onclick={() => adjustCounter(countingDown ? 1 : -1)}>-</button>
       <div class="progress-bar sidebar-progress">
         <div class="progress-fill" class:complete={counterPct >= 100} style="width: {counterPct}%"></div>
       </div>
       <span class="counter-fraction">{counter.current}/{counter.max}</span>
-      <button class="counter-btn" title="Increase" disabled={atGoal} onclick={() => adjustCounter(countingDown ? -1 : 1)}>+</button>
+      <button class="btn-icon counter-btn" title="Increase" disabled={atGoal} onclick={() => adjustCounter(countingDown ? -1 : 1)}>+</button>
     </div>
     {#if counterSettingsOpen}
       <div class="counter-settings">
-        <input type="text" class="counter-input" bind:value={editLabel} placeholder="Label" onkeydown={e => e.key === 'Enter' && saveCounterSettings()}/>
+        <input type="text" class="form-input counter-input" bind:value={editLabel} placeholder="Label" onkeydown={e => e.key === 'Enter' && saveCounterSettings()}/>
         <div class="counter-range-row">
-          <input type="number" class="counter-input range-input" bind:value={editStart}
+          <input type="number" class="form-input counter-input range-input" bind:value={editStart}
             onblur={() => {
               editStart = Math.max(0, Number(editStart) || 0);
               if (editStart === editMax) { 
@@ -163,7 +163,7 @@
             onkeydown={e => e.key === 'Enter' && saveCounterSettings()}
           />
           <span class="range-text">to</span>
-          <input type="number" class="counter-input range-input" bind:value={editMax}
+          <input type="number" class="form-input counter-input range-input" bind:value={editMax}
             onblur={() => {
               editMax = Math.max(0, Number(editMax) || 0);
               if (editMax === editStart) {
@@ -173,7 +173,7 @@
             onkeydown={e => e.key === 'Enter' && saveCounterSettings()}
           />
           <span class="range-text">by</span>
-          <input type="number" class="counter-input range-input" bind:value={editStep} min="1"
+          <input type="number" class="form-input counter-input range-input" bind:value={editStep} min="1"
             onblur={() => editStep = Math.max(1, editStep || 1)}
             onkeydown={e => e.key === 'Enter' && saveCounterSettings()}
           />
@@ -189,22 +189,17 @@
 
 <style lang="scss">
   .counter-btn {
-    all: unset;
     width: 22px;
     height: 22px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     background: var(--color-bg-base);
     border: 1px solid var(--color-border);
-    border-radius: 4px;
     color: var(--color-text-primary);
     font-size: 0.85rem;
     font-weight: 600;
-    cursor: pointer;
     box-sizing: border-box;
 
     &:hover:not(:disabled) {
+      color: var(--color-text-primary);
       background: var(--overlay-hover);
       border-color: var(--color-text-tertiary);
     }
@@ -241,18 +236,9 @@
 
   .counter-input {
     width: 100%;
-    background: var(--color-bg-base);
-    border: 1px solid var(--color-border);
-    color: var(--color-text-primary);
     font-family: var(--font-mono);
     font-size: 0.75rem;
     padding: 5px 8px;
-    border-radius: 4px;
-    outline: none;
-    box-sizing: border-box;
-    &:focus {
-      border-color: var(--color-accent);
-    }
   }
 
   .range-input {

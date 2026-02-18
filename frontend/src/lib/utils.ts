@@ -211,3 +211,14 @@ export function blurOnEnter(node: HTMLInputElement | HTMLTextAreaElement): Actio
     },
   };
 }
+
+// Counts words in a string by splitting on whitespace.
+export function wordCount(text: string): number {
+  const trimmed = text.trim();
+  return trimmed ? trimmed.split(/\s+/).length : 0;
+}
+
+// Returns true if the icon string references a file-based icon (SVG or PNG).
+export function isFileIcon(icon: string): boolean {
+  return icon ? icon.endsWith(".svg") || icon.endsWith(".png") : false;
+}

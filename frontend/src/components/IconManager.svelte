@@ -2,7 +2,7 @@
   // Modal for managing uploaded icons -- upload new SVG/PNG files, preview,
   // and delete existing icons.
 
-  import { addToast, boardPath, saveWithToast } from "../stores/board";
+  import { addToast, boardPath, boardData, saveWithToast } from "../stores/board";
   import { getIconNames, saveCustomIcon, deleteIcon } from "../lib/icons";
   import { OpenFileExternal } from "../../wailsjs/go/main/App";
   import { backdropClose } from "../lib/utils";
@@ -18,6 +18,19 @@
   function loadIcons(): void {
     getIconNames().then(names => { iconFileNames = names; });
   }
+
+  let iconCounts = $derived.by(() => {
+    const counts: Record<string, number> = {};
+    for (const cards of Object.values($boardData)) {
+      for (const card of cards) {
+        const icon = card.metadata.icon;
+        if (icon) {
+          counts[icon] = (counts[icon] || 0) + 1;
+        }
+      }
+    }
+    return counts;
+  });
 
   $effect(() => { loadIcons(); });
 
@@ -104,11 +117,12 @@
       {#if iconFileNames.length === 0}
         <p class="empty-msg">No icons uploaded. Click Upload to add .svg or .png files.</p>
       {:else}
-        <table class="icon-table">
+        <table class="manager-table">
           <thead>
             <tr>
               <th class="col-preview"></th>
               <th class="col-name">Name</th>
+              <th class="col-count">Cards</th>
               <th class="col-actions"></th>
             </tr>
           </thead>
@@ -120,6 +134,9 @@
                 </td>
                 <td class="col-name">
                   <span class="icon-filename">{name}</span>
+                </td>
+                <td class="col-count">
+                  <span class="icon-count">{iconCounts[name] || 0}</span>
                 </td>
                 <td class="col-actions">
                   {#if confirmingDelete === name}
@@ -142,35 +159,6 @@
 <input bind:this={fileInput} type="file" accept=".svg,.png" class="hidden-input" onchange={handleFileChange}/>
 
 <style lang="scss">
-  .editor-body {
-    padding: 12px 20px 20px 20px;
-    max-height: 60vh;
-    overflow-y: auto;
-  }
-
-  .empty-msg {
-    font-size: 0.85rem;
-    color: var(--color-text-muted);
-    margin: 0;
-  }
-
-  .icon-table {
-    width: 100%;
-    border-collapse: collapse;
-    border-spacing: 0;
-  }
-
-  .icon-table th {
-    font-size: 0.68rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--color-text-muted);
-    text-align: left;
-    padding: 0 16px 8px 0;
-    border-bottom: 1px solid var(--color-border);
-    white-space: nowrap;
-  }
 
   .col-preview {
     width: 36px;
@@ -180,15 +168,15 @@
     width: 100%;
   }
 
+  .col-count {
+    text-align: left;
+    white-space: nowrap;
+  }
+
   .col-actions {
     text-align: right !important;
   }
 
-  .icon-row td {
-    padding: 6px 16px 6px 0;
-    vertical-align: middle;
-    border-bottom: 1px solid var(--color-border);
-  }
 
   .icon-preview {
     display: inline-flex;
@@ -198,6 +186,11 @@
   .icon-filename {
     font-size: 0.82rem;
     color: var(--color-text-primary);
+  }
+
+  .icon-count {
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
   }
 
   .delete-btn {
@@ -225,11 +218,6 @@
     }
   }
 
-  .header-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
 
   .upload-btn {
     all: unset;

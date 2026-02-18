@@ -131,6 +131,12 @@
     <line x1="4" y1="12" x2="20" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
     <line x1="4" y1="18" x2="20" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
 
+  {:else if name === 'list-plus'}
+    <rect x="2" y="3" width="6" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
+    <rect x="10" y="3" width="6" height="12" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
+    <line x1="21" y1="6" x2="21" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <line x1="18" y1="9" x2="24" y2="9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+
   {:else if name === 'lock'}
     <rect x="3" y="11" width="18" height="11" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="2"/>
     <path d="M7 11V7a5 5 0 0 1 10 0v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>

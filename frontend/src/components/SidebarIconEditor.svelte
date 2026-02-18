@@ -3,6 +3,7 @@
   // or selecting a previously uploaded file icon by name.
 
   import { getIconNames } from "../lib/icons";
+  import { isFileIcon as checkFileIcon } from "../lib/utils";
   import Icon from "./Icon.svelte";
   import CardIcon from "./CardIcon.svelte";
 
@@ -18,7 +19,7 @@
   let emojiValue = $state("");
   let iconFileNames: string[] = $state([]);
 
-  let isFileIcon = $derived(icon ? icon.endsWith(".svg") || icon.endsWith(".png") : false);
+  let isFileIcon = $derived(checkFileIcon(icon));
 
   function openEditor(): void {
     emojiValue = isFileIcon ? "" : icon;
@@ -88,7 +89,7 @@
     </div>
     <div class="icon-editor-body">
       <div class="emoji-row">
-        <input class="emoji-input" type="text" placeholder="Type emoji..." bind:value={emojiValue} onkeydown={e => e.key === 'Enter' && commitEmoji()}/>
+        <input class="form-input emoji-input" type="text" placeholder="Type emoji..." bind:value={emojiValue} onkeydown={e => e.key === 'Enter' && commitEmoji()}/>
         <button class="emoji-save-btn" onclick={commitEmoji}>Set</button>
       </div>
       {#if iconFileNames.length > 0}
@@ -139,17 +140,7 @@
   .emoji-input {
     flex: 1;
     min-width: 0;
-    background: var(--color-bg-base);
-    border: 1px solid var(--color-border);
-    color: var(--color-text-primary);
     font-size: 0.8rem;
-    padding: 3px 6px;
-    border-radius: 4px;
-    outline: none;
-
-    &:focus {
-      border-color: var(--color-accent);
-    }
   }
 
   .emoji-save-btn {

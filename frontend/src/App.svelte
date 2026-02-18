@@ -18,7 +18,7 @@
     searchQuery, filteredBoardData,
   } from "./stores/board";
   import type { daedalus } from "../wailsjs/go/models";
-  import { labelColor, getDisplayTitle, getCountDisplay, HALF_COLLAPSED_CARD_LIMIT } from "./lib/utils";
+  import { labelColor, getDisplayTitle, getCountDisplay, isFileIcon, HALF_COLLAPSED_CARD_LIMIT } from "./lib/utils";
   import { handleBoardKeydown } from "./lib/keyboard";
   import {
     dragPos, setBoardContainer, clearDropIndicators,
@@ -40,6 +40,7 @@
   import About from "./components/About.svelte";
   import LabelColorEditor from "./components/LabelColorEditor.svelte";
   import IconManager from "./components/IconManager.svelte";
+  import CardIcon from "./components/CardIcon.svelte";
   import BoardStats from "./components/BoardStats.svelte";
   import Scratchpad from "./components/Scratchpad.svelte";
   import NewListModal from "./components/NewListModal.svelte";
@@ -241,13 +242,14 @@
       const entries: daedalus.ListEntry[] = response.config?.lists || [];
       listOrder.set(entries.map((e) => e.dir));
 
-      const configMap: Record<string, { title: string; limit: number; locked: boolean; color: string }> = {};
+      const configMap: Record<string, { title: string; limit: number; locked: boolean; color: string; icon: string }> = {};
       for (const entry of entries) {
         configMap[entry.dir] = {
           title: entry.title || '',
           limit: entry.limit || 0,
           locked: entry.locked || false,
           color: entry.color || '',
+          icon: entry.icon || '',
         };
       }
       boardConfig.set(configMap);
@@ -498,6 +500,7 @@
   {#snippet renderList(listKey: string)}
     {#if collapsedLists.has(listKey)}
       {@const collapsedColor = $boardConfig[listKey]?.color || ''}
+      {@const collapsedIcon = $boardConfig[listKey]?.icon || ''}
       <div class="list-column collapsed" data-list-key={listKey}
         role="button" tabindex="0" title="Expand list"
         class:pinned-left={getPinState(listKey) === 'left'}
@@ -508,6 +511,15 @@
         onkeydown={e => e.key === 'Enter' && toggleFullCollapse(listKey)}
       >
         <span class="collapsed-count">{getCountDisplay(listKey, $boardData, $boardConfig)}</span>
+        {#if collapsedIcon}
+          <span class="collapsed-icon">
+            {#if isFileIcon(collapsedIcon)}
+              <CardIcon name={collapsedIcon} size={14} />
+            {:else}
+              {collapsedIcon}
+            {/if}
+          </span>
+        {/if}
         <span class="collapsed-title">{getDisplayTitle(listKey, $boardConfig)}</span>
       </div>
     {:else if halfCollapsedLists.has(listKey)}
@@ -522,6 +534,7 @@
       >
         <ListHeader {listKey} locked={lockedLists.has(listKey)}
           color={$boardConfig[listKey]?.color || ''}
+          icon={$boardConfig[listKey]?.icon || ''}
           pinState={getPinState(listKey)}
           hasLeftPin={pinnedLeftLists.size > 0}
           hasRightPin={pinnedRightLists.size > 0}
@@ -566,6 +579,7 @@
       >
         <ListHeader {listKey} {locked}
           color={$boardConfig[listKey]?.color || ''}
+          icon={$boardConfig[listKey]?.icon || ''}
           pinState={getPinState(listKey)}
           hasLeftPin={pinnedLeftLists.size > 0}
           hasRightPin={pinnedRightLists.size > 0}
@@ -786,6 +800,15 @@
     font-size: 0.7rem;
     color: var(--color-text-muted);
     flex-shrink: 0;
+  }
+
+  .collapsed-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 0.9rem;
+    line-height: 1;
   }
 
   .half-collapsed-body {

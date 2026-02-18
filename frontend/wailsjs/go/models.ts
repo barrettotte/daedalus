@@ -9,6 +9,7 @@ export namespace daedalus {
 	    locked?: boolean;
 	    pinned?: string;
 	    color?: string;
+	    icon?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ListEntry(source);
@@ -24,6 +25,7 @@ export namespace daedalus {
 	        this.locked = source["locked"];
 	        this.pinned = source["pinned"];
 	        this.color = source["color"];
+	        this.icon = source["icon"];
 	    }
 	}
 	export class BoardConfig {

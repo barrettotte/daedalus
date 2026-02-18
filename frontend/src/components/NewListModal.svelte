@@ -29,7 +29,7 @@
       await CreateList(trimmed);
 
       if (title.trim() || limit || color) {
-        await SaveListConfig(trimmed, title.trim(), limit, color);
+        await SaveListConfig(trimmed, title.trim(), limit, color, "");
       }
       await onreload();
 

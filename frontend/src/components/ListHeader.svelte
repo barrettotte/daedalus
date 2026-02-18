@@ -15,12 +15,16 @@
     handleDragEnter, handleHeaderDragOver, handleDrop,
   } from "../lib/drag";
   import Icon from "./Icon.svelte";
+  import CardIcon from "./CardIcon.svelte";
   import ColorPicker from "./ColorPicker.svelte";
+  import { getIconNames } from "../lib/icons";
+  import { isFileIcon } from "../lib/utils";
 
   let {
     listKey,
     locked = false,
     color = '',
+    icon = '',
     pinState = null,
     hasLeftPin = false,
     hasRightPin = false,
@@ -42,6 +46,7 @@
     listKey: string;
     locked?: boolean;
     color?: string;
+    icon?: string;
     pinState?: "left" | "right" | null;
     hasLeftPin?: boolean;
     hasRightPin?: boolean;
@@ -73,12 +78,15 @@
   let movePositionValue = $state(1);
   let movingAllCards = $state(false);
   let colorPickerOpen = $state(false);
+  let iconPickerOpen = $state(false);
+  let iconFileNames: string[] = $state([]);
+  let iconEmojiValue = $state("");
 
   // Saves a color for this list via the backend and updates the store.
   async function saveColor(hex: string): Promise<void> {
-    const cfg = $boardConfig[listKey] || { title: "", limit: 0, locked: false, color: "" };
+    const cfg = $boardConfig[listKey] || { title: "", limit: 0, locked: false, color: "", icon: "" };
     try {
-      await SaveListConfig(listKey, cfg.title || "", cfg.limit || 0, hex);
+      await SaveListConfig(listKey, cfg.title || "", cfg.limit || 0, hex, cfg.icon || "");
       boardConfig.update(c => {
         c[listKey] = { ...cfg, color: hex };
         return c;
@@ -86,6 +94,27 @@
     } catch (e) {
       addToast(`Failed to save list color: ${e}`);
     }
+  }
+
+  // Saves an icon for this list via the backend and updates the store.
+  async function saveIcon(value: string): Promise<void> {
+    const cfg = $boardConfig[listKey] || { title: "", limit: 0, locked: false, color: "", icon: "" };
+    try {
+      await SaveListConfig(listKey, cfg.title || "", cfg.limit || 0, cfg.color || "", value);
+      boardConfig.update(c => {
+        c[listKey] = { ...cfg, icon: value };
+        return c;
+      });
+    } catch (e) {
+      addToast(`Failed to save list icon: ${e}`);
+    }
+  }
+
+  // Opens the icon picker panel and loads available file icons.
+  function openIconPicker(): void {
+    iconEmojiValue = (icon && !isFileIcon(icon)) ? icon : "";
+    iconPickerOpen = true;
+    getIconNames().then(names => { iconFileNames = names; });
   }
 
   // Auto-cancel delete confirmation after 3 seconds.
@@ -113,6 +142,7 @@
     movingPosition = false;
     movingAllCards = false;
     colorPickerOpen = false;
+    iconPickerOpen = false;
   }
 
   // Starts inline editing of the list title.
@@ -124,7 +154,7 @@
   // Saves the edited title via backend and updates the config store.
   async function saveTitle(): Promise<void> {
     editingTitle = false;
-    const cfg = $boardConfig[listKey] || { title: "", limit: 0, locked: false, color: "" };
+    const cfg = $boardConfig[listKey] || { title: "", limit: 0, locked: false, color: "", icon: "" };
     const newTitle = editTitleValue.trim();
     const formatted = formatListName(listKey);
 
@@ -132,7 +162,7 @@
     const titleToSave = newTitle === formatted ? "" : newTitle;
 
     try {
-      await SaveListConfig(listKey, titleToSave, cfg.limit || 0, cfg.color || "");
+      await SaveListConfig(listKey, titleToSave, cfg.limit || 0, cfg.color || "", cfg.icon || "");
 
       boardConfig.update(c => {
         if (titleToSave === "" && (cfg.limit || 0) === 0 && !(cfg.color)) {
@@ -157,11 +187,11 @@
   // Saves the edited limit via backend and updates the config store.
   async function saveLimit(): Promise<void> {
     editingLimit = false;
-    const cfg = $boardConfig[listKey] || { title: "", limit: 0, locked: false, color: "" };
+    const cfg = $boardConfig[listKey] || { title: "", limit: 0, locked: false, color: "", icon: "" };
     const newLimit = Math.max(0, Math.floor(editLimitValue));
 
     try {
-      await SaveListConfig(listKey, cfg.title || "", newLimit, cfg.color || "");
+      await SaveListConfig(listKey, cfg.title || "", newLimit, cfg.color || "", cfg.icon || "");
 
       boardConfig.update(c => {
         if ((cfg.title || "") === "" && newLimit === 0 && !(cfg.color)) {
@@ -277,6 +307,15 @@
       {#if locked}
         <span class="lock-icon"><Icon name="lock" size={11} /></span>
       {/if}
+      {#if icon}
+        <span class="list-icon">
+          {#if isFileIcon(icon)}
+            <CardIcon name={icon} size={14} />
+          {:else}
+            {icon}
+          {/if}
+        </span>
+      {/if}
       {getDisplayTitle(listKey, $boardConfig)}
     </button>
   {/if}
@@ -331,6 +370,52 @@
             <button class="menu-item" title="Set a color accent for this list" onclick={() => { colorPickerOpen = true; }}>
               <span class="color-indicator" style={color ? `background: ${color}` : ''}></span>
               List color
+            </button>
+          {/if}
+          {#if iconPickerOpen}
+            <div class="icon-picker-panel">
+              <div class="icon-emoji-row">
+                <input class="form-input icon-emoji-input" type="text" placeholder="Type emoji..."
+                  bind:value={iconEmojiValue}
+                  onkeydown={e => {
+                    if (e.key === 'Enter') {
+                      saveIcon(iconEmojiValue.trim());
+                      iconPickerOpen = false;
+                    }
+                  }}
+                />
+                <button class="icon-emoji-set-btn" onclick={() => { saveIcon(iconEmojiValue.trim()); iconPickerOpen = false; }}>
+                  Set
+                </button>
+              </div>
+              {#if iconFileNames.length > 0}
+                <div class="icon-picker-grid">
+                  {#each iconFileNames as name}
+                    <button class="icon-picker-option" class:active={name === icon} title={name} onclick={() => { saveIcon(name); iconPickerOpen = false; }}>
+                      <CardIcon name={name} size={16} />
+                    </button>
+                  {/each}
+                </div>
+              {/if}
+              {#if icon}
+                <button class="menu-item menu-item-danger" onclick={() => { saveIcon(""); iconPickerOpen = false; }}>
+                  <Icon name="trash" size={12} />
+                  Remove icon
+                </button>
+              {/if}
+            </div>
+          {:else}
+            <button class="menu-item" title="Set an icon or emoji for this list" onclick={openIconPicker}>
+              <span class="icon-indicator">
+                {#if icon && isFileIcon(icon)}
+                  <CardIcon name={icon} size={12} />
+                {:else if icon}
+                  {icon}
+                {:else}
+                  <Icon name="image" size={12} />
+                {/if}
+              </span>
+              List icon
             </button>
           {/if}
           {#if !locked && ($boardData[listKey]?.length || 0) > 0}
@@ -637,5 +722,84 @@
 
   .color-picker-panel {
     padding: 6px 12px;
+  }
+
+  .list-icon {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    font-size: 0.9rem;
+    line-height: 1;
+  }
+
+  .icon-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .icon-picker-panel {
+    padding: 6px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .icon-emoji-row {
+    display: flex;
+    gap: 4px;
+  }
+
+  .icon-emoji-input {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.8rem;
+  }
+
+  .icon-emoji-set-btn {
+    all: unset;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    background: var(--overlay-hover-light);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--overlay-hover-medium);
+      color: var(--color-text-primary);
+    }
+  }
+
+  .icon-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 2px;
+  }
+
+  .icon-picker-option {
+    all: unset;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+    border-radius: 4px;
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--overlay-hover);
+      color: var(--color-text-primary);
+    }
+
+    &.active {
+      background: var(--overlay-hover-medium);
+      color: var(--color-accent);
+    }
   }
 </style>

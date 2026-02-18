@@ -10,7 +10,7 @@ import (
 func TestSaveListConfig_Success(t *testing.T) {
 	app, root := setupTestBoard(t)
 
-	err := app.SaveListConfig("test", "My Test List", 10, "")
+	err := app.SaveListConfig("test", "My Test List", 10, "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestSaveListConfig_Success(t *testing.T) {
 // SaveListConfig should return an error when no board has been loaded.
 func TestSaveListConfig_BoardNotLoaded(t *testing.T) {
 	app := NewApp()
-	err := app.SaveListConfig("test", "Title", 5, "")
+	err := app.SaveListConfig("test", "Title", 5, "", "")
 	if err == nil {
 		t.Fatal("expected error when board not loaded")
 	}

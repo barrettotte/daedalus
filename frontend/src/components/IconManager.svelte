@@ -2,9 +2,9 @@
   // Modal for managing uploaded icons -- upload new SVG/PNG files, preview,
   // and delete existing icons.
 
-  import { addToast, boardPath, boardData, saveWithToast } from "../stores/board";
+  import { addToast, boardPath, boardData, boardConfig, saveWithToast } from "../stores/board";
   import { getIconNames, saveCustomIcon, deleteIcon } from "../lib/icons";
-  import { OpenFileExternal } from "../../wailsjs/go/main/App";
+  import { OpenFileExternal, SaveListConfig } from "../../wailsjs/go/main/App";
   import { backdropClose } from "../lib/utils";
   import Icon from "./Icon.svelte";
   import CardIcon from "./CardIcon.svelte";
@@ -27,6 +27,16 @@
         if (icon) {
           counts[icon] = (counts[icon] || 0) + 1;
         }
+      }
+    }
+    return counts;
+  });
+
+  let listCounts = $derived.by(() => {
+    const counts: Record<string, number> = {};
+    for (const cfg of Object.values($boardConfig)) {
+      if (cfg.icon) {
+        counts[cfg.icon] = (counts[cfg.icon] || 0) + 1;
       }
     }
     return counts;
@@ -76,6 +86,19 @@
   async function handleDelete(name: string): Promise<void> {
     try {
       await deleteIcon(name);
+
+      // Clear the icon from any lists that reference it
+      const cfg = $boardConfig;
+      for (const [listKey, listCfg] of Object.entries(cfg)) {
+        if (listCfg.icon === name) {
+          await SaveListConfig(listKey, listCfg.title || "", listCfg.limit || 0, listCfg.color || "", "");
+          boardConfig.update(c => {
+            c[listKey] = { ...c[listKey], icon: "" };
+            return c;
+          });
+        }
+      }
+
       confirmingDelete = null;
       loadIcons();
       await onreload();
@@ -122,6 +145,7 @@
             <tr>
               <th class="col-preview"></th>
               <th class="col-name">Name</th>
+              <th class="col-count">Lists</th>
               <th class="col-count">Cards</th>
               <th class="col-actions"></th>
             </tr>
@@ -134,6 +158,9 @@
                 </td>
                 <td class="col-name">
                   <span class="icon-filename">{name}</span>
+                </td>
+                <td class="col-count">
+                  <span class="icon-count">{listCounts[name] || 0}</span>
                 </td>
                 <td class="col-count">
                   <span class="icon-count">{iconCounts[name] || 0}</span>

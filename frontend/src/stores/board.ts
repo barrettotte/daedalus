@@ -10,7 +10,7 @@ import { SaveLabelsExpanded, SaveMinimalView } from '../../wailsjs/go/main/App';
 export type BoardLists = Record<string, daedalus.KanbanCard[]>;
 
 // Map of list directory names to their config (title, limit, locked).
-export type BoardConfigMap = Record<string, { title: string; limit: number; locked: boolean; color: string }>;
+export type BoardConfigMap = Record<string, { title: string; limit: number; locked: boolean; color: string; icon: string }>;
 
 // Keyboard focus position on the board (list + index within that list).
 export interface FocusState {

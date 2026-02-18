@@ -8,7 +8,7 @@ import (
 )
 
 // SaveListConfig updates the config for a single list and persists to board.yaml.
-func (a *App) SaveListConfig(dirName string, title string, limit int, color string) error {
+func (a *App) SaveListConfig(dirName string, title string, limit int, color string, icon string) error {
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
 	}
@@ -19,12 +19,14 @@ func (a *App) SaveListConfig(dirName string, title string, limit int, color stri
 		a.board.Config.Lists[idx].Title = title
 		a.board.Config.Lists[idx].Limit = limit
 		a.board.Config.Lists[idx].Color = color
+		a.board.Config.Lists[idx].Icon = icon
 	} else {
 		a.board.Config.Lists = append(a.board.Config.Lists, daedalus.ListEntry{
 			Dir:   dirName,
 			Title: title,
 			Limit: limit,
 			Color: color,
+			Icon:  icon,
 		})
 	}
 

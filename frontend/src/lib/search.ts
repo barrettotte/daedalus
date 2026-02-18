@@ -4,9 +4,9 @@
 import type { daedalus } from '../../wailsjs/go/models';
 import type { BoardLists } from '../stores/board';
 
-// Parsed search token: plain text, #label prefix, #<digits> card ID, or @date prefix.
+// Parsed search token: plain text, #label prefix, #<digits> card ID, @date prefix, url: prefix, or icon: prefix.
 export interface SearchToken {
-  type: "text" | "label" | "date" | "id";
+  type: "text" | "label" | "date" | "id" | "url" | "icon";
   value: string;
 }
 
@@ -31,6 +31,16 @@ export function parseSearchTokens(query: string): SearchToken[] {
       if (val) {
         tokens.push({ type: "date", value: val });
       }
+    } else if (part.startsWith("url:")) {
+      const val = part.slice(4);
+      if (val) {
+        tokens.push({ type: "url", value: val.toLowerCase() });
+      }
+    } else if (part.startsWith("icon:")) {
+      const val = part.slice(5);
+      if (val) {
+        tokens.push({ type: "icon", value: val.toLowerCase() });
+      }
     } else {
       tokens.push({ type: "text", value: part.toLowerCase() });
     }
@@ -43,7 +53,12 @@ function cardMatchesToken(card: daedalus.KanbanCard, token: SearchToken): boolea
   if (token.type === "text") {
     const title = (card.metadata.title || "").toLowerCase();
     const preview = (card.previewText || "").toLowerCase();
-    return title.includes(token.value) || preview.includes(token.value);
+    const url = (card.metadata.url || "").toLowerCase();
+    const checkItems = (card.metadata.checklist || []).map(i => (i.desc || "").toLowerCase());
+    return title.includes(token.value)
+      || preview.includes(token.value)
+      || url.includes(token.value)
+      || checkItems.some(desc => desc.includes(token.value));
   }
 
   if (token.type === "id") {
@@ -65,6 +80,14 @@ function cardMatchesToken(card: daedalus.KanbanCard, token: SearchToken): boolea
     const d = String(created.getDate()).padStart(2, "0");
     const dateStr = `${y}-${m}-${d}`;
     return dateStr.startsWith(token.value);
+  }
+
+  if (token.type === "url") {
+    return (card.metadata.url || "").toLowerCase().includes(token.value);
+  }
+
+  if (token.type === "icon") {
+    return (card.metadata.icon || "").toLowerCase() === token.value;
   }
 
   return false;

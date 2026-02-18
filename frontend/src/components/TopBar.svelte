@@ -3,12 +3,13 @@
 
   import {
     searchQuery, filteredBoardData, boardData, boardTitle, boardPath, showMetrics,
-    addToast, saveWithToast, minimalView, toggleMinimalView,
+    addToast, saveWithToast, minimalView, toggleMinimalView, labelColors,
   } from "../stores/board";
   import type { daedalus } from "../../wailsjs/go/models";
   import { SaveShowYearProgress, SaveDarkMode, SaveBoardTitle } from "../../wailsjs/go/main/App";
   import { autoFocus, copyToClipboard } from "../lib/utils";
   import Icon from "./Icon.svelte";
+  import SearchFilterPopover from "./SearchFilterPopover.svelte";
   import appIcon from "../assets/images/daedalus.svg";
 
   let {
@@ -46,6 +47,7 @@
   } = $props();
 
   let searchInputEl: HTMLInputElement | undefined = $state(undefined);
+  let filterOpen = $state(false);
   let editingTitle = $state(false);
   let editTitleValue = $state("");
 
@@ -140,7 +142,20 @@
   function closeSearch(): void {
     searchQuery.set("");
     searchOpen = false;
+    filterOpen = false;
     searchInputEl?.blur();
+  }
+
+  // Inserts a filter prefix into the search query from the popover.
+  function insertFilter(prefix: string): void {
+    const current = $searchQuery.trim();
+    if (current.split(/\s+/).includes(prefix)) {
+      filterOpen = false;
+      return;
+    }
+    searchQuery.set(current ? `${current} ${prefix}` : prefix);
+    filterOpen = false;
+    searchInputEl?.focus();
   }
 
   // Handles keydown events inside the search input.
@@ -148,7 +163,11 @@
     if (e.key === "Escape") {
       e.preventDefault();
       e.stopPropagation();
-      closeSearch();
+      if (filterOpen) {
+        filterOpen = false;
+      } else {
+        closeSearch();
+      }
     }
   }
 
@@ -188,24 +207,32 @@
       <Icon name="list-plus" size={14} />
     </button>
     {#if searchOpen}
-      <div class="search-bar" role="toolbar" aria-label="Search" tabindex="-1"
-        onmousedown={(e) => {
-          if ((e.target as HTMLElement).tagName !== "INPUT") {
-            e.preventDefault();
-          }
-        }}
-      >
-        <span class="search-icon"><Icon name="search" size={14} /></span>
-        <input type="text" class="search-input" placeholder="Search cards..."
-          bind:this={searchInputEl} bind:value={$searchQuery}
-          onkeydown={handleSearchKeydown} onblur={closeSearch}
-        />
-        {#if $searchQuery.trim()}
-          {@const counts = matchedCardCount($filteredBoardData, $boardData)}
-          <span class="search-count">{counts.matched}/{counts.total}</span>
-          <button class="search-clear" onmousedown={() => searchQuery.set("")} title="Clear search">
-            <Icon name="close" size={12} />
+      <div class="search-bar-wrapper">
+        <div class="search-bar" role="toolbar" aria-label="Search" tabindex="-1"
+          onmousedown={(e) => {
+            if ((e.target as HTMLElement).tagName !== "INPUT") {
+              e.preventDefault();
+            }
+          }}
+        >
+          <span class="search-icon"><Icon name="search" size={14} /></span>
+          <input type="text" class="search-input" placeholder="Search cards... (#label, url:, icon:)"
+            bind:this={searchInputEl} bind:value={$searchQuery}
+            onkeydown={handleSearchKeydown} onblur={() => { if (!filterOpen) { closeSearch(); } }}
+          />
+          <button class="search-filter-btn" class:active={filterOpen} title="Filter by field" onmousedown={(e) => { e.preventDefault(); filterOpen = !filterOpen; }}>
+            <Icon name="filter" size={12} />
           </button>
+          {#if $searchQuery.trim()}
+            {@const counts = matchedCardCount($filteredBoardData, $boardData)}
+            <span class="search-count">{counts.matched}/{counts.total}</span>
+            <button class="search-clear" onmousedown={() => searchQuery.set("")} title="Clear search">
+              <Icon name="close" size={12} />
+            </button>
+          {/if}
+        </div>
+        {#if filterOpen}
+          <SearchFilterPopover lists={$boardData} colors={$labelColors} query={$searchQuery} onselect={insertFilter} />
         {/if}
       </div>
     {:else}
@@ -387,6 +414,10 @@
     margin-left: 8px;
   }
 
+  .search-bar-wrapper {
+    position: relative;
+  }
+
   .search-bar {
     display: flex;
     align-items: center;
@@ -446,6 +477,24 @@
     border-radius: 3px;
 
     &:hover {
+      color: var(--color-text-primary);
+      background: var(--overlay-hover-medium);
+    }
+  }
+
+  .search-filter-btn {
+    all: unset;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    border-radius: 3px;
+
+    &:hover, &.active {
       color: var(--color-text-primary);
       background: var(--overlay-hover-medium);
     }

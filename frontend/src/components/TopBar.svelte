@@ -18,6 +18,7 @@
     darkMode = $bindable(true),
     showLabelEditor = $bindable(false),
     showIconManager = $bindable(false),
+    showTemplateManager = $bindable(false),
     showScratchpad = $bindable(false),
     showBoardStats = $bindable(false),
     showKeyboardHelp = $bindable(false),
@@ -34,6 +35,7 @@
     darkMode: boolean;
     showLabelEditor: boolean;
     showIconManager: boolean;
+    showTemplateManager: boolean;
     showScratchpad: boolean;
     showBoardStats: boolean;
     showKeyboardHelp: boolean;
@@ -260,6 +262,9 @@
     </button>
     <button class="top-btn" onclick={() => showIconManager = true} title="Icon manager">
       <Icon name="image" size={14} />
+    </button>
+    <button class="top-btn" onclick={() => showTemplateManager = true} title="Template manager">
+      <Icon name="template" size={14} />
     </button>
     <button class="top-btn" onclick={() => showScratchpad = true} title="Scratchpad">
       <Icon name="notepad" size={14} />

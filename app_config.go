@@ -253,6 +253,36 @@ func (a *App) SaveBoardTitle(title string) error {
 	return nil
 }
 
+// SaveTemplates replaces the full templates array in board.yaml and persists.
+func (a *App) SaveTemplates(templates []daedalus.CardTemplate) error {
+	if a.board == nil {
+		return fmt.Errorf("board not loaded")
+	}
+
+	slog.Info("SaveTemplates called", "count", len(templates))
+	for i, t := range templates {
+		slog.Debug("template received",
+			"index", i,
+			"name", t.Name,
+			"labels", t.Labels,
+			"icon", t.Icon,
+			"hasEstimate", t.Estimate != nil,
+			"hasCounter", t.Counter != nil,
+			"checklistItems", len(t.Checklist),
+		)
+	}
+
+	a.pauseWatcher()
+	a.board.Config.Templates = templates
+
+	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
+		slog.Error("failed to save templates", "error", err)
+		return err
+	}
+	slog.Info("templates saved successfully", "count", len(templates))
+	return nil
+}
+
 // SaveListOrder reorders the config Lists array to match the given order and persists to board.yaml.
 func (a *App) SaveListOrder(order []string) error {
 	if a.board == nil {

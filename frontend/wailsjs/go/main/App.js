@@ -134,6 +134,10 @@ export function SaveShowYearProgress(arg1) {
   return window['go']['main']['App']['SaveShowYearProgress'](arg1);
 }
 
+export function SaveTemplates(arg1) {
+  return window['go']['main']['App']['SaveTemplates'](arg1);
+}
+
 export function SaveZoom(arg1) {
   return window['go']['main']['App']['SaveZoom'](arg1);
 }

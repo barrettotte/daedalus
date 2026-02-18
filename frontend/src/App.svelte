@@ -13,7 +13,7 @@
   import {
     boardData, boardTitle, boardConfig, boardPath, sortedListKeys, isLoaded,
     selectedCard, draftListKey, draftPosition,
-    labelsExpanded, minimalView, labelColors, dragState, dropTarget, focusedCard, openInEditMode,
+    labelsExpanded, minimalView, labelColors, templates, dragState, dropTarget, focusedCard, openInEditMode,
     removeCardFromBoard, addToast, saveWithToast, isAtLimit, isLocked, listOrder, loadProfile, toggleMinimalView,
     searchQuery, filteredBoardData,
   } from "./stores/board";
@@ -40,6 +40,7 @@
   import About from "./components/About.svelte";
   import LabelColorEditor from "./components/LabelColorEditor.svelte";
   import IconManager from "./components/IconManager.svelte";
+  import TemplateManager from "./components/TemplateManager.svelte";
   import CardIcon from "./components/CardIcon.svelte";
   import BoardStats from "./components/BoardStats.svelte";
   import Scratchpad from "./components/Scratchpad.svelte";
@@ -57,6 +58,7 @@
   let showAbout = $state(false);
   let showLabelEditor = $state(false);
   let showIconManager = $state(false);
+  let showTemplateManager = $state(false);
   let showBoardStats = $state(false);
   let showScratchpad = $state(false);
   let showYearProgress = $state(false);
@@ -283,6 +285,8 @@
         SaveLabelColors(loadedColors).catch(e => console.error("Failed to backfill label colors:", e));
       }
 
+      templates.set(response.config?.templates || []);
+
       if (response.config?.labelsExpanded !== undefined && response.config.labelsExpanded !== null) {
         labelsExpanded.set(response.config.labelsExpanded);
       }
@@ -492,7 +496,7 @@
 
 <main>
   <TopBar bind:searchOpen bind:showYearProgress bind:darkMode bind:showNewList
-    bind:showLabelEditor bind:showIconManager bind:showScratchpad bind:showBoardStats bind:showKeyboardHelp bind:showAbout
+    bind:showLabelEditor bind:showIconManager bind:showTemplateManager bind:showScratchpad bind:showBoardStats bind:showKeyboardHelp bind:showAbout
     {zoomLevel} onzoomin={zoomIn} onzoomout={zoomOut} onzoomreset={zoomReset}
     oncreatecard={createCardDefault}
   />
@@ -674,6 +678,9 @@
   {/if}
   {#if showIconManager}
     <IconManager onclose={() => showIconManager = false} onreload={initBoard} />
+  {/if}
+  {#if showTemplateManager}
+    <TemplateManager onclose={() => showTemplateManager = false} />
   {/if}
   {#if showBoardStats}
     <BoardStats onclose={() => showBoardStats = false} />

@@ -69,4 +69,6 @@ export function SaveScratchpad(arg1:string):Promise<void>;
 
 export function SaveShowYearProgress(arg1:boolean):Promise<void>;
 
+export function SaveTemplates(arg1:Array<daedalus.CardTemplate>):Promise<void>;
+
 export function SaveZoom(arg1:number):Promise<void>;

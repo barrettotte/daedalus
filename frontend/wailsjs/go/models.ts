@@ -1,77 +1,5 @@
 export namespace daedalus {
 	
-	export class ListEntry {
-	    dir: string;
-	    title?: string;
-	    limit?: number;
-	    collapsed?: boolean;
-	    halfCollapsed?: boolean;
-	    locked?: boolean;
-	    pinned?: string;
-	    color?: string;
-	    icon?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new ListEntry(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.dir = source["dir"];
-	        this.title = source["title"];
-	        this.limit = source["limit"];
-	        this.collapsed = source["collapsed"];
-	        this.halfCollapsed = source["halfCollapsed"];
-	        this.locked = source["locked"];
-	        this.pinned = source["pinned"];
-	        this.color = source["color"];
-	        this.icon = source["icon"];
-	    }
-	}
-	export class BoardConfig {
-	    title?: string;
-	    lists?: ListEntry[];
-	    labelColors?: Record<string, string>;
-	    labelsExpanded?: boolean;
-	    showYearProgress?: boolean;
-	    darkMode?: boolean;
-	    minimalView?: boolean;
-	    zoom?: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new BoardConfig(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.title = source["title"];
-	        this.lists = this.convertValues(source["lists"], ListEntry);
-	        this.labelColors = source["labelColors"];
-	        this.labelsExpanded = source["labelsExpanded"];
-	        this.showYearProgress = source["showYearProgress"];
-	        this.darkMode = source["darkMode"];
-	        this.minimalView = source["minimalView"];
-	        this.zoom = source["zoom"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
 	export class CheckListItem {
 	    idx: number;
 	    desc: string;
@@ -107,6 +35,122 @@ export namespace daedalus {
 	        this.step = source["step"];
 	        this.label = source["label"];
 	    }
+	}
+	export class CardTemplate {
+	    name: string;
+	    labels?: string[];
+	    icon?: string;
+	    estimate?: number;
+	    counter?: Counter;
+	    checklistTitle?: string;
+	    checklist?: CheckListItem[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CardTemplate(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.labels = source["labels"];
+	        this.icon = source["icon"];
+	        this.estimate = source["estimate"];
+	        this.counter = this.convertValues(source["counter"], Counter);
+	        this.checklistTitle = source["checklistTitle"];
+	        this.checklist = this.convertValues(source["checklist"], CheckListItem);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ListEntry {
+	    dir: string;
+	    title?: string;
+	    limit?: number;
+	    collapsed?: boolean;
+	    halfCollapsed?: boolean;
+	    locked?: boolean;
+	    pinned?: string;
+	    color?: string;
+	    icon?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ListEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dir = source["dir"];
+	        this.title = source["title"];
+	        this.limit = source["limit"];
+	        this.collapsed = source["collapsed"];
+	        this.halfCollapsed = source["halfCollapsed"];
+	        this.locked = source["locked"];
+	        this.pinned = source["pinned"];
+	        this.color = source["color"];
+	        this.icon = source["icon"];
+	    }
+	}
+	export class BoardConfig {
+	    title?: string;
+	    lists?: ListEntry[];
+	    labelColors?: Record<string, string>;
+	    templates?: CardTemplate[];
+	    labelsExpanded?: boolean;
+	    showYearProgress?: boolean;
+	    darkMode?: boolean;
+	    minimalView?: boolean;
+	    zoom?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BoardConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.title = source["title"];
+	        this.lists = this.convertValues(source["lists"], ListEntry);
+	        this.labelColors = source["labelColors"];
+	        this.templates = this.convertValues(source["templates"], CardTemplate);
+	        this.labelsExpanded = source["labelsExpanded"];
+	        this.showYearProgress = source["showYearProgress"];
+	        this.darkMode = source["darkMode"];
+	        this.minimalView = source["minimalView"];
+	        this.zoom = source["zoom"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class DateRange {
 	    // Go type: time
@@ -201,6 +245,7 @@ export namespace daedalus {
 		    return a;
 		}
 	}
+	
 	
 	
 	

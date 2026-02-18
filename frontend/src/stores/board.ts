@@ -4,7 +4,7 @@ import { writable, derived } from 'svelte/store';
 import type { Writable, Readable } from 'svelte/store';
 import type { daedalus } from '../../wailsjs/go/models';
 import { filterBoard } from '../lib/search';
-import { SaveLabelsExpanded, SaveMinimalView } from '../../wailsjs/go/main/App';
+import { SaveLabelsExpanded, SaveMinimalView, SaveTemplates } from '../../wailsjs/go/main/App';
 
 // Map of list directory names to their sorted card arrays.
 export type BoardLists = Record<string, daedalus.KanbanCard[]>;
@@ -195,6 +195,8 @@ export const sortedListKeys = (lists: BoardLists, order: string[] = []): string[
   result.push(...[...allKeys].sort());
   return result;
 };
+
+export const templates: Writable<daedalus.CardTemplate[]> = writable([]);
 
 export const searchQuery: Writable<string> = writable("");
 

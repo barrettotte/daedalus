@@ -26,6 +26,7 @@ type BoardConfig struct {
 	Title            string            `yaml:"title,omitempty" json:"title,omitempty"`
 	Lists            []ListEntry       `yaml:"lists,omitempty" json:"lists,omitempty"`
 	LabelColors      map[string]string `yaml:"label_colors,omitempty" json:"labelColors,omitempty"`
+	Templates        []CardTemplate    `yaml:"templates,omitempty" json:"templates,omitempty"`
 	LabelsExpanded   *bool             `yaml:"labels_expanded,omitempty" json:"labelsExpanded,omitempty"`
 	ShowYearProgress *bool             `yaml:"show_year_progress,omitempty" json:"showYearProgress,omitempty"`
 	DarkMode         *bool             `yaml:"dark_mode,omitempty" json:"darkMode,omitempty"`

@@ -64,3 +64,14 @@ type CheckListItem struct {
 	Desc string `yaml:"desc" json:"desc"`
 	Done bool   `yaml:"done" json:"done"`
 }
+
+// CardTemplate is a reusable preset of card metadata fields.
+type CardTemplate struct {
+	Name           string          `yaml:"name" json:"name"`
+	Labels         []string        `yaml:"labels,omitempty" json:"labels,omitempty"`
+	Icon           string          `yaml:"icon,omitempty" json:"icon,omitempty"`
+	Estimate       *float64        `yaml:"estimate,omitempty" json:"estimate,omitempty"`
+	Counter        *Counter        `yaml:"counter,omitempty" json:"counter,omitempty"`
+	ChecklistTitle string          `yaml:"checklist_title,omitempty" json:"checklistTitle,omitempty"`
+	Checklist      []CheckListItem `yaml:"checklist,omitempty" json:"checklist,omitempty"`
+}

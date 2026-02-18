@@ -18,6 +18,9 @@
 
   let draftTitle = $state("");
   let draftBody = $state("");
+  let draftUrl = $state("");
+  let editingUri = $state(false);
+  let editingBody = $state(false);
   let saving = $state(false);
 
   // Live character and word counts for the body textarea.
@@ -78,6 +81,9 @@
   function close(): void {
     draftTitle = "";
     draftBody = "";
+    draftUrl = "";
+    editingUri = false;
+    editingBody = false;
     draftLabels = [];
     draftIcon = "";
     draftDue = null;
@@ -106,8 +112,9 @@
       let card = await CreateCard($draftListKey!, draftTitle.trim(), draftBody, pos);
 
       // Persist extra metadata if any sidebar fields were filled in.
+      const trimmedUrl = draftUrl.trim();
       const hasExtraMeta = draftLabels.length > 0 || draftIcon || draftDue || draftRange
-        || draftEstimate != null || draftCounter || draftChecklist;
+        || draftEstimate != null || draftCounter || draftChecklist || trimmedUrl;
       if (hasExtraMeta) {
         const fullBody = `# ${draftTitle.trim()}\n\n${draftBody}`;
 
@@ -115,6 +122,7 @@
           ...card.metadata,
           labels: draftLabels.length > 0 ? draftLabels : card.metadata.labels,
           icon: draftIcon || card.metadata.icon,
+          url: trimmedUrl || card.metadata.url,
           due: draftDue || card.metadata.due,
           range: draftRange || card.metadata.range,
           estimate: draftEstimate ?? card.metadata.estimate,
@@ -180,6 +188,14 @@
       e.preventDefault();
       saveDraft();
     } else if (e.key === "Escape") {
+      if (editingBody) {
+        editingBody = false;
+        return;
+      }
+      if (editingUri) {
+        editingUri = false;
+        return;
+      }
       close();
     }
   }
@@ -202,9 +218,67 @@
       </div>
       <div class="modal-body">
         <div class="main-col">
-          <textarea class="edit-body-textarea" bind:value={draftBody} placeholder="Card description (markdown)"></textarea>
-          <div class="edit-footer">
-            <span>{charCount} chars, {wCount} words</span>
+          <!-- Primary URI -->
+          <div class="uri-row">
+            {#if editingUri}
+              <Icon name="link" size={14} style="color: var(--color-text-muted); flex-shrink: 0" />
+              <input class="uri-input" type="text" placeholder="https://..."
+                bind:value={draftUrl}
+                onblur={() => { editingUri = false; }}
+                onkeydown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                use:autoFocus
+              />
+              <button class="uri-action-btn remove" title="Remove URI" onmousedown={(e) => { e.preventDefault(); draftUrl = ""; editingUri = false; }}>
+                <Icon name="trash" size={12} />
+              </button>
+            {:else if draftUrl.trim()}
+              <Icon name="link" size={14} style="color: var(--color-text-muted); flex-shrink: 0" />
+              <span class="uri-display">{draftUrl.trim()}</span>
+              <button class="uri-action-btn" title="Edit URI" onclick={() => { editingUri = true; }}>
+                <Icon name="pencil" size={12} />
+              </button>
+              <button class="uri-action-btn remove" title="Remove URI" onclick={() => { draftUrl = ""; }}>
+                <Icon name="trash" size={12} />
+              </button>
+            {:else}
+              <button class="uri-add-btn" onclick={() => { editingUri = true; }} title="Primary URI">
+                <Icon name="link" size={12} /> Add Primary URI
+              </button>
+            {/if}
+          </div>
+
+          <!-- Description -->
+          <div class="section">
+            {#if editingBody}
+              <textarea class="edit-body-textarea" bind:value={draftBody}
+                placeholder="Card description (markdown)" use:autoFocus
+              ></textarea>
+              <div class="edit-footer">
+                <span>{charCount} chars, {wCount} words</span>
+                <button class="save-body-btn" title="Done" onclick={() => { editingBody = false; }}>
+                  <Icon name="check" size={12} /> Done
+                </button>
+              </div>
+            {:else if draftBody.trim()}
+              <div class="desc-wrapper">
+                <div class="desc-actions">
+                  <button class="uri-action-btn" title="Edit description" onclick={() => { editingBody = true; }}>
+                    <Icon name="pencil" size={12} />
+                  </button>
+                  <button class="uri-action-btn remove" title="Delete description" onclick={() => { draftBody = ""; }}>
+                    <Icon name="trash" size={12} />
+                  </button>
+                </div>
+                <div class="desc-preview" role="button" tabindex="0"
+                  onclick={() => { editingBody = true; }}
+                  onkeydown={e => e.key === 'Enter' && (editingBody = true)}
+                >{draftBody.trim()}</div>
+              </div>
+            {:else}
+              <button class="empty-desc" title="Click to add description" onclick={() => { editingBody = true; }}>
+                <Icon name="pencil" size={12} /> Enter description...
+              </button>
+            {/if}
           </div>
           {#if draftChecklist}
             <ChecklistSection
@@ -254,6 +328,141 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+  }
+
+  /* Primary URI */
+  .uri-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 24px;
+  }
+
+  .uri-display {
+    font-size: 0.8rem;
+    color: var(--color-accent);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  .uri-input {
+    flex: 1;
+    min-width: 0;
+    background: var(--color-bg-base);
+    border: 1px solid var(--color-accent);
+    color: var(--color-text-primary);
+    font-size: 0.8rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    outline: none;
+    box-sizing: border-box;
+  }
+
+  .uri-action-btn {
+    all: unset;
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 2px;
+    border-radius: 3px;
+
+    &:hover {
+      color: var(--color-text-primary);
+    }
+
+    &.remove:hover {
+      color: var(--color-error);
+    }
+  }
+
+  /* Description */
+  .section {
+    margin-bottom: 0;
+  }
+
+  .desc-wrapper {
+    position: relative;
+  }
+
+  .desc-actions {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  .desc-wrapper:hover .desc-actions {
+    opacity: 1;
+  }
+
+  .desc-preview {
+    font-size: 0.82rem;
+    color: var(--color-text-secondary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    background: var(--overlay-subtle);
+    border: 1px solid var(--color-border);
+
+    &:hover {
+      border-color: var(--color-text-tertiary);
+    }
+  }
+
+  .save-body-btn {
+    all: unset;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+
+    &:hover {
+      color: var(--color-text-primary);
+      background: var(--overlay-hover-light);
+    }
+  }
+
+  .empty-desc {
+    all: unset;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--color-text-primary);
+    }
+  }
+
+  .uri-add-btn {
+    all: unset;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--color-text-primary);
+    }
   }
 
   .draft-footer {

@@ -55,7 +55,7 @@ export function SaveLabelColors(arg1:Record<string, string>):Promise<void>;
 
 export function SaveLabelsExpanded(arg1:boolean):Promise<void>;
 
-export function SaveListConfig(arg1:string,arg2:string,arg3:number):Promise<void>;
+export function SaveListConfig(arg1:string,arg2:string,arg3:number,arg4:string):Promise<void>;
 
 export function SaveListOrder(arg1:Array<string>):Promise<void>;
 

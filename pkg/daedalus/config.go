@@ -17,6 +17,7 @@ type ListEntry struct {
 	HalfCollapsed bool   `yaml:"half_collapsed,omitempty" json:"halfCollapsed,omitempty"`
 	Locked        bool   `yaml:"locked,omitempty" json:"locked,omitempty"`
 	Pinned        string `yaml:"pinned,omitempty" json:"pinned,omitempty"`
+	Color         string `yaml:"color,omitempty" json:"color,omitempty"`
 }
 
 // BoardConfig holds board-level configuration loaded from board.yaml.

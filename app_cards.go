@@ -256,7 +256,7 @@ func (a *App) MoveCard(filePath string, targetListDirName string, newListOrder f
 	return &card, nil
 }
 
-// MoveAllCards moves every card from sourceDir into targetDir, appending after existing cards.
+// MoveAllCards moves every card from sourceDir into targetDir, prepending before existing cards.
 func (a *App) MoveAllCards(sourceDir, targetDir string) error {
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
@@ -288,10 +288,10 @@ func (a *App) MoveAllCards(sourceDir, targetDir string) error {
 
 	a.pauseWatcher()
 
-	// Find max ListOrder in target to append after existing cards.
-	maxOrder := 0.0
+	// Find min ListOrder in target to prepend before existing cards.
+	minOrder := 0.0
 	if targetCards := a.board.Lists[targetDir]; len(targetCards) > 0 {
-		maxOrder = targetCards[len(targetCards)-1].Metadata.ListOrder
+		minOrder = targetCards[0].Metadata.ListOrder
 	}
 
 	now := time.Now()
@@ -304,7 +304,7 @@ func (a *App) MoveAllCards(sourceDir, targetDir string) error {
 		}
 
 		card.Metadata.Updated = &now
-		card.Metadata.ListOrder = maxOrder + float64(i) + 1.0
+		card.Metadata.ListOrder = minOrder - float64(len(srcCards)-i)
 
 		filename := filepath.Base(card.FilePath)
 		newPath := filepath.Join(a.board.RootPath, targetDir, filename)
@@ -322,9 +322,10 @@ func (a *App) MoveAllCards(sourceDir, targetDir string) error {
 			return fmt.Errorf("writing card %d: %w", card.Metadata.ID, err)
 		}
 
-		a.board.Lists[targetDir] = append(a.board.Lists[targetDir], card)
+		srcCards[i] = card
 	}
 
+	a.board.Lists[targetDir] = append(srcCards, a.board.Lists[targetDir]...)
 	a.board.Lists[sourceDir] = []daedalus.KanbanCard{}
 	slog.Info("moved all cards", "from", sourceDir, "to", targetDir, "count", len(srcCards))
 	return nil

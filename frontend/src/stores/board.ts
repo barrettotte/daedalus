@@ -9,7 +9,7 @@ import { filterBoard } from '../lib/search';
 export type BoardLists = Record<string, daedalus.KanbanCard[]>;
 
 // Map of list directory names to their config (title, limit, locked).
-export type BoardConfigMap = Record<string, { title: string; limit: number; locked: boolean }>;
+export type BoardConfigMap = Record<string, { title: string; limit: number; locked: boolean; color: string }>;
 
 // Keyboard focus position on the board (list + index within that list).
 export interface FocusState {

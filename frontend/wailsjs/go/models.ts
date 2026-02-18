@@ -8,6 +8,7 @@ export namespace daedalus {
 	    halfCollapsed?: boolean;
 	    locked?: boolean;
 	    pinned?: string;
+	    color?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ListEntry(source);
@@ -22,6 +23,7 @@ export namespace daedalus {
 	        this.halfCollapsed = source["halfCollapsed"];
 	        this.locked = source["locked"];
 	        this.pinned = source["pinned"];
+	        this.color = source["color"];
 	    }
 	}
 	export class BoardConfig {

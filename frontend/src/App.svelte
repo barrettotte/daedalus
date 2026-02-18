@@ -195,7 +195,7 @@
 
       boardData.update(lists => {
         const moved = lists[sourceKey] || [];
-        lists[targetKey] = [...(lists[targetKey] || []), ...moved];
+        lists[targetKey] = [...moved, ...(lists[targetKey] || [])];
         lists[sourceKey] = [];
         return lists;
       });
@@ -279,12 +279,13 @@
       const entries: daedalus.ListEntry[] = response.config?.lists || [];
       listOrder.set(entries.map((e) => e.dir));
 
-      const configMap: Record<string, { title: string; limit: number; locked: boolean }> = {};
+      const configMap: Record<string, { title: string; limit: number; locked: boolean; color: string }> = {};
       for (const entry of entries) {
         configMap[entry.dir] = {
           title: entry.title || '',
           limit: entry.limit || 0,
           locked: entry.locked || false,
+          color: entry.color || '',
         };
       }
       boardConfig.set(configMap);
@@ -576,11 +577,13 @@
 
   {#snippet renderList(listKey: string)}
     {#if collapsedLists.has(listKey)}
+      {@const collapsedColor = $boardConfig[listKey]?.color || ''}
       <div class="list-column collapsed" data-list-key={listKey}
         role="button" tabindex="0" title="Expand list"
         class:pinned-left={getPinState(listKey) === 'left'}
         class:pinned-right={getPinState(listKey) === 'right'}
         class:list-dragging={$listDragging === listKey}
+        style={collapsedColor ? `border-top: 3px solid ${collapsedColor}` : ''}
         onclick={() => toggleFullCollapse(listKey)}
         onkeydown={e => e.key === 'Enter' && toggleFullCollapse(listKey)}
       >
@@ -598,6 +601,7 @@
         class:list-dragging={$listDragging === listKey}
       >
         <ListHeader {listKey} locked={lockedLists.has(listKey)}
+          color={$boardConfig[listKey]?.color || ''}
           pinState={getPinState(listKey)}
           hasLeftPin={pinnedLeftLists.size > 0}
           hasRightPin={pinnedRightLists.size > 0}
@@ -639,6 +643,7 @@
         class:list-dragging={$listDragging === listKey}
       >
         <ListHeader {listKey} {locked}
+          color={$boardConfig[listKey]?.color || ''}
           pinState={getPinState(listKey)}
           hasLeftPin={pinnedLeftLists.size > 0}
           hasRightPin={pinnedRightLists.size > 0}

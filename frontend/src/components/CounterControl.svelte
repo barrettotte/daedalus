@@ -1,5 +1,6 @@
 <script lang="ts">
-  // Editable counter widget with +/- buttons, progress bar, and a settings popover for configuring range and direction.
+  // Editable counter widget with +/- buttons, progress bar, and a settings panel.
+  // Supports counting up (e.g. chapters: 0 to 10 by 1) and counting down (e.g. weight: 215 to 200 by 1).
 
   import type { daedalus } from "../../wailsjs/go/models";
   import Icon from "./Icon.svelte";
@@ -12,113 +13,109 @@
     onsave?: (counter: daedalus.Counter | null) => void;
   } = $props();
 
-  // Counter settings panel state
-  let counterSettingsOpen = $state(false);
+  let settingsOpen = $state(false);
   let editLabel = $state("");
-  let editStart = $state(0);
-  let editMax = $state(0);
-  let editStep = $state(1);
+  let editFrom = $state("");
+  let editTo = $state("");
+  let editStep = $state("");
 
-  // Counter completion percentage.
-  let counterPct = $derived.by(() => {
+  // Progress percentage toward the goal. Works for both directions because
+  // (current - start) / (max - start) naturally handles negative ranges:
+  //   count-up   0->10, current=5:   (5-0)/(10-0)     = 50%
+  //   count-down 215->200, current=210: (210-215)/(200-215) = -5/-15 = 33%
+  let pct = $derived.by(() => {
     if (!counter) {
       return 0;
     }
-    const { current, max, start } = counter;
-    const range = max - start;
-
+    const range = counter.max - counter.start;
     if (range === 0) {
       return 0;
     }
-    const pct = ((current - start) / range) * 100;
-    return Math.max(0, Math.min(100, pct));
-
+    return Math.max(0, Math.min(100, ((counter.current - counter.start) / range) * 100));
   });
 
-  // Whether the counter counts down (start > max).
-  let countingDown = $derived(counter ? (counter.start || 0) > counter.max : false);
+  let countingDown = $derived(counter ? counter.start > counter.max : false);
 
-  // Whether the counter has reached its start or goal bound.
-  let atStart = $derived.by(() => {
-    if (!counter) {
-      return false;
-    }
-    return counter.current === (counter.start || 0);
-  });
+  let atStart = $derived(counter ? counter.current === counter.start : false);
+  let atGoal = $derived(counter ? counter.current === counter.max : false);
 
-  let atGoal = $derived.by(() => {
-    if (!counter) {
-      return false;
-    }
-    return counter.current === counter.max;
-  });
-
-  // Increments or decrements the counter's current value by step and saves.
-  function adjustCounter(delta: number): void {
+  function adjust(direction: number): void {
     if (!counter || !onsave) {
       return;
     }
     const step = counter.step || 1;
-    const lo = Math.min(counter.start || 0, counter.max);
-    const hi = Math.max(counter.start || 0, counter.max);
+    const lo = Math.min(counter.start, counter.max);
+    const hi = Math.max(counter.start, counter.max);
+    // For count-up, +1 adds step. For count-down, +1 subtracts step (toward the goal).
+    const delta = countingDown ? -direction : direction;
     const next = Math.max(lo, Math.min(hi, counter.current + delta * step));
-
-    if (next === counter.current) {
-      return;
+    if (next !== counter.current) {
+      onsave({ ...counter, current: next } as daedalus.Counter);
     }
-    const updated = { ...counter, current: next };
-    onsave(updated as daedalus.Counter);
   }
 
-  // Opens the counter settings panel, populating edit fields from current values.
-  function openCounterSettings(): void {
+  // Opens settings, populating string fields from current counter values.
+  function openSettings(): void {
     if (counter) {
       editLabel = counter.label || "";
-      editStart = counter.start || 0;
-      editMax = counter.max;
-      editStep = counter.step || 1;
+      editFrom = String(counter.start || 0);
+      editTo = String(counter.max);
+      editStep = String(counter.step || 1);
     }
-    counterSettingsOpen = true;
+    settingsOpen = true;
   }
 
-  // Saves counter settings from the edit fields.
-  function saveCounterSettings(): void {
+  // Parses a string to an integer. Returns fallback for empty/invalid input.
+  function toInt(value: string, fallback: number): number {
+    const trimmed = value.trim();
+    if (trimmed === "" || trimmed === "-") {
+      return fallback;
+    }
+    const n = Number(trimmed);
+    return Number.isFinite(n) ? Math.round(n) : fallback;
+  }
+
+  // Saves settings from string edit fields.
+  function saveSettings(): void {
     if (!counter || !onsave) {
       return;
     }
-    const lo = Math.min(editStart, editMax);
-    const hi = Math.max(editStart, editMax);
-    const cur = counter.current;
-    const needsReset = cur < lo || cur > hi;
 
-    const updated = {
-      ...counter,
-      label: editLabel.trim(),
-      start: editStart,
-      max: editMax,
-      step: Math.max(1, editStep || 1),
-      current: needsReset ? editStart : cur,
-    };
+    const start = toInt(editFrom, counter.start ?? 0);
+    const max = toInt(editTo, counter.max ?? 10);
+    const step = Math.max(1, toInt(editStep, counter.step ?? 1));
 
-    onsave(updated as daedalus.Counter);
-    counterSettingsOpen = false;
-  }
-
-  // Adds a new default counter to the card.
-  function addCounter(): void {
-    if (!onsave) {
+    if (start === max) {
       return;
     }
-    onsave({ current: 0, max: 10, start: 0, label: "" } as daedalus.Counter);
+
+    // Reset current to start when the range changes, keep it otherwise (e.g. label-only edit).
+    const rangeChanged = start !== (counter.start ?? 0) || max !== counter.max;
+
+    onsave({
+      ...counter,
+      label: editLabel.trim(),
+      start,
+      max,
+      step,
+      current: rangeChanged ? start : counter.current,
+    } as daedalus.Counter);
+    settingsOpen = false;
+  }
+
+  // Creates a new default counter.
+  function addCounter(): void {
+    if (onsave) {
+      onsave({ current: 0, max: 10, start: 0, step: 1, label: "" } as daedalus.Counter);
+    }
   }
 
   // Removes the counter from the card.
   function removeCounter(): void {
-    if (!onsave) {
-      return;
+    if (onsave) {
+      onsave(null);
+      settingsOpen = false;
     }
-    onsave(null);
-    counterSettingsOpen = false;
   }
 </script>
 
@@ -127,12 +124,12 @@
     <div class="section-header">
       <h4 class="sidebar-title">{counter.label || "Counter"}</h4>
       <div class="section-header-actions">
-        {#if counterSettingsOpen}
-          <button class="counter-header-btn save" title="Save settings" onclick={saveCounterSettings}>
+        {#if settingsOpen}
+          <button class="counter-header-btn save" title="Save settings" onclick={saveSettings}>
             <Icon name="check" size={12} />
           </button>
         {:else}
-          <button class="counter-header-btn" title="Counter settings" onclick={openCounterSettings}>
+          <button class="counter-header-btn" title="Counter settings" onclick={openSettings}>
             <Icon name="pencil" size={12} />
           </button>
         {/if}
@@ -142,40 +139,27 @@
       </div>
     </div>
     <div class="counter-progress-row">
-      <button class="btn-icon counter-btn" title="Decrease" disabled={atStart} onclick={() => adjustCounter(countingDown ? 1 : -1)}>-</button>
+      <button class="btn-icon counter-btn" title="Undo progress" disabled={atStart} onclick={() => adjust(-1)}>-</button>
       <div class="progress-bar sidebar-progress">
-        <div class="progress-fill" class:complete={counterPct >= 100} style="width: {counterPct}%"></div>
+        <div class="progress-fill" class:complete={pct >= 100} style="width: {pct}%"></div>
       </div>
       <span class="counter-fraction">{counter.current}/{counter.max}</span>
-      <button class="btn-icon counter-btn" title="Increase" disabled={atGoal} onclick={() => adjustCounter(countingDown ? -1 : 1)}>+</button>
+      <button class="btn-icon counter-btn" title="Make progress" disabled={atGoal} onclick={() => adjust(1)}>+</button>
     </div>
-    {#if counterSettingsOpen}
+    {#if settingsOpen}
       <div class="counter-settings">
-        <input type="text" class="form-input counter-input" bind:value={editLabel} placeholder="Label" onkeydown={e => e.key === 'Enter' && saveCounterSettings()}/>
+        <input type="text" class="form-input counter-input" bind:value={editLabel} placeholder="Label" onkeydown={e => e.key === 'Enter' && saveSettings()}/>
         <div class="counter-range-row">
-          <input type="number" class="form-input counter-input range-input" bind:value={editStart}
-            onblur={() => {
-              editStart = Math.max(0, Number(editStart) || 0);
-              if (editStart === editMax) { 
-                editMax = editStart + 1; 
-              }
-            }}
-            onkeydown={e => e.key === 'Enter' && saveCounterSettings()}
+          <input type="text" inputmode="numeric" class="form-input counter-input range-input"
+            bind:value={editFrom} onkeydown={e => e.key === 'Enter' && saveSettings()}
           />
           <span class="range-text">to</span>
-          <input type="number" class="form-input counter-input range-input" bind:value={editMax}
-            onblur={() => {
-              editMax = Math.max(0, Number(editMax) || 0);
-              if (editMax === editStart) {
-                editMax = editStart + 1;
-              }
-            }}
-            onkeydown={e => e.key === 'Enter' && saveCounterSettings()}
+          <input type="text" inputmode="numeric" class="form-input counter-input range-input"
+            bind:value={editTo} onkeydown={e => e.key === 'Enter' && saveSettings()}
           />
           <span class="range-text">by</span>
-          <input type="number" class="form-input counter-input range-input" bind:value={editStep} min="1"
-            onblur={() => editStep = Math.max(1, editStep || 1)}
-            onkeydown={e => e.key === 'Enter' && saveCounterSettings()}
+          <input type="text" inputmode="numeric" class="form-input counter-input range-input"
+            bind:value={editStep} onkeydown={e => e.key === 'Enter' && saveSettings()}
           />
         </div>
       </div>
@@ -251,5 +235,4 @@
   .sidebar-progress {
     flex: 1;
   }
-
 </style>

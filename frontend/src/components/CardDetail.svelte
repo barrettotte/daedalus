@@ -10,10 +10,25 @@
     GetCardContent, SaveCard, OpenFileExternal, DeleteCard, OpenURI,
   } from "../../wailsjs/go/main/App";
   import { marked } from "marked";
-  import { autoFocus, blurOnEnter, backdropClose, wordCount } from "../lib/utils";
+  import { autoFocus, blurOnEnter, backdropClose, wordCount, resolveWikiLinks } from "../lib/utils";
 
   // Strip title attributes from links to prevent browser tooltips.
+  // Convert [[id]] wiki-links into clickable card references.
   marked.use({
+    extensions: [{
+      name: 'wikilink',
+      level: 'inline',
+      start(src: string) { return src.indexOf('[['); },
+      tokenizer(src: string) {
+        const match = src.match(/^\[\[#?(\d+)\]\]/);
+        if (match) {
+          return { type: 'wikilink', raw: match[0], cardId: Number(match[1]) };
+        }
+      },
+      renderer(token) {
+        return `<a href="#" class="wiki-link" data-card-id="${token['cardId']}">#${token['cardId']}</a>`;
+      },
+    }],
     renderer: {
       link({ href, text }: { href: string; text: string }) {
         return `<a href="${href}" target="_blank" rel="noopener noreferrer">${text}</a>`;
@@ -126,7 +141,7 @@
     editingBody = false;
   }
 
-  // Handles clicks on the markdown body -- opens links via system handler, otherwise enters edit mode.
+  // Handles clicks on the markdown body -- opens wiki-links as card refs, other links via system handler, otherwise enters edit mode.
   function handleBodyClick(e: MouseEvent): void {
     if (e.button !== 0) {
       return;
@@ -134,10 +149,27 @@
     const target = e.target as HTMLElement;
     const anchor = target.closest("a");
 
-    if (anchor && anchor.href) {
+    if (anchor) {
       e.preventDefault();
       e.stopPropagation();
-      saveWithToast(OpenURI(anchor.href), "open link");
+
+      const cardId = anchor.dataset.cardId;
+      if (cardId) {
+        const id = Number(cardId);
+        for (const cards of Object.values($boardData)) {
+          const found = cards.find(c => c.metadata.id === id);
+          if (found) {
+            selectedCard.set(found);
+            return;
+          }
+        }
+        addToast(`Card #${id} not found`);
+        return;
+      }
+
+      if (anchor.href) {
+        saveWithToast(OpenURI(anchor.href), "open link");
+      }
       return;
     }
     startEditBody();
@@ -156,7 +188,7 @@
       updateCardInBoard(result);
       selectedCard.set(result);
       rawBody = editBody;
-      bodyHtml = marked.parse(editBody, { async: false });
+      bodyHtml = resolveWikiLinks(marked.parse(editBody, { async: false }) as string, $boardData);
       addToast("Saved", "success");
     } catch (e) {
       addToast(`Failed to save body: ${e}`);
@@ -400,7 +432,7 @@
       // Strip leading h1 since title is already in the modal header
       const body = (content || "").replace(/^#\s+.*\n*/, "");
       rawBody = body;
-      bodyHtml = marked.parse(body, { async: false });
+      bodyHtml = resolveWikiLinks(marked.parse(body, { async: false }) as string, $boardData);
       loading = false;
 
       // If opened via E shortcut, start in edit mode

@@ -4,8 +4,8 @@
   import { onMount } from "svelte";
   import { GetScratchpad, SaveScratchpad, OpenFileExternal } from "../../wailsjs/go/main/App";
   import { marked } from "marked";
-  import { backdropClose, wordCount } from "../lib/utils";
-  import { addToast, saveWithToast, boardPath } from "../stores/board";
+  import { backdropClose, wordCount, resolveWikiLinks } from "../lib/utils";
+  import { addToast, saveWithToast, boardPath, boardData, selectedCard } from "../stores/board";
   import Icon from "./Icon.svelte";
 
   let { onclose }: { onclose: () => void } = $props();
@@ -22,7 +22,7 @@
   onMount(async () => {
     try {
       content = await GetScratchpad();
-      bodyHtml = marked.parse(content, { async: false }) as string;
+      bodyHtml = resolveWikiLinks(marked.parse(content, { async: false }) as string, $boardData);
     } catch (e) {
       addToast(`Failed to load scratchpad: ${e}`);
     }
@@ -40,13 +40,38 @@
       return;
     }
     content = editText;
-    bodyHtml = marked.parse(content, { async: false }) as string;
+    bodyHtml = resolveWikiLinks(marked.parse(content, { async: false }) as string, $boardData);
     await saveWithToast(SaveScratchpad(content), "save scratchpad");
   }
 
   async function blurEditor(): Promise<void> {
     await save();
     editing = false;
+  }
+
+  function handleBodyClick(e: MouseEvent): void {
+    const target = e.target as HTMLElement;
+    const anchor = target.closest("a");
+    if (anchor) {
+      const cardId = anchor.dataset.cardId;
+      if (cardId) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const id = Number(cardId);
+        for (const cards of Object.values($boardData)) {
+          const found = cards.find(c => c.metadata.id === id);
+          if (found) {
+            onclose();
+            selectedCard.set(found);
+            return;
+          }
+        }
+        addToast(`Card #${id} not found`);
+        return;
+      }
+    }
+    startEdit();
   }
 
   function openExternal(): void {
@@ -100,7 +125,9 @@
       {:else if loading}
         <p class="loading-text">Loading...</p>
       {:else if bodyHtml.trim()}
-        <div class="markdown-body clickable" role="button" tabindex="0" onclick={startEdit} onkeydown={e => e.key === 'Enter' && startEdit()}>{@html bodyHtml}</div>
+        <div class="markdown-body clickable" role="button" tabindex="0" onclick={handleBodyClick}
+          onkeydown={e => e.key === 'Enter' && startEdit()}
+        >{@html bodyHtml}</div>
       {:else}
         <button class="empty-desc" onclick={startEdit}>Click to add notes...</button>
       {/if}

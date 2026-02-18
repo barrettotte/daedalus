@@ -222,3 +222,20 @@ export function wordCount(text: string): number {
 export function isFileIcon(icon: string): boolean {
   return icon ? icon.endsWith(".svg") || icon.endsWith(".png") : false;
 }
+
+// Replaces wiki-link placeholders with "#id - title" using current board data.
+// Expects HTML containing <a class="wiki-link" data-card-id="N">#N</a> from the marked extension.
+export function resolveWikiLinks(html: string, boardLists: Record<string, { metadata: { id: number; title: string } }[]>): string {
+  return html.replace(/(<a[^>]*class="wiki-link"[^>]*data-card-id=")(\d+)("[^>]*>)#\d+(<\/a>)/g, (_match, pre, id, mid, post) => {
+    const cardId = Number(id);
+
+    for (const cards of Object.values(boardLists)) {
+      const card = cards.find(c => c.metadata.id === cardId);
+      if (card) {
+        const escaped = card.metadata.title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return `${pre}${id}${mid}#${cardId} - ${escaped}${post}`;
+      }
+    }
+    return `${pre}${id}${mid}#${cardId}${post}`;
+  });
+}

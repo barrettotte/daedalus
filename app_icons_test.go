@@ -11,7 +11,7 @@ import (
 func TestListIcons_Success(t *testing.T) {
 	app, root := setupTestBoard(t)
 
-	iconsDir := filepath.Join(root, "assets", "icons")
+	iconsDir := filepath.Join(root, "_assets", "icons")
 	mustMkdir(t, iconsDir)
 	mustWrite(t, filepath.Join(iconsDir, "zebra.svg"), []byte("<svg></svg>"))
 	mustWrite(t, filepath.Join(iconsDir, "arrow.svg"), []byte("<svg></svg>"))
@@ -47,7 +47,7 @@ func TestListIcons_EmptyDir(t *testing.T) {
 func TestGetIconContent_SVG(t *testing.T) {
 	app, root := setupTestBoard(t)
 
-	iconsDir := filepath.Join(root, "assets", "icons")
+	iconsDir := filepath.Join(root, "_assets", "icons")
 	mustMkdir(t, iconsDir)
 	svgContent := `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>`
 	mustWrite(t, filepath.Join(iconsDir, "test.svg"), []byte(svgContent))
@@ -65,7 +65,7 @@ func TestGetIconContent_SVG(t *testing.T) {
 func TestGetIconContent_PNG(t *testing.T) {
 	app, root := setupTestBoard(t)
 
-	iconsDir := filepath.Join(root, "assets", "icons")
+	iconsDir := filepath.Join(root, "_assets", "icons")
 	mustMkdir(t, iconsDir)
 	pngData := []byte{0x89, 0x50, 0x4E, 0x47} // PNG magic bytes
 	mustWrite(t, filepath.Join(iconsDir, "test.png"), pngData)
@@ -109,7 +109,7 @@ func TestGetIconContent_PathTraversal(t *testing.T) {
 func TestGetIconContent_NotFound(t *testing.T) {
 	app, root := setupTestBoard(t)
 
-	mustMkdir(t, filepath.Join(root, "assets", "icons"))
+	mustMkdir(t, filepath.Join(root, "_assets", "icons"))
 
 	_, err := app.GetIconContent("nonexistent.svg")
 	if err == nil {

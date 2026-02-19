@@ -28,8 +28,8 @@ func (a *App) CreateList(name string) error {
 	if strings.HasPrefix(name, ".") {
 		return fmt.Errorf("list name cannot start with a dot")
 	}
-	if name == "assets" {
-		return fmt.Errorf("'assets' is a reserved name")
+	if name == "_assets" {
+		return fmt.Errorf("'_assets' is a reserved name")
 	}
 
 	// Check for duplicates

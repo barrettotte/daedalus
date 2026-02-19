@@ -374,8 +374,17 @@
           {/if}
           {#if iconPickerOpen}
             <div class="icon-picker-panel">
+              {#if iconFileNames.length > 0}
+                <div class="icon-grid">
+                  {#each iconFileNames as name}
+                    <button class="icon-grid-option" class:active={name === icon} title={name} onclick={() => { saveIcon(name); iconPickerOpen = false; }}>
+                      <CardIcon name={name} size={16} />
+                    </button>
+                  {/each}
+                </div>
+              {/if}
               <div class="emoji-row">
-                <input class="form-input emoji-input" type="text" placeholder="Type emoji..."
+                <input class="form-input emoji-input" type="text" maxlength="2" placeholder="Emoji"
                   bind:value={iconEmojiValue}
                   onkeydown={e => {
                     if (e.key === 'Enter') {
@@ -388,15 +397,6 @@
                   Set
                 </button>
               </div>
-              {#if iconFileNames.length > 0}
-                <div class="icon-grid">
-                  {#each iconFileNames as name}
-                    <button class="icon-grid-option" class:active={name === icon} title={name} onclick={() => { saveIcon(name); iconPickerOpen = false; }}>
-                      <CardIcon name={name} size={16} />
-                    </button>
-                  {/each}
-                </div>
-              {/if}
               {#if icon}
                 <button class="menu-item menu-item-danger" onclick={() => { saveIcon(""); iconPickerOpen = false; }}>
                   <Icon name="trash" size={12} />

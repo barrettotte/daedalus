@@ -50,7 +50,7 @@ func ScanBoard(rootPath string) (*BoardState, error) {
 
 	// loop over lists (directories)
 	for _, entry := range entries {
-		if entry.IsDir() && !strings.HasPrefix(entry.Name(), ".") && entry.Name() != "assets" {
+		if entry.IsDir() && !strings.HasPrefix(entry.Name(), ".") && entry.Name() != "_assets" {
 			dirName := entry.Name()
 			listPath := filepath.Join(absRoot, dirName)
 

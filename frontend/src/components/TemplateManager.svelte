@@ -336,10 +336,6 @@
                               </button>
                             {/if}
                           </span>
-                          <div class="emoji-row">
-                            <input class="form-input emoji-input" type="text" placeholder="Emoji..." bind:value={emojiValue} onkeydown={e => e.key === 'Enter' && commitEmoji()}/>
-                            <button class="emoji-save-btn" onclick={commitEmoji}>Set</button>
-                          </div>
                         </div>
                         {#if iconFileNames.length > 0}
                           <div class="icon-grid">
@@ -350,6 +346,10 @@
                             {/each}
                           </div>
                         {/if}
+                        <div class="emoji-row">
+                            <input class="form-input emoji-input" type="text" maxlength="2" placeholder="Emoji" bind:value={emojiValue} onkeydown={e => e.key === 'Enter' && commitEmoji()}/>
+                            <button class="emoji-save-btn" onclick={commitEmoji}>Set</button>
+                          </div>
                       </div>
                       <div class="editor-divider"></div>
 
@@ -568,11 +568,6 @@
     display: flex;
     align-items: center;
     gap: 10px;
-  }
-
-  .icon-header-row .emoji-row {
-    flex: 1;
-    min-width: 0;
   }
 
   .editor-divider {

@@ -57,7 +57,13 @@ def build_frontmatter(card, labels_map, list_pos, checklists_data) -> str:
     lines = ["---"]
     lines.append(f"title: {escape_yaml_string(card['name'])}")
     lines.append(f"id: {int(card['idShort'])}")
-    lines.append(f"created: {datetime.now(timezone.utc).isoformat()}")
+
+    last_activity = card.get('dateLastActivity', '')
+    if last_activity:
+        lines.append(f"created: {last_activity}")
+        lines.append(f"updated: {last_activity}")
+    else:
+        lines.append(f"created: {datetime.now(timezone.utc).isoformat()}")
     lines.append(f"list_order: {list_pos}")
 
     labels = [labels_map[lbl_id] for lbl_id in card['idLabels'] if lbl_id in labels_map]

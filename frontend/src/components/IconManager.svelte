@@ -109,7 +109,7 @@
   }
 
   function openInExplorer(): void {
-    saveWithToast(OpenFileExternal($boardPath + "/assets/icons"), "open icons folder");
+    saveWithToast(OpenFileExternal($boardPath + "/_assets/icons"), "open icons folder");
   }
 
   function readFileAsDataURL(file: File): Promise<string> {

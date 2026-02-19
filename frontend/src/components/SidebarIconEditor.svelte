@@ -88,10 +88,6 @@
       </div>
     </div>
     <div class="icon-editor-body">
-      <div class="emoji-row">
-        <input class="form-input emoji-input" type="text" placeholder="Type emoji..." bind:value={emojiValue} onkeydown={e => e.key === 'Enter' && commitEmoji()}/>
-        <button class="emoji-save-btn" onclick={commitEmoji}>Set</button>
-      </div>
       {#if iconFileNames.length > 0}
         <div class="icon-grid">
           {#each iconFileNames as name}
@@ -101,6 +97,10 @@
           {/each}
         </div>
       {/if}
+      <div class="emoji-row">
+        <input class="form-input emoji-input" type="text" maxlength="2" placeholder="Emoji" bind:value={emojiValue} onkeydown={e => e.key === 'Enter' && commitEmoji()}/>
+        <button class="emoji-save-btn" onclick={commitEmoji}>Set</button>
+      </div>
     </div>
   </div>
 {:else}

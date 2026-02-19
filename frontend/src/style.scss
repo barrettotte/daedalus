@@ -744,9 +744,9 @@ input[type="number"] {
 }
 
 .emoji-input {
-    flex: 1;
-    min-width: 0;
+    width: 3.5rem;
     font-size: 0.8rem;
+    text-align: center;
 }
 
 .emoji-save-btn {

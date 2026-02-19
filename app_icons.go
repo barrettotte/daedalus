@@ -14,10 +14,10 @@ import (
 
 // iconsDir returns the path to the board's icons directory.
 func (a *App) iconsDir() string {
-	return filepath.Join(a.board.RootPath, "assets", "icons")
+	return filepath.Join(a.board.RootPath, "_assets", "icons")
 }
 
-// ListIcons returns a sorted list of icon filenames from {boardRoot}/assets/icons/.
+// ListIcons returns a sorted list of icon filenames from {boardRoot}/_assets/icons/.
 // Returns an empty list if the directory does not exist.
 func (a *App) ListIcons() ([]string, error) {
 	if a.board == nil {
@@ -60,7 +60,7 @@ func (a *App) GetIconContent(name string) (string, error) {
 		return "", fmt.Errorf("invalid icon name")
 	}
 
-	iconPath := filepath.Join(a.board.RootPath, "assets", "icons", name)
+	iconPath := filepath.Join(a.board.RootPath, "_assets", "icons", name)
 	absPath, err := a.validatePath(iconPath)
 	if err != nil {
 		return "", err
@@ -86,7 +86,7 @@ func (a *App) GetIconContent(name string) (string, error) {
 	return "", fmt.Errorf("unsupported icon type: %s", ext)
 }
 
-// SaveCustomIcon saves an uploaded icon file to {boardRoot}/assets/icons/.
+// SaveCustomIcon saves an uploaded icon file to {boardRoot}/_assets/icons/.
 // For .svg files, content is raw SVG text. For .png files, content is base64-encoded.
 func (a *App) SaveCustomIcon(name string, content string) error {
 	if a.board == nil {
@@ -138,7 +138,7 @@ func (a *App) SaveCustomIcon(name string, content string) error {
 	return nil
 }
 
-// DeleteIcon removes an icon file from {boardRoot}/assets/icons/,
+// DeleteIcon removes an icon file from {boardRoot}/_assets/icons/,
 // clears the icon field on any card that references it, and removes
 // the display name entry from board.yaml.
 func (a *App) DeleteIcon(name string) error {

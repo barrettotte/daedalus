@@ -146,7 +146,7 @@ func TestCreateList_Success(t *testing.T) {
 func TestCreateList_InvalidName(t *testing.T) {
 	app, _ := setupTestBoardMulti(t)
 
-	invalidNames := []string{"../etc", "foo/bar", ".hidden", "assets", "", "  "}
+	invalidNames := []string{"../etc", "foo/bar", ".hidden", "_assets", "", "  "}
 	for _, name := range invalidNames {
 		err := app.CreateList(name)
 		if err == nil {

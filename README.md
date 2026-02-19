@@ -18,6 +18,7 @@ So this was built specifically as a complementary application to Obsidian.
 Additionally, my single board on Trello was using between 1-3 GB of RAM which is stupid.
 Often times dragging cards around would lag and not work at all.
 So this is meant to be a lightweight and fast replacement.
+I want to never use an Atlassian product in my personal life again if I can help it.
 
 This app is offline first. 
 The user is put in charge of data retention; So setup a cron job or make a private repo somewhere to export to.
@@ -81,17 +82,22 @@ python scripts/trello_to_md.py --input tmp/trello_export.json --output tmp/kanba
 #  - cards as markdown files with frontmatter yml metadata
 ```
 
+## Limitations
+
+- Only tested fully on Linux. If someone tries this on Windows/Mac and it doesn't work I wouldn't mind fixing things
+- `daedalus-cli` not fully tested. This was a nice to have for automation, but I don't really use it in my workflow right now
+
 ## Future Features
 
 Features that I originally thought up, but I need to think about it more.
 
 - Card dependencies. ex: Card B is blocked by Card A
 - Dependency graph view
-- Recurring tasks. ex: Card created and due every Tuesday at 12:00 PM
-- Habit tracking (are these that different than recurring tasks?)
-- Epics (multiple cards) and Sagas (multiple epics)
-- Calendar view
-- MCP server - give easier access to AI agents?
+- Recurring tasks. ex: Card created and due every Tuesday at 12:00 PM. Maybe not cards, but like a daily checklist thing?
+- Habit tracking - Track something over a date range or limitless. Check off daily or configurable interval?
+- Epics (multiple cards) and Sagas (multiple epics) - useful for trying to track life goals
+- Calendar view - combine cards, recurring tasks, etc into a calendar
+- MCP server - give easy access to AI agents. I'm not there yet in my workflow, but should be relatively easy since it could use the same functions as CLI
 
 ## Development
 

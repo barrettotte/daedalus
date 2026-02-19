@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: linux
+            artifact: daedalus-linux-amd64
+          - os: macos-latest
+            platform: darwin
+            artifact: daedalus-darwin-arm64
+          - os: windows-latest
+            platform: windows
+            artifact: daedalus-windows-amd64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux system deps
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev build-essential pkg-config
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.11.0
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build desktop app (Linux/macOS)
+        if: matrix.platform != 'windows'
+        run: wails build
+
+      - name: Build desktop app (Windows)
+        if: matrix.platform == 'windows'
+        run: wails build -nsis
+
+      - name: Build CLI (Linux/macOS)
+        if: matrix.platform != 'windows'
+        run: go build -o build/bin/daedalus-cli ./cmd/daedalus-cli
+
+      - name: Build CLI (Windows)
+        if: matrix.platform == 'windows'
+        run: go build -o build/bin/daedalus-cli.exe ./cmd/daedalus-cli
+
+      - name: Package (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          mkdir -p dist
+          tar -czf dist/${{ matrix.artifact }}.tar.gz \
+            -C build/bin daedalus daedalus-cli \
+            -C ${{ github.workspace }}/build/linux daedalus.desktop daedalus.svg \
+            -C ${{ github.workspace }} LICENSE
+
+      - name: Package (macOS)
+        if: matrix.platform == 'darwin'
+        run: |
+          mkdir -p dist
+          tar -czf dist/${{ matrix.artifact }}.tar.gz \
+            -C build/bin daedalus daedalus-cli \
+            -C ${{ github.workspace }} LICENSE
+
+      - name: Package (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          $files = @("build\bin\daedalus.exe", "build\bin\daedalus-cli.exe", "LICENSE")
+          $installer = Get-ChildItem -Path "build\bin" -Filter "*-amd64-installer.exe" -ErrorAction SilentlyContinue
+          if ($installer) { $files += $installer.FullName }
+          Compress-Archive -Path $files -DestinationPath "dist\${{ matrix.artifact }}.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: artifacts
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/*.tar.gz
+            artifacts/*.zip

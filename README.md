@@ -85,9 +85,13 @@ python scripts/trello_to_md.py --input tmp/trello_export.json --output tmp/kanba
 
 Features that I originally thought up, but I need to think about it more.
 
+- Card dependencies. ex: Card B is blocked by Card A
+- Dependency graph view
 - Recurring tasks. ex: Card created and due every Tuesday at 12:00 PM
-- Epics (multiple cards) and sagas (multiple epics)
+- Habit tracking (are these that different than recurring tasks?)
+- Epics (multiple cards) and Sagas (multiple epics)
 - Calendar view
+- MCP server - give easier access to AI agents?
 
 ## Development
 

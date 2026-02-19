@@ -1,0 +1,454 @@
+package main
+
+import (
+	"archive/zip"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
+	"daedalus/pkg/daedalus"
+)
+
+func jsonOut(v any) error {
+	data, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encoding JSON: %w", err)
+	}
+	fmt.Println(string(data))
+	return nil
+}
+
+func cmdBoard(boardPath string) error {
+	state, err := daedalus.ScanBoard(boardPath)
+	if err != nil {
+		return err
+	}
+
+	totalCards := 0
+	for _, cards := range state.Lists {
+		totalCards += len(cards)
+	}
+
+	return jsonOut(map[string]any{
+		"title": state.Config.Title,
+		"lists": len(state.Config.Lists),
+		"cards": totalCards,
+		"path":  state.RootPath,
+	})
+}
+
+func cmdLists(boardPath string) error {
+	state, err := daedalus.ScanBoard(boardPath)
+	if err != nil {
+		return err
+	}
+
+	type listInfo struct {
+		Dir   string `json:"dir"`
+		Title string `json:"title"`
+		Cards int    `json:"cards"`
+	}
+
+	result := []listInfo{}
+	for _, entry := range state.Config.Lists {
+		cards := state.Lists[entry.Dir]
+		title := entry.Title
+		if title == "" {
+			title = entry.Dir
+		}
+		result = append(result, listInfo{
+			Dir:   entry.Dir,
+			Title: title,
+			Cards: len(cards),
+		})
+	}
+
+	return jsonOut(result)
+}
+
+func cmdCards(boardPath string, args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: cards <list-name>")
+	}
+	listName := args[0]
+
+	state, err := daedalus.ScanBoard(boardPath)
+	if err != nil {
+		return err
+	}
+
+	cards, ok := state.Lists[listName]
+	if !ok {
+		return fmt.Errorf("list %q not found", listName)
+	}
+
+	type cardInfo struct {
+		ID        int      `json:"id"`
+		Title     string   `json:"title"`
+		Labels    []string `json:"labels"`
+		ListOrder float64  `json:"listOrder"`
+	}
+
+	result := []cardInfo{}
+	for _, c := range cards {
+		labels := c.Metadata.Labels
+		if labels == nil {
+			labels = []string{}
+		}
+		result = append(result, cardInfo{
+			ID:        c.Metadata.ID,
+			Title:     c.Metadata.Title,
+			Labels:    labels,
+			ListOrder: c.Metadata.ListOrder,
+		})
+	}
+
+	return jsonOut(result)
+}
+
+func cmdCardGet(boardPath string, args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: card-get <card-id>")
+	}
+	cardID, err := strconv.Atoi(args[0])
+	if err != nil {
+		return fmt.Errorf("invalid card ID %q: %w", args[0], err)
+	}
+
+	state, err := daedalus.ScanBoard(boardPath)
+	if err != nil {
+		return err
+	}
+
+	for _, cards := range state.Lists {
+		for _, c := range cards {
+			if c.Metadata.ID == cardID {
+				body, err := daedalus.ReadCardContent(c.FilePath)
+				if err != nil {
+					return fmt.Errorf("reading card content: %w", err)
+				}
+				return jsonOut(map[string]any{
+					"id":       c.Metadata.ID,
+					"title":    c.Metadata.Title,
+					"list":     c.ListName,
+					"metadata": c.Metadata,
+					"body":     body,
+				})
+			}
+		}
+	}
+
+	return fmt.Errorf("card with ID %d not found", cardID)
+}
+
+func cmdCardCreate(boardPath string, args []string) error {
+	if len(args) < 2 {
+		return fmt.Errorf("usage: card-create <list-name> <title>")
+	}
+	listName := args[0]
+	title := args[1]
+
+	state, err := daedalus.ScanBoard(boardPath)
+	if err != nil {
+		return err
+	}
+
+	cards, ok := state.Lists[listName]
+	if !ok {
+		return fmt.Errorf("list %q not found", listName)
+	}
+
+	id := state.MaxID + 1
+	listOrder, _ := daedalus.ComputeInsertPosition(cards, "bottom")
+	now := time.Now()
+
+	meta := daedalus.CardMetadata{
+		ID:        id,
+		Title:     title,
+		Created:   &now,
+		Updated:   &now,
+		ListOrder: listOrder,
+	}
+
+	body := "# " + title + "\n\n"
+	filePath := filepath.Join(boardPath, listName, fmt.Sprintf("%d.md", id))
+
+	if err := daedalus.WriteCardFile(filePath, meta, body); err != nil {
+		return fmt.Errorf("writing card file: %w", err)
+	}
+
+	return jsonOut(map[string]any{
+		"id":    id,
+		"title": title,
+		"list":  listName,
+		"path":  filePath,
+	})
+}
+
+func cmdCardDelete(boardPath string, args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: card-delete <card-id>")
+	}
+	cardID, err := strconv.Atoi(args[0])
+	if err != nil {
+		return fmt.Errorf("invalid card ID %q: %w", args[0], err)
+	}
+
+	state, err := daedalus.ScanBoard(boardPath)
+	if err != nil {
+		return err
+	}
+
+	for _, cards := range state.Lists {
+		for _, c := range cards {
+			if c.Metadata.ID == cardID {
+				return os.Remove(c.FilePath)
+			}
+		}
+	}
+
+	return fmt.Errorf("card with ID %d not found", cardID)
+}
+
+func cmdListCreate(boardPath string, args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: list-create <name>")
+	}
+	name := args[0]
+
+	if name == "" {
+		return fmt.Errorf("list name cannot be empty")
+	}
+	if strings.Contains(name, "/") || strings.Contains(name, "\\") {
+		return fmt.Errorf("list name cannot contain path separators")
+	}
+	if strings.Contains(name, "..") {
+		return fmt.Errorf("list name cannot contain '..'")
+	}
+	if strings.HasPrefix(name, ".") {
+		return fmt.Errorf("list name cannot start with '.'")
+	}
+	if name == "_assets" {
+		return fmt.Errorf("list name cannot be '_assets'")
+	}
+
+	state, err := daedalus.ScanBoard(boardPath)
+	if err != nil {
+		return err
+	}
+
+	if _, exists := state.Lists[name]; exists {
+		return fmt.Errorf("list %q already exists", name)
+	}
+	// Also check config entries for lists that exist but have no cards
+	if daedalus.FindListEntry(state.Config.Lists, name) >= 0 {
+		return fmt.Errorf("list %q already exists", name)
+	}
+
+	dirPath := filepath.Join(boardPath, name)
+	if err := os.MkdirAll(dirPath, 0755); err != nil {
+		return fmt.Errorf("creating list directory: %w", err)
+	}
+
+	state.Config.Lists = append(state.Config.Lists, daedalus.ListEntry{Dir: name})
+	if err := daedalus.SaveBoardConfig(boardPath, state.Config); err != nil {
+		return fmt.Errorf("saving board config: %w", err)
+	}
+
+	return jsonOut(map[string]any{
+		"dir": name,
+	})
+}
+
+func cmdListDelete(boardPath string, args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: list-delete <name>")
+	}
+	name := args[0]
+
+	if strings.Contains(name, "/") || strings.Contains(name, "\\") || strings.Contains(name, "..") {
+		return fmt.Errorf("invalid list name")
+	}
+
+	state, err := daedalus.ScanBoard(boardPath)
+	if err != nil {
+		return err
+	}
+
+	_, inLists := state.Lists[name]
+	inConfig := daedalus.FindListEntry(state.Config.Lists, name) >= 0
+	if !inLists && !inConfig {
+		return fmt.Errorf("list %q not found", name)
+	}
+
+	dirPath := filepath.Join(boardPath, name)
+	if err := os.RemoveAll(dirPath); err != nil {
+		return fmt.Errorf("removing list directory: %w", err)
+	}
+
+	idx := daedalus.FindListEntry(state.Config.Lists, name)
+	if idx >= 0 {
+		state.Config.Lists = append(state.Config.Lists[:idx], state.Config.Lists[idx+1:]...)
+	}
+	if err := daedalus.SaveBoardConfig(boardPath, state.Config); err != nil {
+		return fmt.Errorf("saving board config: %w", err)
+	}
+
+	return nil
+}
+
+// Export structs for cmdExportJSON
+type exportCard struct {
+	ID       int                   `json:"id"`
+	Title    string                `json:"title"`
+	Metadata daedalus.CardMetadata `json:"metadata"`
+	Body     string                `json:"body"`
+}
+
+type exportList struct {
+	Dir   string       `json:"dir"`
+	Title string       `json:"title"`
+	Cards []exportCard `json:"cards"`
+}
+
+type exportBoard struct {
+	Title      string                `json:"title"`
+	ExportedAt time.Time            `json:"exportedAt"`
+	Config     *daedalus.BoardConfig `json:"config"`
+	Lists      []exportList          `json:"lists"`
+}
+
+func cmdExportJSON(boardPath string, args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: export-json <output-path>")
+	}
+	outputPath := args[0]
+
+	state, err := daedalus.ScanBoard(boardPath)
+	if err != nil {
+		return err
+	}
+
+	board := exportBoard{
+		Title:      state.Config.Title,
+		ExportedAt: time.Now(),
+		Config:     state.Config,
+	}
+
+	for _, entry := range state.Config.Lists {
+		cards := state.Lists[entry.Dir]
+		el := exportList{
+			Dir:   entry.Dir,
+			Title: entry.Title,
+		}
+		if el.Title == "" {
+			el.Title = entry.Dir
+		}
+		for _, c := range cards {
+			body, err := daedalus.ReadCardContent(c.FilePath)
+			if err != nil {
+				return fmt.Errorf("reading card %d: %w", c.Metadata.ID, err)
+			}
+			el.Cards = append(el.Cards, exportCard{
+				ID:       c.Metadata.ID,
+				Title:    c.Metadata.Title,
+				Metadata: c.Metadata,
+				Body:     body,
+			})
+		}
+		board.Lists = append(board.Lists, el)
+	}
+
+	data, err := json.MarshalIndent(board, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encoding JSON: %w", err)
+	}
+
+	if err := os.WriteFile(outputPath, data, 0644); err != nil {
+		return fmt.Errorf("writing export file: %w", err)
+	}
+
+	return nil
+}
+
+func cmdExportZip(boardPath string, args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: export-zip <output-path>")
+	}
+	outputPath := args[0]
+
+	state, err := daedalus.ScanBoard(boardPath)
+	if err != nil {
+		return err
+	}
+
+	outFile, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("creating zip file: %w", err)
+	}
+
+	zw := zip.NewWriter(outFile)
+
+	// addToZip reads a file from disk and writes it into the zip at zipPath.
+	addToZip := func(srcPath, zipPath string) error {
+		data, err := os.ReadFile(srcPath)
+		if err != nil {
+			return err
+		}
+		w, err := zw.Create(zipPath)
+		if err != nil {
+			return err
+		}
+		_, err = w.Write(data)
+		return err
+	}
+
+	// Add board.yaml
+	if err := addToZip(filepath.Join(boardPath, "board.yaml"), "board.yaml"); err != nil {
+		zw.Close()
+		outFile.Close()
+		return fmt.Errorf("adding board.yaml: %w", err)
+	}
+
+	// Add all card files
+	for _, entry := range state.Config.Lists {
+		for _, c := range state.Lists[entry.Dir] {
+			zipPath := entry.Dir + "/" + filepath.Base(c.FilePath)
+			if err := addToZip(c.FilePath, zipPath); err != nil {
+				zw.Close()
+				outFile.Close()
+				return fmt.Errorf("adding card %s: %w", zipPath, err)
+			}
+		}
+	}
+
+	// Add icons from _assets/icons/ if present
+	iconsDir := filepath.Join(boardPath, "_assets", "icons")
+	if entries, err := os.ReadDir(iconsDir); err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() || !daedalus.IsIconExt(entry.Name()) {
+				continue
+			}
+			srcPath := filepath.Join(iconsDir, entry.Name())
+			zipPath := "_assets/icons/" + entry.Name()
+			if err := addToZip(srcPath, zipPath); err != nil {
+				zw.Close()
+				outFile.Close()
+				return fmt.Errorf("adding icon %s: %w", entry.Name(), err)
+			}
+		}
+	}
+
+	if err := zw.Close(); err != nil {
+		outFile.Close()
+		return fmt.Errorf("finalizing zip: %w", err)
+	}
+	if err := outFile.Close(); err != nil {
+		return fmt.Errorf("closing zip file: %w", err)
+	}
+	return nil
+}

@@ -6,7 +6,9 @@
     addToast, saveWithToast, minimalView, toggleMinimalView, labelColors,
   } from "../stores/board";
   import type { daedalus } from "../../wailsjs/go/models";
-  import { SaveShowYearProgress, SaveDarkMode, SaveBoardTitle } from "../../wailsjs/go/main/App";
+  import {
+    ExportJSON, ExportZip, SaveFileDialog, SaveShowYearProgress, SaveDarkMode, SaveBoardTitle,
+  } from "../../wailsjs/go/main/App";
   import { autoFocus, clickOutside, copyToClipboard } from "../lib/utils";
   import Icon from "./Icon.svelte";
   import SearchFilterPopover from "./SearchFilterPopover.svelte";
@@ -196,6 +198,47 @@
     document.documentElement.classList.toggle("light", !darkMode);
     saveWithToast(SaveDarkMode(darkMode), "save dark mode state");
   }
+
+  function exportFilename(ext: string): string {
+    const title = $boardTitle || "board-export";
+    const slug = title.toLowerCase().replace(/ +/g, "-").replace(/[^a-z0-9-]/g, "").replace(/^-|-$/g, "");
+    const d = new Date();
+    const stamp = d.getFullYear().toString()
+      + String(d.getMonth() + 1).padStart(2, "0")
+      + String(d.getDate()).padStart(2, "0")
+      + String(d.getHours()).padStart(2, "0")
+      + String(d.getMinutes()).padStart(2, "0")
+      + String(d.getSeconds()).padStart(2, "0");
+    return `${slug}-${stamp}${ext}`;
+  }
+
+  // Prompts the user for a save path, then exports the board as a single JSON file.
+  async function exportJSON(): Promise<void> {
+    const path = await SaveFileDialog(exportFilename(".json"));
+    if (!path) {
+      return;
+    }
+    try {
+      await ExportJSON(path);
+      addToast("Board exported as JSON", "success");
+    } catch (e) {
+      addToast(`Failed to export: ${e}`, "error");
+    }
+  }
+
+  // Prompts the user for a save path, then exports the board as a Zip archive.
+  async function exportZip(): Promise<void> {
+    const path = await SaveFileDialog(exportFilename(".zip"));
+    if (!path) {
+      return;
+    }
+    try {
+      await ExportZip(path);
+      addToast("Board exported as Zip", "success");
+    } catch (e) {
+      addToast(`Failed to export: ${e}`, "error");
+    }
+  }
 </script>
 
 <div class="top-bar">
@@ -326,6 +369,15 @@
             </span>
             Minimal view
             {#if $minimalView}<Icon name="check" size={12} />{/if}
+          </button>
+          <div class="overflow-divider"></div>
+          <button class="overflow-item" onclick={() => { closeMenu(); exportJSON(); }}>
+            <Icon name="download" size={14} />
+            Export as JSON
+          </button>
+          <button class="overflow-item" onclick={() => { closeMenu(); exportZip(); }}>
+            <Icon name="download" size={14} />
+            Export as Zip
           </button>
           <div class="overflow-divider"></div>
           <button class="overflow-item" onclick={() => { closeMenu(); showKeyboardHelp = true; }}>

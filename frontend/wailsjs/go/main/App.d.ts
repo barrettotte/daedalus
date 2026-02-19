@@ -15,6 +15,10 @@ export function DeleteIcon(arg1:string):Promise<void>;
 
 export function DeleteList(arg1:string):Promise<void>;
 
+export function ExportJSON(arg1:string):Promise<void>;
+
+export function ExportZip(arg1:string):Promise<void>;
+
 export function GetAppConfig():Promise<daedalus.AppConfig>;
 
 export function GetCardContent(arg1:string):Promise<string>;
@@ -54,6 +58,8 @@ export function SaveCollapsedLists(arg1:Array<string>):Promise<void>;
 export function SaveCustomIcon(arg1:string,arg2:string):Promise<void>;
 
 export function SaveDarkMode(arg1:boolean):Promise<void>;
+
+export function SaveFileDialog(arg1:string):Promise<string>;
 
 export function SaveHalfCollapsedLists(arg1:Array<string>):Promise<void>;
 

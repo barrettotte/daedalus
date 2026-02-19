@@ -53,6 +53,10 @@
     <line x1="4" y1="12" x2="16" y2="12" stroke="currentColor" stroke-width="2"/>
     <line x1="4" y1="18" x2="12" y2="18" stroke="currentColor" stroke-width="2"/>
 
+  {:else if name === 'download'}
+    <path d="M12 3v12m0 0l-4-4m4 4l4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
   {:else if name === 'drag-handle'}
     <circle cx="8" cy="4" r="1.5" fill="currentColor"/>
     <circle cx="16" cy="4" r="1.5" fill="currentColor"/>

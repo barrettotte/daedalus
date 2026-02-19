@@ -26,6 +26,14 @@ export function DeleteList(arg1) {
   return window['go']['main']['App']['DeleteList'](arg1);
 }
 
+export function ExportJSON(arg1) {
+  return window['go']['main']['App']['ExportJSON'](arg1);
+}
+
+export function ExportZip(arg1) {
+  return window['go']['main']['App']['ExportZip'](arg1);
+}
+
 export function GetAppConfig() {
   return window['go']['main']['App']['GetAppConfig']();
 }
@@ -104,6 +112,10 @@ export function SaveCustomIcon(arg1, arg2) {
 
 export function SaveDarkMode(arg1) {
   return window['go']['main']['App']['SaveDarkMode'](arg1);
+}
+
+export function SaveFileDialog(arg1) {
+  return window['go']['main']['App']['SaveFileDialog'](arg1);
 }
 
 export function SaveHalfCollapsedLists(arg1) {

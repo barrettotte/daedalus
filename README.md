@@ -70,6 +70,25 @@ Only `.png` and `.svg` are supported for simplicity, but see below for convertin
 python3 -c "from PIL import Image; Image.open('favicon.ico').save('favicon.png')"
 ```
 
+## Trello Migration
+
+```sh
+# Export Trello board as JSON, then
+python scripts/trello_to_md.py --input tmp/trello_export.json --output tmp/kanban
+
+# exports:
+#  - lists as directories
+#  - cards as markdown files with frontmatter yml metadata
+```
+
+## Future Features
+
+Features that I originally thought up, but I need to think about it more.
+
+- Recurring tasks. ex: Card created and due every Tuesday at 12:00 PM
+- Epics (multiple cards) and sagas (multiple epics)
+- Calendar view
+
 ## Development
 
 ### Dependencies
@@ -80,15 +99,4 @@ go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
 # verify all wails dependencies installed
 wails doctor
-```
-
-## Trello Migration
-
-```sh
-# Export Trello board as JSON, then
-python scripts/trello_to_md.py --input tmp/trello_export.json --output tmp/kanban
-
-# exports:
-#  - lists as directories
-#  - cards as markdown files with frontmatter yml metadata
 ```

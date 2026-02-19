@@ -156,6 +156,20 @@ func (a *App) OpenDirectoryDialog() string {
 	return path
 }
 
+// SaveFileDialog opens a native OS save-file dialog and returns the selected path.
+func (a *App) SaveFileDialog(defaultFilename string) string {
+	path, err := wailsRuntime.SaveFileDialog(a.ctx, wailsRuntime.SaveDialogOptions{
+		DefaultFilename:      defaultFilename,
+		CanCreateDirectories: true,
+		Title:                "Export Board",
+	})
+	if err != nil {
+		slog.Error("save dialog failed", "error", err)
+		return ""
+	}
+	return path
+}
+
 // LoadBoard is what is exposed to the frontend
 func (a *App) LoadBoard(path string) *BoardResponse {
 	if path == "" {

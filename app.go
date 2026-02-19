@@ -7,16 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"time"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-const (
-	defaultBoardPath      = "./tmp/kanban"
-	linuxClockTicksPerSec = 100
-)
+const linuxClockTicksPerSec = 100
 
 // BoardResponse is the structure returned to the frontend from LoadBoard.
 type BoardResponse struct {
@@ -56,6 +52,7 @@ type App struct {
 	watcher      *daedalus.FileWatcher
 	prevCPUTicks int64
 	prevWallTime time.Time
+	appConfigDir string
 }
 
 // NewApp creates a new App application struct
@@ -66,6 +63,20 @@ func NewApp() *App {
 // startup is called when the app starts
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+}
+
+// resolveConfigDir returns the app config directory, falling back to os.UserConfigDir.
+func (a *App) resolveConfigDir() string {
+	if a.appConfigDir != "" {
+		return a.appConfigDir
+	}
+
+	base, err := os.UserConfigDir()
+	if err != nil {
+		slog.Error("failed to get user config dir", "error", err)
+		return ""
+	}
+	return filepath.Join(base, "daedalus")
 }
 
 // pauseWatcher suppresses the file watcher briefly so the app's own disk writes
@@ -83,11 +94,80 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 }
 
+// GetAppConfig returns the app-level configuration (default board, recent boards).
+func (a *App) GetAppConfig() *daedalus.AppConfig {
+	dir := a.resolveConfigDir()
+	if dir == "" {
+		return &daedalus.AppConfig{}
+	}
+
+	cfg, err := daedalus.LoadAppConfig(dir)
+	if err != nil {
+		slog.Error("failed to load app config", "error", err)
+		return &daedalus.AppConfig{}
+	}
+	daedalus.PruneInvalidBoards(cfg)
+
+	if saveErr := daedalus.SaveAppConfig(dir, cfg); saveErr != nil {
+		slog.Error("failed to save pruned app config", "error", saveErr)
+	}
+	return cfg
+}
+
+// SetDefaultBoard sets or clears the default board path in app config.
+func (a *App) SetDefaultBoard(path string) error {
+	dir := a.resolveConfigDir()
+	if dir == "" {
+		return nil
+	}
+
+	cfg, err := daedalus.LoadAppConfig(dir)
+	if err != nil {
+		return err
+	}
+	cfg.DefaultBoard = path
+	return daedalus.SaveAppConfig(dir, cfg)
+}
+
+// RemoveRecentBoard removes a board from the recent boards list.
+func (a *App) RemoveRecentBoard(path string) error {
+	dir := a.resolveConfigDir()
+	if dir == "" {
+		return nil
+	}
+
+	cfg, err := daedalus.LoadAppConfig(dir)
+	if err != nil {
+		return err
+	}
+	daedalus.RemoveRecentBoard(cfg, path)
+	return daedalus.SaveAppConfig(dir, cfg)
+}
+
+// OpenDirectoryDialog opens a native OS directory picker and returns the selected path.
+func (a *App) OpenDirectoryDialog() string {
+	path, err := wailsRuntime.OpenDirectoryDialog(a.ctx, wailsRuntime.OpenDialogOptions{
+		Title: "Select Board Directory",
+	})
+	if err != nil {
+		slog.Error("directory dialog failed", "error", err)
+		return ""
+	}
+	return path
+}
+
 // LoadBoard is what is exposed to the frontend
 func (a *App) LoadBoard(path string) *BoardResponse {
 	if path == "" {
-		path = defaultBoardPath
+		slog.Error("LoadBoard called with empty path")
+		return nil
 	}
+
+	// Ensure the board directory and board.yaml exist so ScanBoard succeeds.
+	if err := daedalus.InitBoardDir(path); err != nil {
+		return nil
+	}
+
 	slog.Info("scanning board", "path", path)
 
 	start := time.Now()
@@ -110,39 +190,27 @@ func (a *App) LoadBoard(path string) *BoardResponse {
 		"totalBytes", state.TotalFileBytes,
 	)
 
-	// Merge discovered list dirs into config array:
-	// keep existing entries in order, append new dirs alphabetically, remove stale entries.
+	// Merge discovered list dirs into config (preserves order, appends new, removes stale).
 	mergeStart := time.Now()
 	diskDirs := make(map[string]bool)
 	for dirName := range state.Lists {
 		diskDirs[dirName] = true
 	}
-
-	// Keep existing entries that still exist on disk
-	var merged []daedalus.ListEntry
-	for _, entry := range state.Config.Lists {
-		if diskDirs[entry.Dir] {
-			merged = append(merged, entry)
-			delete(diskDirs, entry.Dir)
-		}
-	}
-
-	// Append newly discovered dirs alphabetically
-	var newDirs []string
-	for dir := range diskDirs {
-		newDirs = append(newDirs, dir)
-	}
-	sort.Strings(newDirs)
-	for _, dir := range newDirs {
-		merged = append(merged, daedalus.ListEntry{Dir: dir})
-	}
-	if len(newDirs) > 0 {
-		slog.Debug("discovered new list directories", "dirs", newDirs)
-	}
-
-	state.Config.Lists = merged
+	daedalus.MergeListEntries(state.Config, diskDirs)
 	mergeDuration := time.Since(mergeStart)
 	absRoot, _ := filepath.Abs(state.RootPath)
+
+	// Update recent boards in app config.
+	cfgDir := a.resolveConfigDir()
+	if cfgDir != "" {
+		appCfg, err := daedalus.LoadAppConfig(cfgDir)
+		if err == nil {
+			daedalus.AddRecentBoard(appCfg, absRoot, state.Config.Title, time.Now().UTC())
+			if saveErr := daedalus.SaveAppConfig(cfgDir, appCfg); saveErr != nil {
+				slog.Error("failed to save app config after board load", "error", saveErr)
+			}
+		}
+	}
 
 	profile := LoadProfile{
 		ConfigMs: float64(state.ConfigLoadTime.Microseconds()) / 1000,

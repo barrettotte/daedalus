@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"gopkg.in/yaml.v3"
 )
@@ -80,4 +81,54 @@ func FindListEntry(lists []ListEntry, dir string) int {
 		}
 	}
 	return -1
+}
+
+// InitBoardDir ensures a board.yaml exists in the given directory, creating
+// both the directory and an empty config file if needed.
+func InitBoardDir(path string) error {
+	boardYaml := filepath.Join(path, "board.yaml")
+	if _, err := os.Stat(boardYaml); err == nil {
+		return nil // already exists
+	}
+
+	if err := os.MkdirAll(path, 0755); err != nil {
+		slog.Error("failed to create board directory", "path", path, "error", err)
+		return err
+	}
+	if err := SaveBoardConfig(path, &BoardConfig{}); err != nil {
+		slog.Error("failed to initialize board.yaml", "path", path, "error", err)
+		return err
+	}
+	slog.Info("initialized new board", "path", path)
+	return nil
+}
+
+// MergeListEntries reconciles the config's list entries with the directories
+// actually found on disk. Existing entries are kept in order, newly discovered
+// dirs are appended alphabetically, and stale entries (dirs that no longer
+// exist on disk) are removed.
+func MergeListEntries(config *BoardConfig, diskDirs map[string]bool) {
+	// Keep existing entries that still exist on disk.
+	var merged []ListEntry
+	for _, entry := range config.Lists {
+		if diskDirs[entry.Dir] {
+			merged = append(merged, entry)
+			delete(diskDirs, entry.Dir)
+		}
+	}
+
+	// Append newly discovered dirs alphabetically.
+	var newDirs []string
+	for dir := range diskDirs {
+		newDirs = append(newDirs, dir)
+	}
+	sort.Strings(newDirs)
+	for _, dir := range newDirs {
+		merged = append(merged, ListEntry{Dir: dir})
+	}
+	if len(newDirs) > 0 {
+		slog.Debug("discovered new list directories", "dirs", newDirs)
+	}
+
+	config.Lists = merged
 }

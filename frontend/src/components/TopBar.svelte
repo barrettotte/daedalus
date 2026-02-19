@@ -7,7 +7,7 @@
   } from "../stores/board";
   import type { daedalus } from "../../wailsjs/go/models";
   import { SaveShowYearProgress, SaveDarkMode, SaveBoardTitle } from "../../wailsjs/go/main/App";
-  import { autoFocus, copyToClipboard } from "../lib/utils";
+  import { autoFocus, clickOutside, copyToClipboard } from "../lib/utils";
   import Icon from "./Icon.svelte";
   import SearchFilterPopover from "./SearchFilterPopover.svelte";
   import appIcon from "../assets/images/daedalus.svg";
@@ -24,6 +24,7 @@
     showKeyboardHelp = $bindable(false),
     showAbout = $bindable(false),
     showNewList = $bindable(false),
+    showWelcome = $bindable(false),
     zoomLevel = 1.0,
     oncreatecard,
     onzoomin,
@@ -41,6 +42,7 @@
     showKeyboardHelp: boolean;
     showAbout: boolean;
     showNewList: boolean;
+    showWelcome: boolean;
     zoomLevel: number;
     oncreatecard: () => void;
     onzoomin: () => void;
@@ -52,6 +54,14 @@
   let filterOpen = $state(false);
   let editingTitle = $state(false);
   let editTitleValue = $state("");
+  let menuOpen = $state(false);
+  let menuTriggerEl: HTMLButtonElement | undefined = $state(undefined);
+
+  // Closes the overflow menu and returns focus to the trigger button.
+  function closeMenu(): void {
+    menuOpen = false;
+    menuTriggerEl?.focus();
+  }
 
   // Opens the board title for inline editing.
   function startEditTitle(): void {
@@ -253,44 +263,82 @@
         <Icon name="plus" size={10} />
       </button>
     </div>
+    <button class="top-btn" onclick={() => { showWelcome = true; }} title="Switch board (Ctrl+O)">
+      <Icon name="folder" size={14} />
+    </button>
     <button class="top-btn" onclick={() => window.location.reload()} title="Reload board">
       <Icon name="refresh" size={14} />
     </button>
-    <span class="top-bar-divider"></span>
-    <button class="top-btn" onclick={() => showLabelEditor = true} title="Label manager">
-      <Icon name="tag" size={14} />
-    </button>
-    <button class="top-btn" onclick={() => showIconManager = true} title="Icon manager">
-      <Icon name="image" size={14} />
-    </button>
-    <button class="top-btn" onclick={() => showTemplateManager = true} title="Template manager">
-      <Icon name="template" size={14} />
-    </button>
-    <button class="top-btn" onclick={() => showScratchpad = true} title="Scratchpad">
-      <Icon name="notepad" size={14} />
-    </button>
-    <button class="top-btn" onclick={() => showBoardStats = true} title="Board statistics">
-      <Icon name="chart-bar" size={14} />
-    </button>
-    <span class="top-bar-divider"></span>
-    <button class="top-btn" class:active={showYearProgress} onclick={toggleYearProgress} title="Year progress">
-      <Icon name="hourglass" size={14} />
-    </button>
-    <button class="top-btn" onclick={toggleDarkMode} title={darkMode ? "Switch to light mode" : "Switch to dark mode"}>
-      <Icon name={darkMode ? "sun" : "moon"} size={14} />
-    </button>
-    <button class="top-btn" class:active={$showMetrics} onclick={() => showMetrics.update(v => !v)} title="Toggle metrics">
-      <Icon name="activity" size={14} />
-    </button>
-    <button class="top-btn" class:active={$minimalView} onclick={toggleMinimalView} title="Minimal view (M)">
-      <Icon name="list" size={14} />
-    </button>
-    <button class="top-btn" onclick={() => showKeyboardHelp = true} title="Keyboard shortcuts (?)">
-      <Icon name="keyboard" size={14} />
-    </button>
-    <button class="top-btn" onclick={() => showAbout = true} title="About">
-      <Icon name="info" size={14} />
-    </button>
+    <div class="menu-wrapper" use:clickOutside={() => { menuOpen = false; }}>
+      <button class="top-btn" class:active={menuOpen} bind:this={menuTriggerEl} title="More actions"
+        onclick={() => { menuOpen = !menuOpen; }}
+        onkeydown={(e) => { if (e.key === 'Escape' && menuOpen) { e.stopPropagation(); closeMenu(); } }}
+      >
+        <Icon name="menu-dots" size={14} />
+      </button>
+      {#if menuOpen}
+        <div class="overflow-menu" role="menu" tabindex="-1" onkeydown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); closeMenu(); } }}>
+          <button class="overflow-item" onclick={() => { closeMenu(); showLabelEditor = true; }}>
+            <Icon name="tag" size={14} />
+            Label manager
+          </button>
+          <button class="overflow-item" onclick={() => { closeMenu(); showIconManager = true; }}>
+            <Icon name="image" size={14} />
+            Icon manager
+          </button>
+          <button class="overflow-item" onclick={() => { closeMenu(); showTemplateManager = true; }}>
+            <Icon name="template" size={14} />
+            Template manager
+          </button>
+          <button class="overflow-item" onclick={() => { closeMenu(); showScratchpad = true; }}>
+            <Icon name="notepad" size={14} />
+            Scratchpad
+          </button>
+          <button class="overflow-item" onclick={() => { closeMenu(); showBoardStats = true; }}>
+            <Icon name="chart-bar" size={14} />
+            Board statistics
+          </button>
+          <div class="overflow-divider"></div>
+          <button class="overflow-item" onclick={() => { closeMenu(); toggleYearProgress(); }}>
+            <span class="overflow-icon" class:active={showYearProgress}>
+              <Icon name="hourglass" size={14} />
+            </span>
+            Year progress
+            {#if showYearProgress}<Icon name="check" size={12} />{/if}
+          </button>
+          <button class="overflow-item" onclick={() => { closeMenu(); toggleDarkMode(); }}>
+            <span class="overflow-icon" class:active={darkMode}>
+              <Icon name={darkMode ? "moon" : "sun"} size={14} />
+            </span>
+            Dark mode
+            {#if darkMode}<Icon name="check" size={12} />{/if}
+          </button>
+          <button class="overflow-item" onclick={() => { closeMenu(); showMetrics.update(v => !v); }}>
+            <span class="overflow-icon" class:active={$showMetrics}>
+              <Icon name="activity" size={14} />
+            </span>
+            Metrics
+            {#if $showMetrics}<Icon name="check" size={12} />{/if}
+          </button>
+          <button class="overflow-item" onclick={() => { closeMenu(); toggleMinimalView(); }}>
+            <span class="overflow-icon" class:active={$minimalView}>
+              <Icon name="list" size={14} />
+            </span>
+            Minimal view
+            {#if $minimalView}<Icon name="check" size={12} />{/if}
+          </button>
+          <div class="overflow-divider"></div>
+          <button class="overflow-item" onclick={() => { closeMenu(); showKeyboardHelp = true; }}>
+            <Icon name="keyboard" size={14} />
+            Keyboard shortcuts
+          </button>
+          <button class="overflow-item" onclick={() => { closeMenu(); showAbout = true; }}>
+            <Icon name="info" size={14} />
+            About
+          </button>
+        </div>
+      {/if}
+    </div>
   </div>
 </div>
 {#if showYearProgress}
@@ -309,7 +357,7 @@
     min-height: 62px;
     background: var(--color-bg-inset);
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     padding: 0 16px 0 10px;
     gap: 6px;
@@ -549,39 +597,11 @@
 
   .top-bar-actions {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 6px;
     align-items: center;
     margin-left: auto;
     justify-content: flex-end;
-  }
-
-  @media (max-width: 960px) {
-    .top-bar {
-      justify-content: center;
-      padding-top: 8px;
-      padding-bottom: 8px;
-    }
-
-    .top-bar-brand {
-      width: 100%;
-      justify-content: center;
-      margin-bottom: 4px;
-    }
-
-    .top-bar-actions {
-      justify-content: center;
-      margin-left: 0;
-      width: 100%;
-    }
-  }
-
-  .top-bar-divider {
-    width: 2px;
-    height: 26px;
-    background: var(--color-border-medium);
-    margin: 0 8px;
-    flex-shrink: 0;
   }
 
   .top-btn {
@@ -612,5 +632,57 @@
         background: var(--overlay-accent-medium);
       }
     }
+  }
+
+  .menu-wrapper {
+    position: relative;
+  }
+
+  .overflow-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    z-index: var(--z-dropdown);
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border-medium);
+    border-radius: 6px;
+    padding: 4px 0;
+    min-width: 190px;
+    box-shadow: var(--shadow-md);
+  }
+
+  .overflow-item {
+    all: unset;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    box-sizing: border-box;
+    white-space: nowrap;
+
+    &:hover {
+      background: var(--overlay-hover);
+      color: var(--color-text-primary);
+    }
+  }
+
+  .overflow-icon {
+    display: flex;
+    align-items: center;
+
+    &.active {
+      color: var(--color-accent);
+    }
+  }
+
+  .overflow-divider {
+    height: 1px;
+    background: var(--color-border);
+    margin: 4px 0;
   }
 </style>

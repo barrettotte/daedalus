@@ -7,7 +7,7 @@
   import {
     LoadBoard, SaveCollapsedLists, SaveHalfCollapsedLists, SaveLockedLists,
     SavePinnedLists, DeleteList, DeleteAllCards, MoveAllCards,
-    SaveLabelColors, SaveListOrder, SaveZoom,
+    SaveLabelColors, SaveListOrder, SaveZoom, GetAppConfig,
   } from "../wailsjs/go/main/App";
   import { get } from "svelte/store";
   import {
@@ -48,6 +48,7 @@
   import TopBar from "./components/TopBar.svelte";
   import Icon from "./components/Icon.svelte";
   import CardContextMenu from "./components/CardContextMenu.svelte";
+  import WelcomeModal from "./components/WelcomeModal.svelte";
 
   let collapsedLists = $state(new SvelteSet<string>());
   let halfCollapsedLists = $state(new SvelteSet<string>());
@@ -63,6 +64,7 @@
   let showScratchpad = $state(false);
   let showYearProgress = $state(false);
   let showNewList = $state(false);
+  let showWelcome = $state(false);
   let darkMode = $state(true);
   let zoomLevel = $state(1.0);
 
@@ -204,7 +206,7 @@
 
     } catch (err) {
       addToast(`Failed to move cards: ${err}`);
-      const response = await LoadBoard("");
+      const response = await LoadBoard($boardPath);
       boardData.update(() => response.lists);
     }
   }
@@ -222,102 +224,130 @@
 
     } catch (err) {
       addToast(`Failed to delete cards: ${err}`);
-      const response = await LoadBoard("");
+      const response = await LoadBoard($boardPath);
       boardData.update(() => response.lists);
     }
   }
 
-  // Loads the board from the backend and unpacks lists + config into separate stores.
-  async function initBoard(): Promise<void> {
-    try {
-      const t0 = performance.now();
-      const response = await LoadBoard("");
-      const roundTripMs = performance.now() - t0;
-      boardData.set(response.lists);
-      boardPath.set(response.boardPath || "");
+  // Unpacks a LoadBoard response into all the relevant stores.
+  function unpackBoardResponse(response: any, roundTripMs: number = 0): void {
+    boardData.set(response.lists);
+    boardPath.set(response.boardPath || "");
 
-      if (response.boardPath) {
-        WindowSetTitle(`Daedalus - ${response.boardPath}`);
-      }
+    if (response.boardPath) {
+      WindowSetTitle(`Daedalus - ${response.boardPath}`);
+    }
 
-      // Unpack ListEntry array into stores.
-      const entries: daedalus.ListEntry[] = response.config?.lists || [];
-      listOrder.set(entries.map((e) => e.dir));
+    // Unpack ListEntry array into stores.
+    const entries: daedalus.ListEntry[] = response.config?.lists || [];
+    listOrder.set(entries.map((e) => e.dir));
 
-      const configMap: Record<string, { title: string; limit: number; locked: boolean; color: string; icon: string }> = {};
-      for (const entry of entries) {
-        configMap[entry.dir] = {
-          title: entry.title || '',
-          limit: entry.limit || 0,
-          locked: entry.locked || false,
-          color: entry.color || '',
-          icon: entry.icon || '',
-        };
-      }
-      boardConfig.set(configMap);
+    const configMap: Record<string, { title: string; limit: number; locked: boolean; color: string; icon: string }> = {};
+    for (const entry of entries) {
+      configMap[entry.dir] = {
+        title: entry.title || '',
+        limit: entry.limit || 0,
+        locked: entry.locked || false,
+        color: entry.color || '',
+        icon: entry.icon || '',
+      };
+    }
+    boardConfig.set(configMap);
 
-      collapsedLists = new SvelteSet(entries.filter((e) => e.collapsed).map((e) => e.dir));
-      halfCollapsedLists = new SvelteSet(entries.filter((e) => e.halfCollapsed).map((e) => e.dir));
-      lockedLists = new SvelteSet(entries.filter((e) => e.locked).map((e) => e.dir));
-      pinnedLeftLists = new SvelteSet(entries.filter((e) => e.pinned === "left").map((e) => e.dir));
-      pinnedRightLists = new SvelteSet(entries.filter((e) => e.pinned === "right").map((e) => e.dir));
+    collapsedLists = new SvelteSet(entries.filter((e) => e.collapsed).map((e) => e.dir));
+    halfCollapsedLists = new SvelteSet(entries.filter((e) => e.halfCollapsed).map((e) => e.dir));
+    lockedLists = new SvelteSet(entries.filter((e) => e.locked).map((e) => e.dir));
+    pinnedLeftLists = new SvelteSet(entries.filter((e) => e.pinned === "left").map((e) => e.dir));
+    pinnedRightLists = new SvelteSet(entries.filter((e) => e.pinned === "right").map((e) => e.dir));
 
-      boardTitle.set(response.config?.title || "Daedalus");
+    boardTitle.set(response.config?.title || "Daedalus");
 
-      // Backfill: register any card labels not yet in the label_colors registry
-      const loadedColors: Record<string, string> = response.config?.labelColors || {};
-      let backfillDirty = false;
-      for (const cards of Object.values(response.lists)) {
-        for (const card of cards) {
-          if (card.metadata.labels) {
-            for (const label of card.metadata.labels) {
-              if (!loadedColors[label]) {
-                loadedColors[label] = labelColor(label);
-                backfillDirty = true;
-              }
+    // Backfill: register any card labels not yet in the label_colors registry
+    const loadedColors: Record<string, string> = response.config?.labelColors || {};
+    let backfillDirty = false;
+    for (const cards of Object.values(response.lists)) {
+      for (const card of (cards as daedalus.KanbanCard[])) {
+        if (card.metadata.labels) {
+          for (const label of card.metadata.labels) {
+            if (!loadedColors[label]) {
+              loadedColors[label] = labelColor(label);
+              backfillDirty = true;
             }
           }
         }
       }
-      labelColors.set(loadedColors);
+    }
+    labelColors.set(loadedColors);
 
-      if (backfillDirty) {
-        SaveLabelColors(loadedColors).catch(e => console.error("Failed to backfill label colors:", e));
-      }
+    if (backfillDirty) {
+      SaveLabelColors(loadedColors).catch(e => console.error("Failed to backfill label colors:", e));
+    }
 
-      templates.set(response.config?.templates || []);
+    templates.set(response.config?.templates || []);
 
-      if (response.config?.labelsExpanded !== undefined && response.config.labelsExpanded !== null) {
-        labelsExpanded.set(response.config.labelsExpanded);
-      }
-      if (response.config?.minimalView !== undefined && response.config.minimalView !== null) {
-        minimalView.set(response.config.minimalView);
-      }
-      if (response.config?.showYearProgress !== undefined && response.config.showYearProgress !== null) {
-        showYearProgress = response.config.showYearProgress;
-      }
-      if (response.config?.darkMode !== undefined && response.config.darkMode !== null) {
-        darkMode = response.config.darkMode;
-      }
-      if (response.config?.zoom !== undefined && response.config.zoom !== null) {
-        zoomLevel = response.config.zoom;
-      }
-      document.documentElement.classList.toggle("light", !darkMode);
+    if (response.config?.labelsExpanded !== undefined && response.config.labelsExpanded !== null) {
+      labelsExpanded.set(response.config.labelsExpanded);
+    }
+    if (response.config?.minimalView !== undefined && response.config.minimalView !== null) {
+      minimalView.set(response.config.minimalView);
+    }
+    if (response.config?.showYearProgress !== undefined && response.config.showYearProgress !== null) {
+      showYearProgress = response.config.showYearProgress;
+    }
+    if (response.config?.darkMode !== undefined && response.config.darkMode !== null) {
+      darkMode = response.config.darkMode;
+    }
+    if (response.config?.zoom !== undefined && response.config.zoom !== null) {
+      zoomLevel = response.config.zoom;
+    }
+    document.documentElement.classList.toggle("light", !darkMode);
 
-      const p = response.profile;
-      loadProfile.set({
-        configMs: p?.configMs ?? 0,
-        scanMs: p?.scanMs ?? 0,
-        mergeMs: p?.mergeMs ?? 0,
-        totalMs: p?.totalMs ?? 0,
-        transferMs: Math.max(0, roundTripMs - (p?.totalMs ?? 0)),
-      });
+    const p = response.profile;
+    loadProfile.set({
+      configMs: p?.configMs ?? 0,
+      scanMs: p?.scanMs ?? 0,
+      mergeMs: p?.mergeMs ?? 0,
+      totalMs: p?.totalMs ?? 0,
+      transferMs: Math.max(0, roundTripMs - (p?.totalMs ?? 0)),
+    });
 
-      isLoaded.set(true);
+    isLoaded.set(true);
+  }
 
+  // Loads the board from the backend and unpacks the response into stores.
+  async function initBoard(boardPathArg: string = ""): Promise<void> {
+    const path = boardPathArg || $boardPath;
+    if (!path) {
+      return;
+    }
+    try {
+      const t0 = performance.now();
+      const response = await LoadBoard(path);
+      const roundTripMs = performance.now() - t0;
+      unpackBoardResponse(response, roundTripMs);
     } catch (e) {
       addToast(`Failed to load board: ${e}`);
     }
+  }
+
+  // Checks app config and either auto-loads the default board or shows the welcome modal.
+  async function startApp(): Promise<void> {
+    try {
+      const cfg = await GetAppConfig();
+      if (cfg.defaultBoard) {
+        await initBoard(cfg.defaultBoard);
+      } else {
+        showWelcome = true;
+      }
+    } catch (e) {
+      showWelcome = true;
+    }
+  }
+
+  // Handles a board being selected from the welcome modal.
+  function handleWelcomeBoard(response: any): void {
+    showWelcome = false;
+    unpackBoardResponse(response);
   }
 
   // Opens the draft-creation modal for the first (leftmost) list.
@@ -395,6 +425,7 @@
       zoomOut,
       zoomReset,
       scrollListIntoView,
+      openWelcome: () => { showWelcome = true; },
     });
   }
 
@@ -465,7 +496,7 @@
 
   onMount(() => {
     document.addEventListener("dragover", handleGlobalDragOver, true);
-    initBoard();
+    startApp();
 
     // Reload board when the Go file watcher detects external changes.
     EventsOn("board:reload", () => initBoard());
@@ -495,7 +526,7 @@
 }} />
 
 <main>
-  <TopBar bind:searchOpen bind:showYearProgress bind:darkMode bind:showNewList
+  <TopBar bind:searchOpen bind:showYearProgress bind:darkMode bind:showNewList bind:showWelcome
     bind:showLabelEditor bind:showIconManager bind:showTemplateManager bind:showScratchpad bind:showBoardStats bind:showKeyboardHelp bind:showAbout
     {zoomLevel} onzoomin={zoomIn} onzoomout={zoomOut} onzoomreset={zoomReset}
     oncreatecard={createCardDefault}
@@ -690,6 +721,9 @@
   {/if}
   {#if showNewList}
     <NewListModal onclose={() => showNewList = false} onreload={initBoard} />
+  {/if}
+  {#if showWelcome}
+    <WelcomeModal isOverlay={$isLoaded} onclose={() => { showWelcome = false; }} onboard={handleWelcomeBoard} />
   {/if}
 
 </main>

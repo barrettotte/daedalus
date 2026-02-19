@@ -26,6 +26,10 @@ export function DeleteList(arg1) {
   return window['go']['main']['App']['DeleteList'](arg1);
 }
 
+export function GetAppConfig() {
+  return window['go']['main']['App']['GetAppConfig']();
+}
+
 export function GetCardContent(arg1) {
   return window['go']['main']['App']['GetCardContent'](arg1);
 }
@@ -58,6 +62,10 @@ export function MoveCard(arg1, arg2, arg3) {
   return window['go']['main']['App']['MoveCard'](arg1, arg2, arg3);
 }
 
+export function OpenDirectoryDialog() {
+  return window['go']['main']['App']['OpenDirectoryDialog']();
+}
+
 export function OpenFileExternal(arg1) {
   return window['go']['main']['App']['OpenFileExternal'](arg1);
 }
@@ -68,6 +76,10 @@ export function OpenURI(arg1) {
 
 export function RemoveLabel(arg1) {
   return window['go']['main']['App']['RemoveLabel'](arg1);
+}
+
+export function RemoveRecentBoard(arg1) {
+  return window['go']['main']['App']['RemoveRecentBoard'](arg1);
 }
 
 export function RenameLabel(arg1, arg2) {
@@ -140,4 +152,8 @@ export function SaveTemplates(arg1) {
 
 export function SaveZoom(arg1) {
   return window['go']['main']['App']['SaveZoom'](arg1);
+}
+
+export function SetDefaultBoard(arg1) {
+  return window['go']['main']['App']['SetDefaultBoard'](arg1);
 }

@@ -19,8 +19,8 @@ Additionally, my single board on Trello was using between 1-3 GB of RAM which is
 Often times dragging cards around would lag and not work at all.
 So this is meant to be a lightweight and fast replacement.
 
-The user is put in charge of data retention. 
-This is meant for programmers, so setup a cron job or something to export somewhere external.
+This app is offline first. 
+The user is put in charge of data retention; So setup a cron job or make a private repo somewhere to export to.
 
 ## Stack
 

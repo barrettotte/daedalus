@@ -140,6 +140,90 @@ func TestFindListEntry(t *testing.T) {
 }
 
 // Array order in Lists is the display order -- no separate list_order field needed.
+func TestInitBoardDir_CreatesConfig(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "new-board")
+	if err := InitBoardDir(dir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "board.yaml")); err != nil {
+		t.Error("board.yaml should exist after InitBoardDir")
+	}
+}
+
+func TestInitBoardDir_SkipsExisting(t *testing.T) {
+	dir := t.TempDir()
+	cfg := &BoardConfig{Title: "My Board"}
+	if err := SaveBoardConfig(dir, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	// Should not overwrite the existing config.
+	if err := InitBoardDir(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	loaded, err := LoadBoardConfig(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Title != "My Board" {
+		t.Errorf("expected title preserved, got %q", loaded.Title)
+	}
+}
+
+func TestMergeListEntries_KeepsOrderAppendsNew(t *testing.T) {
+	config := &BoardConfig{
+		Lists: []ListEntry{
+			{Dir: "done", Title: "Done"},
+			{Dir: "open", Title: "Open"},
+		},
+	}
+	diskDirs := map[string]bool{
+		"open":    true,
+		"done":    true,
+		"backlog": true,
+	}
+
+	MergeListEntries(config, diskDirs)
+
+	if len(config.Lists) != 3 {
+		t.Fatalf("expected 3 entries, got %d", len(config.Lists))
+	}
+	// Existing entries keep their order.
+	if config.Lists[0].Dir != "done" || config.Lists[1].Dir != "open" {
+		t.Errorf("existing order not preserved: %v", config.Lists)
+	}
+	// Existing entries keep their metadata.
+	if config.Lists[0].Title != "Done" {
+		t.Errorf("expected title preserved, got %q", config.Lists[0].Title)
+	}
+	// New dir appended at the end.
+	if config.Lists[2].Dir != "backlog" {
+		t.Errorf("expected new dir appended, got %q", config.Lists[2].Dir)
+	}
+}
+
+func TestMergeListEntries_RemovesStale(t *testing.T) {
+	config := &BoardConfig{
+		Lists: []ListEntry{
+			{Dir: "open"},
+			{Dir: "deleted"},
+		},
+	}
+	diskDirs := map[string]bool{
+		"open": true,
+	}
+
+	MergeListEntries(config, diskDirs)
+
+	if len(config.Lists) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(config.Lists))
+	}
+	if config.Lists[0].Dir != "open" {
+		t.Errorf("expected open, got %q", config.Lists[0].Dir)
+	}
+}
+
 func TestBoardConfig_ArrayOrderIsDisplayOrder(t *testing.T) {
 	root := t.TempDir()
 

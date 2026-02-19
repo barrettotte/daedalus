@@ -35,6 +35,7 @@ export interface KeyboardActions {
   zoomOut: () => void;
   zoomReset: () => void;
   scrollListIntoView: (key: string) => void;
+  openWelcome: () => void;
 }
 
 // Processes a global keydown event against board state and dispatches actions.
@@ -76,6 +77,13 @@ export function handleBoardKeydown(e: KeyboardEvent, state: KeyboardState, actio
     if (e.key === "Escape") {
       actions.setFocusedCard(null);
     }
+    return;
+  }
+
+  // Ctrl+O / Cmd+O - Open board switcher (works even with no board loaded)
+  if (e.key === "o" && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    actions.openWelcome();
     return;
   }
 

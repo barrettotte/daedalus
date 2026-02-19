@@ -15,6 +15,8 @@ export function DeleteIcon(arg1:string):Promise<void>;
 
 export function DeleteList(arg1:string):Promise<void>;
 
+export function GetAppConfig():Promise<daedalus.AppConfig>;
+
 export function GetCardContent(arg1:string):Promise<string>;
 
 export function GetIconContent(arg1:string):Promise<string>;
@@ -31,11 +33,15 @@ export function MoveAllCards(arg1:string,arg2:string):Promise<void>;
 
 export function MoveCard(arg1:string,arg2:string,arg3:number):Promise<daedalus.KanbanCard>;
 
+export function OpenDirectoryDialog():Promise<string>;
+
 export function OpenFileExternal(arg1:string):Promise<void>;
 
 export function OpenURI(arg1:string):Promise<void>;
 
 export function RemoveLabel(arg1:string):Promise<void>;
+
+export function RemoveRecentBoard(arg1:string):Promise<void>;
 
 export function RenameLabel(arg1:string,arg2:string):Promise<void>;
 
@@ -72,3 +78,5 @@ export function SaveShowYearProgress(arg1:boolean):Promise<void>;
 export function SaveTemplates(arg1:Array<daedalus.CardTemplate>):Promise<void>;
 
 export function SaveZoom(arg1:number):Promise<void>;
+
+export function SetDefaultBoard(arg1:string):Promise<void>;

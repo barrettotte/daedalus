@@ -26,6 +26,7 @@
       { key: "#", desc: "Jump to card by ID (#123)" },
       { key: "N", desc: "Create new card" },
       { key: "M", desc: "Toggle minimal view" },
+      { key: "Ctrl+O", desc: "Switch board" },
       { key: "+ / =", desc: "Zoom in" },
       { key: "-", desc: "Zoom out" },
       { key: "0", desc: "Reset zoom to 100%" },

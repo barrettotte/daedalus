@@ -81,7 +81,7 @@ jobs:
         run: |
           mkdir -p dist
           tar -czf dist/${{ matrix.artifact }}.tar.gz \
-            -C build/bin daedalus daedalus-cli \
+            -C build/bin daedalus.app daedalus-cli \
             -C ${{ github.workspace }} LICENSE
 
       - name: Package (Windows)

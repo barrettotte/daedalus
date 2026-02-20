@@ -586,6 +586,7 @@
   e.preventDefault();
 }} />
 
+<!-- svelte-ignore component_name_lowercase -->
 <main>
   <TopBar bind:searchOpen bind:showYearProgress bind:darkMode
     {zoomLevel} onzoomin={zoomIn} onzoomout={zoomOut} onzoomreset={zoomReset}

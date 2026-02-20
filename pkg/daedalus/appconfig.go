@@ -96,11 +96,13 @@ func RemoveRecentBoard(cfg *AppConfig, boardPath string) {
 }
 
 // PruneInvalidBoards removes boards that no longer exist on disk from the recent list,
-// and clears the default board if its path is invalid.
-func PruneInvalidBoards(cfg *AppConfig) {
+// and clears the default board if its path is invalid. Returns true if any entries were removed.
+func PruneInvalidBoards(cfg *AppConfig) bool {
+	changed := false
 	if cfg.DefaultBoard != "" {
 		if _, err := os.Stat(cfg.DefaultBoard); err != nil {
 			cfg.DefaultBoard = ""
+			changed = true
 		}
 	}
 	filtered := make([]RecentBoard, 0, len(cfg.RecentBoards))
@@ -109,5 +111,9 @@ func PruneInvalidBoards(cfg *AppConfig) {
 			filtered = append(filtered, rb)
 		}
 	}
+	if len(filtered) != len(cfg.RecentBoards) {
+		changed = true
+	}
 	cfg.RecentBoards = filtered
+	return changed
 }

@@ -6,14 +6,13 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
 // GetCardContent returns the full markdown body of a card file
 func (a *App) GetCardContent(filePath string) (string, error) {
-	if a.board == nil {
-		return "", fmt.Errorf("board not loaded")
+	if _, err := a.requireBoard(); err != nil {
+		return "", err
 	}
 
 	absPath, err := a.validatePath(filePath)
@@ -25,10 +24,9 @@ func (a *App) GetCardContent(filePath string) (string, error) {
 
 // SaveCard writes updated metadata and body to a card file, updates in-memory state, and returns the updated card
 func (a *App) SaveCard(filePath string, metadata daedalus.CardMetadata, body string) (*daedalus.KanbanCard, error) {
-	if a.board == nil {
-		return nil, fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return nil, err
 	}
-	a.pauseWatcher()
 
 	absPath, err := a.validatePath(filePath)
 	if err != nil {
@@ -72,10 +70,9 @@ func (a *App) SaveCard(filePath string, metadata daedalus.CardMetadata, body str
 // Position "bottom" appends, a numeric string inserts at that 0-based index,
 // and anything else (including "top") prepends.
 func (a *App) CreateCard(listDirName string, title string, body string, position string) (*daedalus.KanbanCard, error) {
-	if a.board == nil {
-		return nil, fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return nil, err
 	}
-	a.pauseWatcher()
 
 	cards, ok := a.board.Lists[listDirName]
 	if !ok {
@@ -83,35 +80,15 @@ func (a *App) CreateCard(listDirName string, title string, body string, position
 		return nil, fmt.Errorf("list not found: %s", listDirName)
 	}
 
-	a.board.MaxID++
-	newID := a.board.MaxID
-	slog.Debug("assigning new card ID", "id", newID, "previousMaxID", newID-1)
-
-	listOrder, insertIdx := daedalus.ComputeInsertPosition(cards, position)
-
-	// Use provided title, falling back to ID string if empty
-	if strings.TrimSpace(title) == "" {
-		title = fmt.Sprintf("%d", newID)
+	meta, filePath, insertIdx, err := daedalus.CreateCardOnDisk(
+		a.board.RootPath, listDirName, title, body, position, cards, a.board.MaxID,
+	)
+	if err != nil {
+		slog.Error("failed to create card", "list", listDirName, "error", err)
+		return nil, err
 	}
 
-	now := time.Now()
-	meta := daedalus.CardMetadata{
-		ID:        newID,
-		Title:     title,
-		Created:   &now,
-		Updated:   &now,
-		ListOrder: listOrder,
-	}
-
-	// Construct full file body matching SaveCard pattern
-	fullBody := fmt.Sprintf("# %s\n\n%s", title, body)
-
-	filePath := filepath.Join(a.board.RootPath, listDirName, fmt.Sprintf("%d.md", newID))
-	if err := daedalus.WriteCardFile(filePath, meta, fullBody); err != nil {
-		slog.Error("failed to write new card", "id", newID, "list", listDirName, "error", err)
-		return nil, fmt.Errorf("writing new card: %w", err)
-	}
-
+	a.board.MaxID = meta.ID
 	a.board.TotalFileBytes += daedalus.GetFileSize(filePath)
 
 	card := daedalus.KanbanCard{
@@ -128,17 +105,16 @@ func (a *App) CreateCard(listDirName string, title string, body string, position
 	updated = append(updated, cards[insertIdx:]...)
 	a.board.Lists[listDirName] = updated
 
-	slog.Info("card created", "id", newID, "list", listDirName, "title", title, "position", position)
+	slog.Info("card created", "id", meta.ID, "list", listDirName, "title", meta.Title, "position", position)
 	return &card, nil
 }
 
 // DeleteCard removes a card file from disk and from the in-memory board state.
 // MaxID is intentionally not decremented (high-water mark for unique IDs).
 func (a *App) DeleteCard(filePath string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return err
 	}
-	a.pauseWatcher()
 
 	absPath, err := a.validatePath(filePath)
 	if err != nil {
@@ -172,10 +148,9 @@ func (a *App) DeleteCard(filePath string) error {
 // MoveCard moves a card to a target list at a given list_order. Handles both same-list
 // reordering and cross-list moves (file rename to new directory).
 func (a *App) MoveCard(filePath string, targetListDirName string, newListOrder float64) (*daedalus.KanbanCard, error) {
-	if a.board == nil {
-		return nil, fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return nil, err
 	}
-	a.pauseWatcher()
 
 	absPath, err := a.validatePath(filePath)
 	if err != nil {
@@ -258,10 +233,9 @@ func (a *App) MoveCard(filePath string, targetListDirName string, newListOrder f
 
 // MoveAllCards moves every card from sourceDir into targetDir, prepending before existing cards.
 func (a *App) MoveAllCards(sourceDir, targetDir string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return err
 	}
-	a.pauseWatcher()
 	if sourceDir == targetDir {
 		return fmt.Errorf("source and target lists are the same")
 	}
@@ -295,10 +269,15 @@ func (a *App) MoveAllCards(sourceDir, targetDir string) error {
 
 	now := time.Now()
 
+	// Track moved cards so in-memory state stays consistent on partial failure.
+	moved := make([]daedalus.KanbanCard, 0, len(srcCards))
+
 	for i, card := range srcCards {
 		body, err := daedalus.ReadCardContent(card.FilePath)
 		if err != nil {
 			slog.Error("failed to read card content for move-all", "path", card.FilePath, "error", err)
+			a.board.Lists[targetDir] = append(moved, a.board.Lists[targetDir]...)
+			a.board.Lists[sourceDir] = srcCards[i:]
 			return fmt.Errorf("reading card %d: %w", card.Metadata.ID, err)
 		}
 
@@ -310,6 +289,8 @@ func (a *App) MoveAllCards(sourceDir, targetDir string) error {
 
 		if err := os.Rename(card.FilePath, newPath); err != nil {
 			slog.Error("failed to move card file", "from", card.FilePath, "to", newPath, "error", err)
+			a.board.Lists[targetDir] = append(moved, a.board.Lists[targetDir]...)
+			a.board.Lists[sourceDir] = srcCards[i:]
 			return fmt.Errorf("moving card %d: %w", card.Metadata.ID, err)
 		}
 
@@ -318,13 +299,16 @@ func (a *App) MoveAllCards(sourceDir, targetDir string) error {
 
 		if err := daedalus.WriteCardFile(card.FilePath, card.Metadata, body); err != nil {
 			slog.Error("failed to write card after move-all", "path", card.FilePath, "error", err)
+			moved = append(moved, card) // file already moved on disk
+			a.board.Lists[targetDir] = append(moved, a.board.Lists[targetDir]...)
+			a.board.Lists[sourceDir] = srcCards[i+1:]
 			return fmt.Errorf("writing card %d: %w", card.Metadata.ID, err)
 		}
 
-		srcCards[i] = card
+		moved = append(moved, card)
 	}
 
-	a.board.Lists[targetDir] = append(srcCards, a.board.Lists[targetDir]...)
+	a.board.Lists[targetDir] = append(moved, a.board.Lists[targetDir]...)
 	a.board.Lists[sourceDir] = []daedalus.KanbanCard{}
 	slog.Info("moved all cards", "from", sourceDir, "to", targetDir, "count", len(srcCards))
 	return nil
@@ -332,8 +316,8 @@ func (a *App) MoveAllCards(sourceDir, targetDir string) error {
 
 // DeleteAllCards removes every card file in a list directory while keeping the list itself intact.
 func (a *App) DeleteAllCards(listDir string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return err
 	}
 
 	cards, ok := a.board.Lists[listDir]
@@ -349,29 +333,31 @@ func (a *App) DeleteAllCards(listDir string) error {
 		return nil
 	}
 
-	a.pauseWatcher()
-
-	var totalBytes int64
-	for _, card := range cards {
-		totalBytes += daedalus.GetFileSize(card.FilePath)
+	var deletedBytes int64
+	for i, card := range cards {
+		cardBytes := daedalus.GetFileSize(card.FilePath)
 		if err := os.Remove(card.FilePath); err != nil {
 			slog.Error("failed to remove card file", "path", card.FilePath, "error", err)
+			// Sync in-memory state for cards already deleted
+			a.board.Lists[listDir] = cards[i:]
+			a.board.TotalFileBytes -= deletedBytes
 			return fmt.Errorf("removing card %d: %w", card.Metadata.ID, err)
 		}
+		deletedBytes += cardBytes
 	}
 
 	a.board.Lists[listDir] = []daedalus.KanbanCard{}
-	a.board.TotalFileBytes -= totalBytes
+	a.board.TotalFileBytes -= deletedBytes
 
-	slog.Info("deleted all cards in list", "list", listDir, "count", len(cards), "bytesFreed", totalBytes)
+	slog.Info("deleted all cards in list", "list", listDir, "count", len(cards), "bytesFreed", deletedBytes)
 	return nil
 }
 
 // GetScratchpad reads the board-level scratchpad.md file and returns its content.
 // Returns an empty string if the file does not exist.
 func (a *App) GetScratchpad() (string, error) {
-	if a.board == nil {
-		return "", fmt.Errorf("board not loaded")
+	if _, err := a.requireBoard(); err != nil {
+		return "", err
 	}
 
 	path := filepath.Join(a.board.RootPath, "scratchpad.md")
@@ -387,10 +373,9 @@ func (a *App) GetScratchpad() (string, error) {
 
 // SaveScratchpad writes the given content to the board-level scratchpad.md file.
 func (a *App) SaveScratchpad(content string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return err
 	}
-	a.pauseWatcher()
 
 	path := filepath.Join(a.board.RootPath, "scratchpad.md")
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {

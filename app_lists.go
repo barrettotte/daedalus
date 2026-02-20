@@ -4,17 +4,14 @@ import (
 	"daedalus/pkg/daedalus"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"strings"
 )
 
 // CreateList creates a new empty list directory and adds it to the board config.
 func (a *App) CreateList(name string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return err
 	}
-	a.pauseWatcher()
 
 	// Validate and clean list name.
 	name, err := daedalus.ValidateListName(name)
@@ -27,32 +24,20 @@ func (a *App) CreateList(name string) error {
 		return fmt.Errorf("list already exists: %s", name)
 	}
 
-	// Create directory on disk
-	dirPath := filepath.Join(a.board.RootPath, name)
-	if err := os.MkdirAll(dirPath, 0755); err != nil {
-		slog.Error("failed to create list directory", "name", name, "path", dirPath, "error", err)
-		return fmt.Errorf("creating list directory: %w", err)
-	}
-
-	// Update in-memory state
-	a.board.Lists[name] = []daedalus.KanbanCard{}
-	a.board.Config.Lists = append(a.board.Config.Lists, daedalus.ListEntry{Dir: name})
-
-	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
-		slog.Error("failed to save config after list creation", "name", name, "error", err)
+	if err := daedalus.CreateListOnDisk(a.board.RootPath, name, a.board.Config); err != nil {
 		return err
 	}
 
+	a.board.Lists[name] = []daedalus.KanbanCard{}
 	slog.Info("list created", "name", name)
 	return nil
 }
 
 // DeleteList removes an entire list directory and cleans up all config references.
 func (a *App) DeleteList(listDirName string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return err
 	}
-	a.pauseWatcher()
 
 	// Reject names with path separators or traversal
 	if strings.ContainsAny(listDirName, "/\\") || strings.Contains(listDirName, "..") {
@@ -75,39 +60,23 @@ func (a *App) DeleteList(listDirName string) error {
 		totalBytes += daedalus.GetFileSize(card.FilePath)
 	}
 
-	// Remove directory from disk
-	dirPath := filepath.Join(a.board.RootPath, listDirName)
-	if err := os.RemoveAll(dirPath); err != nil {
-		slog.Error("failed to remove list directory", "name", listDirName, "path", dirPath, "error", err)
-		return fmt.Errorf("removing list directory: %w", err)
-	}
-
-	// Update metrics
-	a.board.TotalFileBytes -= totalBytes
-
-	// Clean up in-memory state
-	delete(a.board.Lists, listDirName)
-
-	// Remove from config Lists array
-	idx := daedalus.FindListEntry(a.board.Config.Lists, listDirName)
-	if idx >= 0 {
-		a.board.Config.Lists = append(a.board.Config.Lists[:idx], a.board.Config.Lists[idx+1:]...)
-	}
-
-	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
-		slog.Error("failed to save config after list deletion", "name", listDirName, "error", err)
+	if err := daedalus.DeleteListOnDisk(a.board.RootPath, listDirName, a.board.Config); err != nil {
 		return err
 	}
+
+	// Update in-memory state
+	a.board.TotalFileBytes -= totalBytes
+	delete(a.board.Lists, listDirName)
+
 	slog.Info("list deleted", "name", listDirName, "cardsRemoved", len(cards), "bytesFreed", totalBytes)
 	return nil
 }
 
 // saveListBoolFlags builds a set from dirs, applies setFn to each list config entry, and persists to board.yaml.
 func (a *App) saveListBoolFlags(dirs []string, setFn func(*daedalus.ListEntry, bool)) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return err
 	}
-	a.pauseWatcher()
 
 	set := make(map[string]bool, len(dirs))
 	for _, dir := range dirs {
@@ -141,10 +110,9 @@ func (a *App) SaveHalfCollapsedLists(halfCollapsed []string) error {
 
 // SavePinnedLists sets the Pinned field on matching entries and persists to board.yaml.
 func (a *App) SavePinnedLists(left []string, right []string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return err
 	}
-	a.pauseWatcher()
 
 	leftSet := make(map[string]bool, len(left))
 	for _, dir := range left {
@@ -186,10 +154,9 @@ func (a *App) SaveLockedLists(locked []string) error {
 
 // SaveListConfig updates the config for a single list and persists to board.yaml.
 func (a *App) SaveListConfig(dirName string, title string, limit int, color string, icon string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return err
 	}
-	a.pauseWatcher()
 
 	idx := daedalus.FindListEntry(a.board.Config.Lists, dirName)
 	if idx >= 0 {
@@ -217,10 +184,9 @@ func (a *App) SaveListConfig(dirName string, title string, limit int, color stri
 
 // SaveListOrder reorders the config Lists array to match the given order and persists to board.yaml.
 func (a *App) SaveListOrder(order []string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return err
 	}
-	a.pauseWatcher()
 
 	// Build a map of dir -> entry for quick lookup
 	entryMap := make(map[string]daedalus.ListEntry)

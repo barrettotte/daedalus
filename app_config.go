@@ -9,10 +9,9 @@ import (
 
 // SaveLabelsExpanded persists the label collapsed/expanded state to board.yaml.
 func (a *App) SaveLabelsExpanded(expanded bool) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return err
 	}
-	a.pauseWatcher()
 	a.board.Config.LabelsExpanded = &expanded
 
 	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
@@ -25,10 +24,9 @@ func (a *App) SaveLabelsExpanded(expanded bool) error {
 
 // SaveShowYearProgress persists the year progress bar visibility to board.yaml.
 func (a *App) SaveShowYearProgress(show bool) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return err
 	}
-	a.pauseWatcher()
 	a.board.Config.ShowYearProgress = &show
 
 	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
@@ -41,10 +39,9 @@ func (a *App) SaveShowYearProgress(show bool) error {
 
 // SaveLabelColors persists custom label color overrides to board.yaml.
 func (a *App) SaveLabelColors(colors map[string]string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return err
 	}
-	a.pauseWatcher()
 	a.board.Config.LabelColors = colors
 
 	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
@@ -94,10 +91,9 @@ func (a *App) updateCardsWithLabel(label string, transformFn func(labels []strin
 // RemoveLabel strips a label from every card that has it, writing each affected card to disk,
 // and removes any custom color for that label from board.yaml.
 func (a *App) RemoveLabel(label string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return err
 	}
-	a.pauseWatcher()
 	slog.Info("removing label from all cards", "label", label)
 
 	affected, err := a.updateCardsWithLabel(label, func(labels []string, idx int) []string {
@@ -124,10 +120,9 @@ func (a *App) RemoveLabel(label string) error {
 // RenameLabel replaces oldName with newName in every card's labels, writing each affected card
 // to disk, and migrates any custom color from the old name to the new name in board.yaml.
 func (a *App) RenameLabel(oldName string, newName string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return err
 	}
-	a.pauseWatcher()
 	if oldName == "" || newName == "" || oldName == newName {
 		slog.Warn("invalid label rename parameters", "old", oldName, "new", newName)
 		return fmt.Errorf("invalid label names")
@@ -162,10 +157,9 @@ func (a *App) RenameLabel(oldName string, newName string) error {
 
 // SaveDarkMode persists the dark mode preference to board.yaml.
 func (a *App) SaveDarkMode(dark bool) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return err
 	}
-	a.pauseWatcher()
 	a.board.Config.DarkMode = &dark
 	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
 		slog.Error("failed to save dark mode", "error", err)
@@ -177,10 +171,9 @@ func (a *App) SaveDarkMode(dark bool) error {
 
 // SaveMinimalView persists the minimal card view preference to board.yaml.
 func (a *App) SaveMinimalView(minimal bool) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return err
 	}
-	a.pauseWatcher()
 
 	a.board.Config.MinimalView = &minimal
 	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
@@ -193,10 +186,9 @@ func (a *App) SaveMinimalView(minimal bool) error {
 
 // SaveZoom persists the board zoom level to board.yaml.
 func (a *App) SaveZoom(level float64) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return err
 	}
-	a.pauseWatcher()
 	a.board.Config.Zoom = &level
 	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
 		slog.Error("failed to save zoom level", "error", err)
@@ -208,10 +200,9 @@ func (a *App) SaveZoom(level float64) error {
 
 // SaveBoardTitle sets the board display title and persists to board.yaml.
 func (a *App) SaveBoardTitle(title string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return err
 	}
-	a.pauseWatcher()
 	a.board.Config.Title = title
 
 	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
@@ -224,10 +215,6 @@ func (a *App) SaveBoardTitle(title string) error {
 
 // SaveTemplates replaces the full templates array in board.yaml and persists.
 func (a *App) SaveTemplates(templates []daedalus.CardTemplate) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
-	}
-
 	slog.Info("SaveTemplates called", "count", len(templates))
 	for i, t := range templates {
 		slog.Debug("template received",
@@ -241,7 +228,9 @@ func (a *App) SaveTemplates(templates []daedalus.CardTemplate) error {
 		)
 	}
 
-	a.pauseWatcher()
+	if _, err := a.prepareWrite(); err != nil {
+		return err
+	}
 	a.board.Config.Templates = templates
 
 	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {

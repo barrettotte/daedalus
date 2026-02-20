@@ -18,6 +18,7 @@
     searchQuery, filteredBoardData,
   } from "./stores/board";
   import type { daedalus } from "../wailsjs/go/models";
+  import { main } from "../wailsjs/go/models";
   import { labelColor, getDisplayTitle, getCountDisplay, HALF_COLLAPSED_CARD_LIMIT } from "./lib/utils";
   import { handleBoardKeydown } from "./lib/keyboard";
   import {
@@ -229,17 +230,8 @@
     }
   }
 
-  // Unpacks a LoadBoard response into all the relevant stores.
-  function unpackBoardResponse(response: any, roundTripMs: number = 0): void {
-    boardData.set(response.lists);
-    boardPath.set(response.boardPath || "");
-
-    if (response.boardPath) {
-      WindowSetTitle(`Daedalus - ${response.boardPath}`);
-    }
-
-    // Unpack ListEntry array into stores.
-    const entries: daedalus.ListEntry[] = response.config?.lists || [];
+  // Unpacks ListEntry array into list order, board config, and collapse/lock/pin sets.
+  function unpackListConfig(entries: daedalus.ListEntry[]): void {
     listOrder.set(entries.map((e) => e.dir));
 
     const configMap: Record<string, { title: string; limit: number; locked: boolean; color: string; icon: string }> = {};
@@ -259,19 +251,18 @@
     lockedLists = new SvelteSet(entries.filter((e) => e.locked).map((e) => e.dir));
     pinnedLeftLists = new SvelteSet(entries.filter((e) => e.pinned === "left").map((e) => e.dir));
     pinnedRightLists = new SvelteSet(entries.filter((e) => e.pinned === "right").map((e) => e.dir));
+  }
 
-    boardTitle.set(response.config?.title || "Daedalus");
-
-    // Backfill: register any card labels not yet in the label_colors registry
-    const loadedColors: Record<string, string> = response.config?.labelColors || {};
-    let backfillDirty = false;
-    for (const cards of Object.values(response.lists)) {
-      for (const card of (cards as daedalus.KanbanCard[])) {
+  // Scans cards for labels not yet in the color registry, backfills with deterministic colors, and saves if dirty.
+  function backfillLabelColors(lists: Record<string, daedalus.KanbanCard[]>, loadedColors: Record<string, string>): void {
+    let dirty = false;
+    for (const cards of Object.values(lists)) {
+      for (const card of cards) {
         if (card.metadata.labels) {
           for (const label of card.metadata.labels) {
             if (!loadedColors[label]) {
               loadedColors[label] = labelColor(label);
-              backfillDirty = true;
+              dirty = true;
             }
           }
         }
@@ -279,28 +270,46 @@
     }
     labelColors.set(loadedColors);
 
-    if (backfillDirty) {
+    if (dirty) {
       SaveLabelColors(loadedColors).catch(e => console.error("Failed to backfill label colors:", e));
     }
+  }
 
-    templates.set(response.config?.templates || []);
+  // Applies user preferences from board config to local state and stores.
+  function unpackUserPreferences(config: daedalus.BoardConfig | undefined): void {
+    templates.set(config?.templates || []);
 
-    if (response.config?.labelsExpanded !== undefined && response.config.labelsExpanded !== null) {
-      labelsExpanded.set(response.config.labelsExpanded);
+    if (config?.labelsExpanded !== undefined && config.labelsExpanded !== null) {
+      labelsExpanded.set(config.labelsExpanded);
     }
-    if (response.config?.minimalView !== undefined && response.config.minimalView !== null) {
-      minimalView.set(response.config.minimalView);
+    if (config?.minimalView !== undefined && config.minimalView !== null) {
+      minimalView.set(config.minimalView);
     }
-    if (response.config?.showYearProgress !== undefined && response.config.showYearProgress !== null) {
-      showYearProgress = response.config.showYearProgress;
+    if (config?.showYearProgress !== undefined && config.showYearProgress !== null) {
+      showYearProgress = config.showYearProgress;
     }
-    if (response.config?.darkMode !== undefined && response.config.darkMode !== null) {
-      darkMode = response.config.darkMode;
+    if (config?.darkMode !== undefined && config.darkMode !== null) {
+      darkMode = config.darkMode;
     }
-    if (response.config?.zoom !== undefined && response.config.zoom !== null) {
-      zoomLevel = response.config.zoom;
+    if (config?.zoom !== undefined && config.zoom !== null) {
+      zoomLevel = config.zoom;
     }
     document.documentElement.classList.toggle("light", !darkMode);
+  }
+
+  // Unpacks a LoadBoard response into all the relevant stores.
+  function unpackBoardResponse(response: main.BoardResponse, roundTripMs: number = 0): void {
+    boardData.set(response.lists);
+    boardPath.set(response.boardPath || "");
+
+    if (response.boardPath) {
+      WindowSetTitle(`Daedalus - ${response.boardPath}`);
+    }
+
+    unpackListConfig(response.config?.lists || []);
+    boardTitle.set(response.config?.title || "Daedalus");
+    backfillLabelColors(response.lists, response.config?.labelColors || {});
+    unpackUserPreferences(response.config);
 
     const p = response.profile;
     loadProfile.set({
@@ -345,7 +354,7 @@
   }
 
   // Handles a board being selected from the welcome modal.
-  function handleWelcomeBoard(response: any): void {
+  function handleWelcomeBoard(response: main.BoardResponse): void {
     showWelcome = false;
     unpackBoardResponse(response);
   }
@@ -668,7 +677,7 @@
 
   {#if $dragState}
     <div class="drag-ghost" style="left: {$dragPos.x + 10}px; top: {$dragPos.y - 20}px">
-      {#if $dragState.card.metadata.labels?.length > 0}
+      {#if ($dragState.card.metadata.labels?.length ?? 0) > 0}
         <div class="ghost-labels">
           {#each $dragState.card.metadata.labels as label}
             <span class="ghost-label" style="background: {labelColor(label, $labelColors)}"></span>

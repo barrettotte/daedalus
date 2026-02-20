@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"daedalus/pkg/daedalus"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -104,10 +105,10 @@ func (a *App) GetAppConfig() *daedalus.AppConfig {
 		slog.Error("failed to load app config", "error", err)
 		return &daedalus.AppConfig{}
 	}
-	daedalus.PruneInvalidBoards(cfg)
-
-	if saveErr := daedalus.SaveAppConfig(dir, cfg); saveErr != nil {
-		slog.Error("failed to save pruned app config", "error", saveErr)
+	if daedalus.PruneInvalidBoards(cfg) {
+		if saveErr := daedalus.SaveAppConfig(dir, cfg); saveErr != nil {
+			slog.Error("failed to save pruned app config", "error", saveErr)
+		}
 	}
 	return cfg
 }
@@ -116,7 +117,7 @@ func (a *App) GetAppConfig() *daedalus.AppConfig {
 func (a *App) SetDefaultBoard(path string) error {
 	dir := a.resolveConfigDir()
 	if dir == "" {
-		return nil
+		return fmt.Errorf("unable to resolve config directory")
 	}
 
 	cfg, err := daedalus.LoadAppConfig(dir)
@@ -131,7 +132,7 @@ func (a *App) SetDefaultBoard(path string) error {
 func (a *App) RemoveRecentBoard(path string) error {
 	dir := a.resolveConfigDir()
 	if dir == "" {
-		return nil
+		return fmt.Errorf("unable to resolve config directory")
 	}
 
 	cfg, err := daedalus.LoadAppConfig(dir)
@@ -166,6 +167,41 @@ func (a *App) SaveFileDialog(defaultFilename string) string {
 		return ""
 	}
 	return path
+}
+
+// updateRecentBoards loads the app config, adds the board to the recent list, and saves.
+// Errors are logged internally -- this is best-effort and should not block board loading.
+func (a *App) updateRecentBoards(absRoot, title string) {
+	cfgDir := a.resolveConfigDir()
+	if cfgDir == "" {
+		return
+	}
+	appCfg, err := daedalus.LoadAppConfig(cfgDir)
+	if err != nil {
+		slog.Error("failed to load app config for recent boards", "error", err)
+		return
+	}
+	daedalus.AddRecentBoard(appCfg, absRoot, title, time.Now().UTC())
+	if saveErr := daedalus.SaveAppConfig(cfgDir, appCfg); saveErr != nil {
+		slog.Error("failed to save app config after board load", "error", saveErr)
+	}
+}
+
+// buildLoadProfile constructs and logs timing data for each phase of board loading.
+func buildLoadProfile(state *daedalus.BoardState, mergeDuration time.Duration, totalStart time.Time) LoadProfile {
+	profile := LoadProfile{
+		ConfigMs: float64(state.ConfigLoadTime.Microseconds()) / 1000,
+		ScanMs:   float64(state.ScanTime.Microseconds()) / 1000,
+		MergeMs:  float64(mergeDuration.Microseconds()) / 1000,
+		TotalMs:  float64(time.Since(totalStart).Microseconds()) / 1000,
+	}
+	slog.Info("load profile",
+		"configMs", profile.ConfigMs,
+		"scanMs", profile.ScanMs,
+		"mergeMs", profile.MergeMs,
+		"totalMs", profile.TotalMs,
+	)
+	return profile
 }
 
 // LoadBoard is what is exposed to the frontend
@@ -212,30 +248,8 @@ func (a *App) LoadBoard(path string) *BoardResponse {
 	mergeDuration := time.Since(mergeStart)
 	absRoot, _ := filepath.Abs(state.RootPath)
 
-	// Update recent boards in app config.
-	cfgDir := a.resolveConfigDir()
-	if cfgDir != "" {
-		appCfg, err := daedalus.LoadAppConfig(cfgDir)
-		if err == nil {
-			daedalus.AddRecentBoard(appCfg, absRoot, state.Config.Title, time.Now().UTC())
-			if saveErr := daedalus.SaveAppConfig(cfgDir, appCfg); saveErr != nil {
-				slog.Error("failed to save app config after board load", "error", saveErr)
-			}
-		}
-	}
-
-	profile := LoadProfile{
-		ConfigMs: float64(state.ConfigLoadTime.Microseconds()) / 1000,
-		ScanMs:   float64(state.ScanTime.Microseconds()) / 1000,
-		MergeMs:  float64(mergeDuration.Microseconds()) / 1000,
-		TotalMs:  float64(time.Since(start).Microseconds()) / 1000,
-	}
-	slog.Info("load profile",
-		"configMs", profile.ConfigMs,
-		"scanMs", profile.ScanMs,
-		"mergeMs", profile.MergeMs,
-		"totalMs", profile.TotalMs,
-	)
+	a.updateRecentBoards(absRoot, state.Config.Title)
+	profile := buildLoadProfile(state, mergeDuration, start)
 
 	// (Re)start the file watcher for external edits.
 	if a.watcher != nil {
@@ -282,7 +296,7 @@ func (a *App) GetMetrics() AppMetrics {
 		wallDelta := now.Sub(a.prevWallTime).Seconds()
 		if wallDelta > 0 {
 			// Convert tick delta to seconds then to percentage
-			cpuDelta := float64(cpuTicks-a.prevCPUTicks) / daedalus.LinuxClockTicksPerSec
+			cpuDelta := float64(cpuTicks-a.prevCPUTicks) / daedalus.ClockTicksPerSec
 			processCPU = (cpuDelta / wallDelta) * 100
 		}
 	}

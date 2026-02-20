@@ -1,8 +1,12 @@
 package daedalus
 
 import (
+	"fmt"
+	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
+	"time"
 )
 
 // ComputeInsertPosition determines list_order and insertion index for a new card.
@@ -40,4 +44,38 @@ func InsertSorted(cards []KanbanCard, card KanbanCard) []KanbanCard {
 	copy(cards[idx+1:], cards[idx:])
 	cards[idx] = card
 	return cards
+}
+
+// CreateCardOnDisk computes the new card ID, builds metadata, writes the file to disk,
+// and returns the metadata, file path, and insertion index. The caller is responsible
+// for updating any in-memory state.
+func CreateCardOnDisk(
+	boardPath, listDir, title, body, position string,
+	cards []KanbanCard, maxID int,
+) (CardMetadata, string, int, error) {
+	newID := maxID + 1
+
+	listOrder, insertIdx := ComputeInsertPosition(cards, position)
+
+	if strings.TrimSpace(title) == "" {
+		title = fmt.Sprintf("%d", newID)
+	}
+
+	now := time.Now()
+	meta := CardMetadata{
+		ID:        newID,
+		Title:     title,
+		Created:   &now,
+		Updated:   &now,
+		ListOrder: listOrder,
+	}
+
+	fullBody := fmt.Sprintf("# %s\n\n%s", title, body)
+	filePath := filepath.Join(boardPath, listDir, fmt.Sprintf("%d.md", newID))
+
+	if err := WriteCardFile(filePath, meta, fullBody); err != nil {
+		return CardMetadata{}, "", 0, fmt.Errorf("writing card file: %w", err)
+	}
+
+	return meta, filePath, insertIdx, nil
 }

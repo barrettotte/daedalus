@@ -2,14 +2,13 @@ package main
 
 import (
 	"daedalus/pkg/daedalus"
-	"fmt"
 	"log/slog"
 )
 
 // ExportJSON writes the full board (config, cards with bodies, icons) to a JSON file.
 func (a *App) ExportJSON(path string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.requireBoard(); err != nil {
+		return err
 	}
 
 	board, err := daedalus.BuildExportBoard(a.board, a.iconsDir())
@@ -26,8 +25,8 @@ func (a *App) ExportJSON(path string) error {
 
 // ExportZip writes the full board directory (board.yaml, cards, icons) to a zip archive.
 func (a *App) ExportZip(path string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.requireBoard(); err != nil {
+		return err
 	}
 
 	if err := daedalus.WriteExportZip(a.board.RootPath, a.board, a.iconsDir(), path); err != nil {

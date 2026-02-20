@@ -9,9 +9,6 @@ import (
 	"strings"
 )
 
-// LinuxClockTicksPerSec is the standard clock tick rate on Linux (USER_HZ).
-const LinuxClockTicksPerSec = 100
-
 // ReadProcessRSS reads the resident set size from /proc/self/statm in megabytes.
 func ReadProcessRSS() float64 {
 	data, err := os.ReadFile("/proc/self/statm")

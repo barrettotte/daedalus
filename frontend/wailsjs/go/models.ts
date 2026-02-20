@@ -155,14 +155,14 @@ export namespace daedalus {
 	    icon?: string;
 	    estimate?: number;
 	    counter?: Counter;
-	    checklistTitle?: string;
+	    checklist_title?: string;
 	    checklist?: CheckListItem[];
 	    timeseries?: TimeSeries;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new CardTemplate(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
@@ -170,7 +170,7 @@ export namespace daedalus {
 	        this.icon = source["icon"];
 	        this.estimate = source["estimate"];
 	        this.counter = this.convertValues(source["counter"], Counter);
-	        this.checklistTitle = source["checklistTitle"];
+	        this.checklist_title = source["checklist_title"];
 	        this.checklist = this.convertValues(source["checklist"], CheckListItem);
 	        this.timeseries = this.convertValues(source["timeseries"], TimeSeries);
 	    }
@@ -312,12 +312,12 @@ export namespace daedalus {
 	    // Go type: time
 	    due?: any;
 	    range?: DateRange;
-	    labels: string[];
+	    labels?: string[];
 	    icon: string;
 	    url: string;
 	    estimate?: number;
 	    counter?: Counter;
-	    checklist_title: string;
+	    checklist_title?: string;
 	    checklist?: CheckListItem[];
 	    timeseries?: TimeSeries;
 	

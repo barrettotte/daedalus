@@ -20,8 +20,8 @@ func (a *App) iconsDir() string {
 // ListIcons returns a sorted list of icon filenames from {boardRoot}/_assets/icons/.
 // Returns an empty list if the directory does not exist.
 func (a *App) ListIcons() ([]string, error) {
-	if a.board == nil {
-		return nil, fmt.Errorf("board not loaded")
+	if _, err := a.requireBoard(); err != nil {
+		return nil, err
 	}
 
 	dir := a.iconsDir()
@@ -51,13 +51,12 @@ func (a *App) ListIcons() ([]string, error) {
 // For .svg files, returns the raw SVG markup.
 // For .png files, returns a base64 data URI.
 func (a *App) GetIconContent(name string) (string, error) {
-	if a.board == nil {
-		return "", fmt.Errorf("board not loaded")
+	if _, err := a.requireBoard(); err != nil {
+		return "", err
 	}
 
-	if strings.ContainsAny(name, "/\\") || strings.Contains(name, "..") {
-		slog.Warn("rejected invalid icon name", "name", name)
-		return "", fmt.Errorf("invalid icon name")
+	if err := validateIconName(name); err != nil {
+		return "", err
 	}
 
 	iconPath := filepath.Join(a.board.RootPath, "_assets", "icons", name)
@@ -89,14 +88,12 @@ func (a *App) GetIconContent(name string) (string, error) {
 // SaveCustomIcon saves an uploaded icon file to {boardRoot}/_assets/icons/.
 // For .svg files, content is raw SVG text. For .png files, content is base64-encoded.
 func (a *App) SaveCustomIcon(name string, content string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return err
 	}
-	a.pauseWatcher()
 
-	if strings.ContainsAny(name, "/\\") || strings.Contains(name, "..") {
-		slog.Warn("rejected invalid icon name", "name", name)
-		return fmt.Errorf("invalid icon name")
+	if err := validateIconName(name); err != nil {
+		return err
 	}
 
 	dir := a.iconsDir()
@@ -142,14 +139,12 @@ func (a *App) SaveCustomIcon(name string, content string) error {
 // clears the icon field on any card that references it, and removes
 // the display name entry from board.yaml.
 func (a *App) DeleteIcon(name string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.prepareWrite(); err != nil {
+		return err
 	}
-	a.pauseWatcher()
 
-	if strings.ContainsAny(name, "/\\") || strings.Contains(name, "..") {
-		slog.Warn("rejected invalid icon name", "name", name)
-		return fmt.Errorf("invalid icon name")
+	if err := validateIconName(name); err != nil {
+		return err
 	}
 
 	iconPath := filepath.Join(a.iconsDir(), name)
@@ -168,6 +163,7 @@ func (a *App) DeleteIcon(name string) error {
 
 	// Strip icon from any card that references it.
 	affected := 0
+	var cleanupErrors []string
 	for listKey, cards := range a.board.Lists {
 		for i, card := range cards {
 			if card.Metadata.Icon != name {
@@ -181,10 +177,12 @@ func (a *App) DeleteIcon(name string) error {
 			body, err := daedalus.ReadCardContent(card.FilePath)
 			if err != nil {
 				slog.Error("failed to read card for icon cleanup", "path", card.FilePath, "error", err)
+				cleanupErrors = append(cleanupErrors, fmt.Sprintf("card %s: %s", card.FilePath, err))
 				continue
 			}
 			if err := daedalus.WriteCardFile(card.FilePath, card.Metadata, body); err != nil {
 				slog.Error("failed to write card for icon cleanup", "path", card.FilePath, "error", err)
+				cleanupErrors = append(cleanupErrors, fmt.Sprintf("card %s: %s", card.FilePath, err))
 				continue
 			}
 
@@ -194,5 +192,9 @@ func (a *App) DeleteIcon(name string) error {
 	}
 
 	slog.Info("icon deleted", "name", name, "cardsAffected", affected)
+	if len(cleanupErrors) > 0 {
+		return fmt.Errorf("icon deleted but %d card(s) failed cleanup: %s",
+			len(cleanupErrors), strings.Join(cleanupErrors, "; "))
+	}
 	return nil
 }

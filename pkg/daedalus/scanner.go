@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -235,55 +236,51 @@ func readRawFrontmatter(path string) (map[string]any, error) {
 	return raw, nil
 }
 
-// WriteCardFile writes a card's metadata and body to a markdown file, preserving unknown YAML fields
-func WriteCardFile(path string, meta CardMetadata, body string) error {
-	// Read existing frontmatter to preserve unknown fields like trello_data
-	existingRaw, err := readRawFrontmatter(path)
-	if err != nil {
-		return fmt.Errorf("reading existing frontmatter: %w", err)
-	}
+// knownMetaKeys caches YAML field names from CardMetadata struct tags.
+// Computed once via sync.Once since the struct definition never changes at runtime.
+var (
+	knownMetaKeys     map[string]bool
+	knownMetaKeysOnce sync.Once
+)
 
-	// Marshal CardMetadata to YAML, then unmarshal to raw map
-	metaYaml, err := yaml.Marshal(&meta)
-	if err != nil {
-		return fmt.Errorf("marshaling metadata: %w", err)
-	}
-	metaRaw := make(map[string]any)
-	if err := yaml.Unmarshal(metaYaml, &metaRaw); err != nil {
-		return fmt.Errorf("unmarshaling metadata map: %w", err)
-	}
-
-	// Merge unknown keys from existing frontmatter (e.g. trello_data).
-	// Known CardMetadata keys are NOT merged back -- yaml.Marshal already handled
-	// omitempty correctly, so re-merging old values would undo intentional removals.
-	// knownMetaKeys lists all CardMetadata YAML keys. Keep in sync with priorityKeys below and CardMetadata struct fields.
-	knownMetaKeys := map[string]bool{
-		"id": true, "title": true, "list_order": true,
-		"created": true, "updated": true, "due": true, "range": true,
-		"labels": true, "icon": true, "url": true, "estimate": true,
-		"counter": true, "checklist_title": true, "checklist": true,
-		"timeseries": true,
-	}
-	merged := metaRaw
-	for k, v := range existingRaw {
-		if _, exists := merged[k]; !exists && !knownMetaKeys[k] {
-			merged[k] = v
-		}
-	}
-
-	// Force-quote checklist desc fields to prevent YAML parsing issues
-	if checklist, ok := merged["checklist"].([]any); ok {
-		for _, item := range checklist {
-			if m, ok := item.(map[string]any); ok {
-				if desc, ok := m["desc"].(string); ok {
-					m["desc"] = &yaml.Node{Kind: yaml.ScalarNode, Value: desc, Style: yaml.DoubleQuotedStyle}
-				}
+// getKnownMetaKeys returns the cached set of YAML field names from CardMetadata.
+func getKnownMetaKeys() map[string]bool {
+	knownMetaKeysOnce.Do(func() {
+		keys := make(map[string]bool)
+		t := reflect.TypeFor[CardMetadata]()
+		for i := 0; i < t.NumField(); i++ {
+			tag := t.Field(i).Tag.Get("yaml")
+			name := strings.Split(tag, ",")[0]
+			if name != "" {
+				keys[name] = true
 			}
 		}
-	}
+		knownMetaKeys = keys
+	})
+	return knownMetaKeys
+}
 
-	// priorityKeys controls frontmatter field order. Subset of knownMetaKeys -- remaining known keys are written after these in map order.
-	priorityKeys := []string{"id", "title", "list_order", "created", "updated", "due", "range", "labels", "icon", "url", "estimate"}
+// mergeUnknownFields merges unknown keys from existingRaw into metaRaw.
+// Known CardMetadata keys are NOT merged back -- yaml.Marshal already handled
+// omitempty correctly, so re-merging old values would undo intentional removals.
+func mergeUnknownFields(metaRaw, existingRaw map[string]any) map[string]any {
+	knownKeys := getKnownMetaKeys()
+	for k, v := range existingRaw {
+		if _, exists := metaRaw[k]; !exists && !knownKeys[k] {
+			metaRaw[k] = v
+		}
+	}
+	return metaRaw
+}
+
+// marshalOrderedYAML marshals a merged field map into YAML bytes with a
+// controlled key order: priority keys first, then remaining keys sorted
+// alphabetically, with trello_data forced to the very end.
+func marshalOrderedYAML(merged map[string]any) ([]byte, error) {
+	priorityKeys := []string{
+		"id", "title", "list_order", "created", "updated",
+		"due", "range", "labels", "icon", "url", "estimate",
+	}
 	added := make(map[string]bool)
 	var yamlBuf bytes.Buffer
 
@@ -291,7 +288,7 @@ func WriteCardFile(path string, meta CardMetadata, body string) error {
 		if val, ok := merged[key]; ok {
 			b, err := yaml.Marshal(map[string]any{key: val})
 			if err != nil {
-				return fmt.Errorf("marshaling field %s: %w", key, err)
+				return nil, fmt.Errorf("marshaling field %s: %w", key, err)
 			}
 			yamlBuf.Write(b)
 			added[key] = true
@@ -313,13 +310,47 @@ func WriteCardFile(path string, meta CardMetadata, body string) error {
 	for _, key := range remaining {
 		b, err := yaml.Marshal(map[string]any{key: merged[key]})
 		if err != nil {
-			return fmt.Errorf("marshaling field %s: %w", key, err)
+			return nil, fmt.Errorf("marshaling field %s: %w", key, err)
 		}
 		yamlBuf.Write(b)
 	}
-	finalYaml := yamlBuf.Bytes()
+	return yamlBuf.Bytes(), nil
+}
 
-	// Build the file content
+// WriteCardFile writes a card's metadata and body to a markdown file, preserving unknown YAML fields.
+func WriteCardFile(path string, meta CardMetadata, body string) error {
+	existingRaw, err := readRawFrontmatter(path)
+	if err != nil {
+		return fmt.Errorf("reading existing frontmatter: %w", err)
+	}
+
+	metaYaml, err := yaml.Marshal(&meta)
+	if err != nil {
+		return fmt.Errorf("marshaling metadata: %w", err)
+	}
+	metaRaw := make(map[string]any)
+	if err := yaml.Unmarshal(metaYaml, &metaRaw); err != nil {
+		return fmt.Errorf("unmarshaling metadata map: %w", err)
+	}
+
+	merged := mergeUnknownFields(metaRaw, existingRaw)
+
+	// Force-quote checklist desc fields to prevent YAML parsing issues
+	if checklist, ok := merged["checklist"].([]any); ok {
+		for _, item := range checklist {
+			if m, ok := item.(map[string]any); ok {
+				if desc, ok := m["desc"].(string); ok {
+					m["desc"] = &yaml.Node{Kind: yaml.ScalarNode, Value: desc, Style: yaml.DoubleQuotedStyle}
+				}
+			}
+		}
+	}
+
+	finalYaml, err := marshalOrderedYAML(merged)
+	if err != nil {
+		return err
+	}
+
 	var buf bytes.Buffer
 	buf.WriteString("---\n")
 	buf.Write(finalYaml)

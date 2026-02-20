@@ -6,7 +6,7 @@
     addCardToBoard, boardConfig, boardData, addToast, isAtLimit,
   } from "../stores/board";
   import { CreateCard, SaveCard } from "../../wailsjs/go/main/App";
-  import { autoFocus, backdropClose, wordCount } from "../lib/utils";
+  import { autoFocus, backdropClose, wordCount, createBlurGuard } from "../lib/utils";
   import type { daedalus } from "../../wailsjs/go/models";
   import {
     toggleChecklistItem, addChecklistItem, editChecklistItem,
@@ -24,17 +24,7 @@
   let saving = $state(false);
 
   // Suppress blur when a context menu just opened so right-click paste works.
-  let suppressNextBlur = false;
-  function onFieldContextMenu(): void {
-    suppressNextBlur = true;
-  }
-  function guardedBlur(fn: () => void): void {
-    if (suppressNextBlur) {
-      suppressNextBlur = false;
-      return;
-    }
-    fn();
-  }
+  const { oncontextmenu: onFieldContextMenu, guardedBlur } = createBlurGuard();
 
   // Live character and word counts for the body textarea.
   let charCount = $derived(draftBody.length);

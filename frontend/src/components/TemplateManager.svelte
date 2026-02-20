@@ -42,7 +42,7 @@
       icon: "",
       estimate: undefined,
       counter: undefined,
-      checklistTitle: "",
+      checklist_title: "",
       checklist: [],
       timeseries: undefined,
     } as unknown as daedalus.CardTemplate;

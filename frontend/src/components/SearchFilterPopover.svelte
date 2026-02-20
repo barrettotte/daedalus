@@ -21,65 +21,58 @@
   // Active tokens already in the search query, used to hide already-applied filters.
   let activeTokens = $derived(new Set(query.trim().split(/\s+/).filter(Boolean)));
 
-  // Scan all cards to collect unique labels, icons, and URL domains, excluding already-applied filters.
-  let availableLabels = $derived.by(() => {
-    const set = new Set<string>();
-    for (const cards of Object.values(lists)) {
-      for (const card of cards) {
-        for (const label of card.metadata.labels || []) {
-          set.add(label);
-        }
-      }
-    }
-    return [...set].sort().filter(l => !activeTokens.has(`#${l}`));
-  });
+  // Scan all cards in a single pass to collect unique labels, icons, and URL domains,
+  // excluding any filters already applied in the search query.
+  let filterData = $derived.by(() => {
+    const labels = new Set<string>();
+    const icons = new Set<string>();
+    const domains = new Set<string>();
 
-  let availableIcons = $derived.by(() => {
-    const set = new Set<string>();
     for (const cards of Object.values(lists)) {
       for (const card of cards) {
+        if (card.metadata.labels) {
+          for (const label of card.metadata.labels) {
+            labels.add(label);
+          }
+        }
         if (card.metadata.icon) {
-          set.add(card.metadata.icon);
+          icons.add(card.metadata.icon);
         }
-      }
-    }
-    return [...set].sort().filter(i => !activeTokens.has(`icon:${i}`));
-  });
-
-  let availableDomains = $derived.by(() => {
-    const set = new Set<string>();
-    for (const cards of Object.values(lists)) {
-      for (const card of cards) {
         if (card.metadata.url) {
           try {
-            set.add(new URL(card.metadata.url).hostname);
+            domains.add(new URL(card.metadata.url).hostname);
           } catch {
             // skip malformed URLs
           }
         }
       }
     }
-    return [...set].sort().filter(d => !activeTokens.has(`url:${d}`));
+
+    return {
+      labels: [...labels].sort().filter(l => !activeTokens.has(`#${l}`)),
+      icons: [...icons].sort().filter(i => !activeTokens.has(`icon:${i}`)),
+      domains: [...domains].sort().filter(d => !activeTokens.has(`url:${d}`)),
+    };
   });
 </script>
 
 <div class="filter-popover">
-  {#if availableLabels.length > 0}
+  {#if filterData.labels.length > 0}
     <div class="filter-section">
       <div class="filter-section-title">Labels</div>
       <div class="filter-chips">
-        {#each availableLabels as label}
+        {#each filterData.labels as label}
           <button class="filter-chip label-chip" style="background: {labelColor(label, colors)}" onclick={() => onselect(`#${label}`)}>{label}</button>
         {/each}
       </div>
     </div>
   {/if}
 
-  {#if availableIcons.length > 0}
+  {#if filterData.icons.length > 0}
     <div class="filter-section">
       <div class="filter-section-title">Icons</div>
       <div class="filter-chips">
-        {#each availableIcons as icon}
+        {#each filterData.icons as icon}
           <button class="filter-chip icon-chip" onclick={() => onselect(`icon:${icon}`)}>
             <CardIcon name={icon} size={14} />
           </button>
@@ -88,11 +81,11 @@
     </div>
   {/if}
 
-  {#if availableDomains.length > 0}
+  {#if filterData.domains.length > 0}
     <div class="filter-section">
       <div class="filter-section-title">URL Domains</div>
       <div class="filter-chips">
-        {#each availableDomains as domain}
+        {#each filterData.domains as domain}
           <button class="filter-chip domain-chip" onclick={() => onselect(`url:${domain}`)}>
             {domain}
           </button>
@@ -101,7 +94,7 @@
     </div>
   {/if}
 
-  {#if availableLabels.length === 0 && availableIcons.length === 0 && availableDomains.length === 0}
+  {#if filterData.labels.length === 0 && filterData.icons.length === 0 && filterData.domains.length === 0}
     <div class="filter-empty">No filterable fields on current cards</div>
   {/if}
 </div>

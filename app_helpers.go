@@ -8,6 +8,33 @@ import (
 	"strings"
 )
 
+// requireBoard returns the loaded board state or an error if no board is loaded.
+func (a *App) requireBoard() (*daedalus.BoardState, error) {
+	if a.board == nil {
+		return nil, fmt.Errorf("board not loaded")
+	}
+	return a.board, nil
+}
+
+// prepareWrite checks that a board is loaded and pauses the file watcher.
+func (a *App) prepareWrite() (*daedalus.BoardState, error) {
+	board, err := a.requireBoard()
+	if err != nil {
+		return nil, err
+	}
+	a.pauseWatcher()
+	return board, nil
+}
+
+// validateIconName checks that an icon filename has no path traversal characters.
+func validateIconName(name string) error {
+	if strings.ContainsAny(name, "/\\") || strings.Contains(name, "..") {
+		slog.Warn("rejected invalid icon name", "name", name)
+		return fmt.Errorf("invalid icon name")
+	}
+	return nil
+}
+
 // validatePath resolves a file path to absolute and verifies it is within the board root.
 func (a *App) validatePath(filePath string) (string, error) {
 	absPath, err := filepath.Abs(filePath)
@@ -29,8 +56,8 @@ func (a *App) validatePath(filePath string) (string, error) {
 
 // OpenFileExternal opens a file in the system default application.
 func (a *App) OpenFileExternal(filePath string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
+	if _, err := a.requireBoard(); err != nil {
+		return err
 	}
 	absPath, err := a.validatePath(filePath)
 	if err != nil {

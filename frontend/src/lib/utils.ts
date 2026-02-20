@@ -212,6 +212,23 @@ export function blurOnEnter(node: HTMLInputElement | HTMLTextAreaElement): Actio
   };
 }
 
+// Creates a blur guard that suppresses the next blur event after a context menu opens.
+// Returns { oncontextmenu, guardedBlur } -- attach oncontextmenu to inputs and wrap
+// blur handlers with guardedBlur(fn) so right-click paste works without losing focus.
+export function createBlurGuard(): {
+  oncontextmenu: () => void;
+  guardedBlur: (fn: () => void) => void;
+} {
+  let suppress = false;
+  return {
+    oncontextmenu() { suppress = true; },
+    guardedBlur(fn: () => void) {
+      if (suppress) { suppress = false; return; }
+      fn();
+    },
+  };
+}
+
 // Counts words in a string by splitting on whitespace.
 export function wordCount(text: string): number {
   const trimmed = text.trim();

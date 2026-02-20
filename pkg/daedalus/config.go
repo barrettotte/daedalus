@@ -1,6 +1,7 @@
 package daedalus
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -131,4 +132,39 @@ func MergeListEntries(config *BoardConfig, diskDirs map[string]bool) {
 	}
 
 	config.Lists = merged
+}
+
+// CreateListOnDisk creates a new list directory on disk and appends it to the board config.
+func CreateListOnDisk(boardPath, name string, config *BoardConfig) error {
+	dirPath := filepath.Join(boardPath, name)
+	if err := os.MkdirAll(dirPath, 0755); err != nil {
+		slog.Error("failed to create list directory", "name", name, "path", dirPath, "error", err)
+		return fmt.Errorf("creating list directory: %w", err)
+	}
+
+	config.Lists = append(config.Lists, ListEntry{Dir: name})
+	if err := SaveBoardConfig(boardPath, config); err != nil {
+		slog.Error("failed to save config after list creation", "name", name, "error", err)
+		return err
+	}
+	return nil
+}
+
+// DeleteListOnDisk removes a list directory from disk and its entry from the board config.
+func DeleteListOnDisk(boardPath, name string, config *BoardConfig) error {
+	dirPath := filepath.Join(boardPath, name)
+	if err := os.RemoveAll(dirPath); err != nil {
+		slog.Error("failed to remove list directory", "name", name, "path", dirPath, "error", err)
+		return fmt.Errorf("removing list directory: %w", err)
+	}
+
+	idx := FindListEntry(config.Lists, name)
+	if idx >= 0 {
+		config.Lists = append(config.Lists[:idx], config.Lists[idx+1:]...)
+	}
+	if err := SaveBoardConfig(boardPath, config); err != nil {
+		slog.Error("failed to save config after list deletion", "name", name, "error", err)
+		return err
+	}
+	return nil
 }

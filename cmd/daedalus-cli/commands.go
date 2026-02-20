@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"daedalus/pkg/daedalus"
 )
@@ -161,28 +160,14 @@ func cmdCardCreate(boardPath string, args []string) error {
 		return fmt.Errorf("list %q not found", listName)
 	}
 
-	id := state.MaxID + 1
-	listOrder, _ := daedalus.ComputeInsertPosition(cards, "bottom")
-	now := time.Now()
-
-	meta := daedalus.CardMetadata{
-		ID:        id,
-		Title:     title,
-		Created:   &now,
-		Updated:   &now,
-		ListOrder: listOrder,
-	}
-
-	body := "# " + title + "\n\n"
-	filePath := filepath.Join(boardPath, listName, fmt.Sprintf("%d.md", id))
-
-	if err := daedalus.WriteCardFile(filePath, meta, body); err != nil {
-		return fmt.Errorf("writing card file: %w", err)
+	meta, filePath, _, err := daedalus.CreateCardOnDisk(boardPath, listName, title, "", "bottom", cards, state.MaxID)
+	if err != nil {
+		return err
 	}
 
 	return jsonOut(map[string]any{
-		"id":    id,
-		"title": title,
+		"id":    meta.ID,
+		"title": meta.Title,
 		"list":  listName,
 		"path":  filePath,
 	})
@@ -236,14 +221,8 @@ func cmdListCreate(boardPath string, args []string) error {
 		return fmt.Errorf("list %q already exists", name)
 	}
 
-	dirPath := filepath.Join(boardPath, name)
-	if err := os.MkdirAll(dirPath, 0755); err != nil {
-		return fmt.Errorf("creating list directory: %w", err)
-	}
-
-	state.Config.Lists = append(state.Config.Lists, daedalus.ListEntry{Dir: name})
-	if err := daedalus.SaveBoardConfig(boardPath, state.Config); err != nil {
-		return fmt.Errorf("saving board config: %w", err)
+	if err := daedalus.CreateListOnDisk(boardPath, name, state.Config); err != nil {
+		return err
 	}
 
 	return jsonOut(map[string]any{
@@ -272,20 +251,7 @@ func cmdListDelete(boardPath string, args []string) error {
 		return fmt.Errorf("list %q not found", name)
 	}
 
-	dirPath := filepath.Join(boardPath, name)
-	if err := os.RemoveAll(dirPath); err != nil {
-		return fmt.Errorf("removing list directory: %w", err)
-	}
-
-	idx := daedalus.FindListEntry(state.Config.Lists, name)
-	if idx >= 0 {
-		state.Config.Lists = append(state.Config.Lists[:idx], state.Config.Lists[idx+1:]...)
-	}
-	if err := daedalus.SaveBoardConfig(boardPath, state.Config); err != nil {
-		return fmt.Errorf("saving board config: %w", err)
-	}
-
-	return nil
+	return daedalus.DeleteListOnDisk(boardPath, name, state.Config)
 }
 
 func cmdExportJSON(boardPath string, args []string) error {

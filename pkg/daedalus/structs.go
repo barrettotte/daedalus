@@ -33,12 +33,12 @@ type CardMetadata struct {
 	ListOrder      float64         `yaml:"list_order" json:"list_order"`
 	Due            *time.Time      `yaml:"due,omitempty" json:"due,omitempty"`
 	Range          *DateRange      `yaml:"range,omitempty" json:"range,omitempty"`
-	Labels         []string        `yaml:"labels,omitempty" json:"labels"`
+	Labels         []string        `yaml:"labels,omitempty" json:"labels,omitempty"`
 	Icon           string          `yaml:"icon,omitempty" json:"icon"`
 	URL            string          `yaml:"url,omitempty" json:"url"`
 	Estimate       *float64        `yaml:"estimate,omitempty" json:"estimate,omitempty"`
 	Counter        *Counter        `yaml:"counter,omitempty" json:"counter,omitempty"`
-	ChecklistTitle string          `yaml:"checklist_title,omitempty" json:"checklist_title"`
+	ChecklistTitle string          `yaml:"checklist_title,omitempty" json:"checklist_title,omitempty"`
 	Checklist      []CheckListItem `yaml:"checklist,omitempty" json:"checklist,omitempty"`
 	TimeSeries     *TimeSeries     `yaml:"timeseries,omitempty" json:"timeseries,omitempty"`
 }
@@ -85,7 +85,7 @@ type CardTemplate struct {
 	Icon           string          `yaml:"icon,omitempty" json:"icon,omitempty"`
 	Estimate       *float64        `yaml:"estimate,omitempty" json:"estimate,omitempty"`
 	Counter        *Counter        `yaml:"counter,omitempty" json:"counter,omitempty"`
-	ChecklistTitle string          `yaml:"checklist_title,omitempty" json:"checklistTitle,omitempty"`
+	ChecklistTitle string          `yaml:"checklist_title,omitempty" json:"checklist_title,omitempty"`
 	Checklist      []CheckListItem `yaml:"checklist,omitempty" json:"checklist,omitempty"`
 	TimeSeries     *TimeSeries     `yaml:"timeseries,omitempty" json:"timeseries,omitempty"`
 }

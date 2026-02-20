@@ -10,7 +10,7 @@
     GetCardContent, SaveCard, OpenFileExternal, DeleteCard, OpenURI,
   } from "../../wailsjs/go/main/App";
   import { marked } from "marked";
-  import { autoFocus, blurOnEnter, backdropClose, wordCount, resolveWikiLinks } from "../lib/utils";
+  import { autoFocus, blurOnEnter, backdropClose, wordCount, resolveWikiLinks, createBlurGuard } from "../lib/utils";
 
   // Strip title attributes from links to prevent browser tooltips.
   // Convert [[id]] wiki-links into clickable card references.
@@ -69,17 +69,7 @@
   let editUri = $state("");
 
   // Suppress blur when a context menu just opened so right-click paste works.
-  let suppressNextBlur = false;
-  function onFieldContextMenu(): void {
-    suppressNextBlur = true;
-  }
-  function guardedBlur(fn: () => void): void {
-    if (suppressNextBlur) {
-      suppressNextBlur = false;
-      return;
-    }
-    fn();
-  }
+  const { oncontextmenu: onFieldContextMenu, guardedBlur } = createBlurGuard();
 
   // Guards against stale async responses when rapidly switching cards.
   let loadGeneration = 0;

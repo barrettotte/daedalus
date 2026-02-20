@@ -55,19 +55,19 @@ func ScanBoard(rootPath string) (*BoardState, error) {
 			listPath := filepath.Join(absRoot, dirName)
 
 			wg.Add(1)
-			go func(path, realName, displayName string) {
+			go func(path, name string) {
 				defer wg.Done()
-				cards, localMaxID, localBytes := scanList(path, realName, displayName)
+				cards, localMaxID, localBytes := scanList(path, name)
 
 				mutex.Lock()
-				state.Lists[realName] = cards
+				state.Lists[name] = cards
 				if localMaxID > state.MaxID {
 					state.MaxID = localMaxID
 				}
 				state.TotalFileBytes += localBytes
 				mutex.Unlock()
 
-			}(listPath, dirName, dirName)
+			}(listPath, dirName)
 		}
 	}
 	wg.Wait()
@@ -76,10 +76,10 @@ func ScanBoard(rootPath string) (*BoardState, error) {
 }
 
 // scanList iterates over a directory (list) of markdown files (cards)
-func scanList(listPath, realName, displayName string) ([]KanbanCard, int, int64) {
+func scanList(listPath, listName string) ([]KanbanCard, int, int64) {
 	files, err := os.ReadDir(listPath)
 	if err != nil {
-		slog.Error("failed to read list directory", "list", realName, "path", listPath, "error", err)
+		slog.Error("failed to read list directory", "list", listName, "path", listPath, "error", err)
 		return nil, 0, 0
 	}
 
@@ -96,7 +96,7 @@ func scanList(listPath, realName, displayName string) ([]KanbanCard, int, int64)
 
 			meta, preview, err := parseFileHeader(fullPath)
 			if err != nil {
-				slog.Warn("skipping invalid card file", "file", file.Name(), "list", realName, "error", err)
+				slog.Warn("skipping invalid card file", "file", file.Name(), "list", listName, "error", err)
 				continue
 			}
 
@@ -117,7 +117,7 @@ func scanList(listPath, realName, displayName string) ([]KanbanCard, int, int64)
 
 			cards = append(cards, KanbanCard{
 				FilePath:    fullPath,
-				ListName:    displayName,
+				ListName:    listName,
 				Metadata:    meta,
 				PreviewText: preview,
 			})
@@ -132,7 +132,7 @@ func scanList(listPath, realName, displayName string) ([]KanbanCard, int, int64)
 		return cards[i].Metadata.ID < cards[j].Metadata.ID
 	})
 
-	slog.Debug("list scanned", "list", realName, "cards", len(cards), "maxID", localMaxID, "bytes", localBytes)
+	slog.Debug("list scanned", "list", listName, "cards", len(cards), "maxID", localMaxID, "bytes", localBytes)
 	return cards, localMaxID, localBytes
 }
 
@@ -256,11 +256,13 @@ func WriteCardFile(path string, meta CardMetadata, body string) error {
 	// Merge unknown keys from existing frontmatter (e.g. trello_data).
 	// Known CardMetadata keys are NOT merged back -- yaml.Marshal already handled
 	// omitempty correctly, so re-merging old values would undo intentional removals.
+	// knownMetaKeys lists all CardMetadata YAML keys. Keep in sync with priorityKeys below and CardMetadata struct fields.
 	knownMetaKeys := map[string]bool{
 		"id": true, "title": true, "list_order": true,
 		"created": true, "updated": true, "due": true, "range": true,
 		"labels": true, "icon": true, "url": true, "estimate": true,
 		"counter": true, "checklist_title": true, "checklist": true,
+		"timeseries": true,
 	}
 	merged := metaRaw
 	for k, v := range existingRaw {
@@ -280,7 +282,7 @@ func WriteCardFile(path string, meta CardMetadata, body string) error {
 		}
 	}
 
-	// Marshal fields in priority order: important metadata first, bulky data last
+	// priorityKeys controls frontmatter field order. Subset of knownMetaKeys -- remaining known keys are written after these in map order.
 	priorityKeys := []string{"id", "title", "list_order", "created", "updated", "due", "range", "labels", "icon", "url", "estimate"}
 	added := make(map[string]bool)
 	var yamlBuf bytes.Buffer

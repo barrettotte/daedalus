@@ -4,7 +4,7 @@
 
   import type { BoardLists } from "../stores/board";
   import CardIcon from "./CardIcon.svelte";
-  import { labelColor, isFileIcon } from "../lib/utils";
+  import { labelColor } from "../lib/utils";
 
   let {
     lists,
@@ -81,11 +81,7 @@
       <div class="filter-chips">
         {#each availableIcons as icon}
           <button class="filter-chip icon-chip" onclick={() => onselect(`icon:${icon}`)}>
-            {#if isFileIcon(icon)}
-              <CardIcon name={icon} size={14} />
-            {:else}
-              {icon}
-            {/if}
+            <CardIcon name={icon} size={14} />
           </button>
         {/each}
       </div>

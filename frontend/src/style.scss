@@ -738,34 +738,6 @@ input[type="number"] {
 
 // -- Shared icon picker styles --
 
-.emoji-row {
-    display: flex;
-    gap: 4px;
-}
-
-.emoji-input {
-    width: 3.5rem;
-    font-size: 0.8rem;
-    text-align: center;
-}
-
-.emoji-save-btn {
-    all: unset;
-    font-size: 0.68rem;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-    background: var(--overlay-hover-light);
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-    padding: 2px 8px;
-    cursor: pointer;
-
-    &:hover {
-        background: var(--overlay-hover-medium);
-        color: var(--color-text-primary);
-    }
-}
-
 .icon-grid {
     display: grid;
     grid-template-columns: repeat(5, 1fr);

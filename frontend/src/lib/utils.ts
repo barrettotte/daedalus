@@ -218,11 +218,6 @@ export function wordCount(text: string): number {
   return trimmed ? trimmed.split(/\s+/).length : 0;
 }
 
-// Returns true if the icon string references a file-based icon (SVG or PNG).
-export function isFileIcon(icon: string): boolean {
-  return icon ? icon.endsWith(".svg") || icon.endsWith(".png") : false;
-}
-
 // Replaces wiki-link placeholders with "#id - title" using current board data.
 // Expects HTML containing <a class="wiki-link" data-card-id="N">#N</a> from the marked extension.
 export function resolveWikiLinks(html: string, boardLists: Record<string, { metadata: { id: number; title: string } }[]>): string {

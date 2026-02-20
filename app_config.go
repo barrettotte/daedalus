@@ -7,37 +7,6 @@ import (
 	"time"
 )
 
-// SaveListConfig updates the config for a single list and persists to board.yaml.
-func (a *App) SaveListConfig(dirName string, title string, limit int, color string, icon string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
-	}
-	a.pauseWatcher()
-
-	idx := daedalus.FindListEntry(a.board.Config.Lists, dirName)
-	if idx >= 0 {
-		a.board.Config.Lists[idx].Title = title
-		a.board.Config.Lists[idx].Limit = limit
-		a.board.Config.Lists[idx].Color = color
-		a.board.Config.Lists[idx].Icon = icon
-	} else {
-		a.board.Config.Lists = append(a.board.Config.Lists, daedalus.ListEntry{
-			Dir:   dirName,
-			Title: title,
-			Limit: limit,
-			Color: color,
-			Icon:  icon,
-		})
-	}
-
-	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
-		slog.Error("failed to save list config", "dir", dirName, "error", err)
-		return err
-	}
-	slog.Info("list config saved", "dir", dirName, "title", title, "limit", limit)
-	return nil
-}
-
 // SaveLabelsExpanded persists the label collapsed/expanded state to board.yaml.
 func (a *App) SaveLabelsExpanded(expanded bool) error {
 	if a.board == nil {
@@ -280,44 +249,5 @@ func (a *App) SaveTemplates(templates []daedalus.CardTemplate) error {
 		return err
 	}
 	slog.Info("templates saved successfully", "count", len(templates))
-	return nil
-}
-
-// SaveListOrder reorders the config Lists array to match the given order and persists to board.yaml.
-func (a *App) SaveListOrder(order []string) error {
-	if a.board == nil {
-		return fmt.Errorf("board not loaded")
-	}
-	a.pauseWatcher()
-
-	// Build a map of dir -> entry for quick lookup
-	entryMap := make(map[string]daedalus.ListEntry)
-	for _, entry := range a.board.Config.Lists {
-		entryMap[entry.Dir] = entry
-	}
-
-	// Reassemble in new order
-	var reordered []daedalus.ListEntry
-	used := make(map[string]bool)
-	for _, dir := range order {
-		if entry, ok := entryMap[dir]; ok {
-			reordered = append(reordered, entry)
-			used[dir] = true
-		}
-	}
-
-	// Append any stragglers not in the order array
-	for _, entry := range a.board.Config.Lists {
-		if !used[entry.Dir] {
-			reordered = append(reordered, entry)
-		}
-	}
-
-	a.board.Config.Lists = reordered
-	if err := daedalus.SaveBoardConfig(a.board.RootPath, a.board.Config); err != nil {
-		slog.Error("failed to save list order", "error", err)
-		return err
-	}
-	slog.Info("list order saved", "count", len(reordered))
 	return nil
 }

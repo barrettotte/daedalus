@@ -1,6 +1,7 @@
 package daedalus
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -473,6 +474,147 @@ func TestWriteCardFile_PreservesUnknownFields(t *testing.T) {
 	}
 	if readMeta.Title != "Updated Trello Card" {
 		t.Errorf("title: got %q, want %q", readMeta.Title, "Updated Trello Card")
+	}
+}
+
+// TimeSeries data should survive a WriteCardFile round-trip: write, read back,
+// and verify label and entries are preserved.
+func TestWriteCardFile_TimeSeries(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ts.md")
+	now := time.Now().Truncate(time.Second)
+	meta := CardMetadata{
+		ID:        100,
+		Title:     "TS Card",
+		Created:   &now,
+		ListOrder: 1,
+		TimeSeries: &TimeSeries{
+			Label: "Weight",
+			Entries: []TimeSeriesEntry{
+				{Time: "2026-01-01", Value: 215},
+				{Time: "2026-01-02", Value: 214.5},
+			},
+		},
+	}
+	body := "# TS Card\n\nTracking weight.\n"
+
+	if err := WriteCardFile(path, meta, body); err != nil {
+		t.Fatalf("WriteCardFile error: %v", err)
+	}
+
+	// Verify YAML file contains timeseries data
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := string(content)
+	if !strings.Contains(raw, "timeseries") {
+		t.Error("timeseries key not found in file")
+	}
+	if !strings.Contains(raw, "Weight") {
+		t.Error("timeseries label not found in file")
+	}
+
+	// Read back metadata and verify
+	readMeta, _, err := parseFileHeader(path)
+	if err != nil {
+		t.Fatalf("parseFileHeader error: %v", err)
+	}
+	if readMeta.TimeSeries == nil {
+		t.Fatal("TimeSeries is nil after read-back")
+	}
+	if readMeta.TimeSeries.Label != "Weight" {
+		t.Errorf("label: got %q, want %q", readMeta.TimeSeries.Label, "Weight")
+	}
+	if len(readMeta.TimeSeries.Entries) != 2 {
+		t.Fatalf("entries: got %d, want 2", len(readMeta.TimeSeries.Entries))
+	}
+	if readMeta.TimeSeries.Entries[0].Time != "2026-01-01" {
+		t.Errorf("entries[0].t: got %q", readMeta.TimeSeries.Entries[0].Time)
+	}
+	if readMeta.TimeSeries.Entries[0].Value != 215 {
+		t.Errorf("entries[0].v: got %f", readMeta.TimeSeries.Entries[0].Value)
+	}
+}
+
+// TimeSeries with empty label and no entries should still persist and read back as non-nil.
+func TestWriteCardFile_TimeSeriesEmpty(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ts-empty.md")
+	now := time.Now().Truncate(time.Second)
+	meta := CardMetadata{
+		ID:         101,
+		Title:      "Empty TS",
+		Created:    &now,
+		ListOrder:  1,
+		TimeSeries: &TimeSeries{Label: "", Entries: []TimeSeriesEntry{}},
+	}
+
+	if err := WriteCardFile(path, meta, "# Empty TS\n"); err != nil {
+		t.Fatalf("WriteCardFile error: %v", err)
+	}
+
+	content, _ := os.ReadFile(path)
+	if !strings.Contains(string(content), "timeseries") {
+		t.Error("timeseries key not found in file for empty time series")
+	}
+
+	readMeta, _, err := parseFileHeader(path)
+	if err != nil {
+		t.Fatalf("parseFileHeader error: %v", err)
+	}
+	if readMeta.TimeSeries == nil {
+		t.Fatal("TimeSeries should be non-nil after read-back of empty time series")
+	}
+	if readMeta.TimeSeries.Label != "" {
+		t.Errorf("label: got %q, want empty", readMeta.TimeSeries.Label)
+	}
+}
+
+// JSON round-trip for CardMetadata with TimeSeries (simulates Wails RPC serialization).
+func TestCardMetadata_JSONRoundTrip(t *testing.T) {
+	ts := &TimeSeries{
+		Label: "Steps",
+		Entries: []TimeSeriesEntry{
+			{Time: "2026-02-01", Value: 8000},
+		},
+	}
+	meta := CardMetadata{
+		ID:         50,
+		Title:      "JSON Test",
+		ListOrder:  1,
+		TimeSeries: ts,
+	}
+
+	data, err := json.Marshal(meta)
+	if err != nil {
+		t.Fatalf("Marshal error: %v", err)
+	}
+
+	// Verify timeseries is in the JSON output
+	raw := string(data)
+	if !strings.Contains(raw, `"timeseries"`) {
+		t.Error("timeseries key not found in JSON")
+	}
+	if !strings.Contains(raw, `"Steps"`) {
+		t.Error("timeseries label not found in JSON")
+	}
+
+	var decoded CardMetadata
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("Unmarshal error: %v", err)
+	}
+	if decoded.TimeSeries == nil {
+		t.Fatal("TimeSeries is nil after JSON round-trip")
+	}
+	if decoded.TimeSeries.Label != "Steps" {
+		t.Errorf("label: got %q, want %q", decoded.TimeSeries.Label, "Steps")
+	}
+	if len(decoded.TimeSeries.Entries) != 1 {
+		t.Fatalf("entries: got %d, want 1", len(decoded.TimeSeries.Entries))
+	}
+	if decoded.TimeSeries.Entries[0].Value != 8000 {
+		t.Errorf("entries[0].v: got %f, want 8000", decoded.TimeSeries.Entries[0].Value)
 	}
 }
 

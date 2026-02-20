@@ -41,6 +41,7 @@
     removeChecklistItem, reorderChecklistItem,
   } from "../lib/checklist";
   import ChecklistSection from "./ChecklistSection.svelte";
+  import TimeSeriesSection from "./TimeSeriesSection.svelte";
   import CardSidebar from "./CardSidebar.svelte";
   import Icon from "./Icon.svelte";
 
@@ -270,6 +271,10 @@
 
   function saveChecklistTitle(title: string): Promise<void> {
     return saveCardMeta({ checklist_title: title.trim() || "Checklist" }, "save checklist title");
+  }
+
+  function saveTimeSeries(timeseries: daedalus.TimeSeries | null): Promise<void> {
+    return saveCardMeta({ timeseries: timeseries ?? undefined }, "save time series");
   }
 
   function saveLabels(labels: string[]): Promise<void> {
@@ -518,9 +523,8 @@
       <div class="modal-body">
         <div class="main-col">
 
-          <!-- Primary URI -->
-          <div class="uri-row">
-            {#if editingUri}
+          {#if editingUri}
+            <div class="uri-row">
               <Icon name="link" size={14} style="color: var(--color-text-muted); flex-shrink: 0" />
               <input class="uri-input" type="text" placeholder="https://..."
                 bind:value={editUri}
@@ -531,7 +535,9 @@
               <button class="uri-action-btn remove" title="Remove URI" onclick={removeUri}>
                 <Icon name="trash" size={12} />
               </button>
-            {:else if meta.url}
+            </div>
+          {:else if meta.url}
+            <div class="uri-row">
               <Icon name="link" size={14} style="color: var(--color-text-muted); flex-shrink: 0" />
               <button class="uri-link" title={meta.url} onclick={(e) => e.button === 0 && openUri()}>{meta.url}</button>
               <button class="uri-action-btn" title="Edit URI" onclick={startEditUri}>
@@ -540,14 +546,9 @@
               <button class="uri-action-btn remove" title="Remove URI" onclick={removeUri}>
                 <Icon name="trash" size={12} />
               </button>
-            {:else}
-              <button class="uri-add-btn" onclick={startEditUri} title="Primary URI">
-                <Icon name="link" size={12} /> Add Primary URI
-              </button>
-            {/if}
-          </div>
+            </div>
+          {/if}
 
-          <!-- Description -->
           <div class="section">
             {#if editingBody}
               <textarea class="edit-body-textarea" bind:value={editBody}
@@ -582,7 +583,12 @@
             {/if}
           </div>
 
-          <!-- Checklist -->
+          {#if meta.timeseries}
+            <div class="section">
+              <TimeSeriesSection timeseries={meta.timeseries} onsave={saveTimeSeries}/>
+            </div>
+          {/if}
+
           {#if meta.checklist_title || (meta.checklist && meta.checklist.length > 0)}
             <div class="section">
               <ChecklistSection
@@ -604,6 +610,7 @@
           onsavecounter={saveCounter} onsavedates={saveDates}
           onsaveestimate={saveEstimate} onsaveicon={saveIcon}
           onsavechecklist={saveChecklist} onsavelabels={saveLabels}
+          onsavetimeseries={saveTimeSeries} onstartedituri={startEditUri}
         />
       </div>
       {/if}

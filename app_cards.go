@@ -261,6 +261,7 @@ func (a *App) MoveAllCards(sourceDir, targetDir string) error {
 	if a.board == nil {
 		return fmt.Errorf("board not loaded")
 	}
+	a.pauseWatcher()
 	if sourceDir == targetDir {
 		return fmt.Errorf("source and target lists are the same")
 	}
@@ -285,8 +286,6 @@ func (a *App) MoveAllCards(sourceDir, targetDir string) error {
 	if len(srcCards) == 0 {
 		return nil
 	}
-
-	a.pauseWatcher()
 
 	// Find min ListOrder in target to prepend before existing cards.
 	minOrder := 0.0
@@ -414,4 +413,3 @@ func (a *App) findCardByPath(absPath string) (string, int, bool) {
 	}
 	return "", 0, false
 }
-

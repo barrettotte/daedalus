@@ -27,13 +27,13 @@ func main() {
 
 	app := NewApp()
 	err := wails.Run(&options.App{
-		Title: "Daedalus",
-		Width:     1024,
-		Height:    768,
-		MinWidth:  800,
-		MinHeight: 600,
-		MaxWidth:  3840,
-		MaxHeight: 2160,
+		Title:                    "Daedalus",
+		Width:                    1024,
+		Height:                   768,
+		MinWidth:                 800,
+		MinHeight:                600,
+		MaxWidth:                 3840,
+		MaxHeight:                2160,
 		EnableDefaultContextMenu: true,
 		AssetServer: &assetserver.Options{
 			Assets: assets,

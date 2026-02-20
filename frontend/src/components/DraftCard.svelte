@@ -23,6 +23,19 @@
   let editingBody = $state(false);
   let saving = $state(false);
 
+  // Suppress blur when a context menu just opened so right-click paste works.
+  let suppressNextBlur = false;
+  function onFieldContextMenu(): void {
+    suppressNextBlur = true;
+  }
+  function guardedBlur(fn: () => void): void {
+    if (suppressNextBlur) {
+      suppressNextBlur = false;
+      return;
+    }
+    fn();
+  }
+
   // Live character and word counts for the body textarea.
   let charCount = $derived(draftBody.length);
   let wCount = $derived(wordCount(draftBody));
@@ -35,6 +48,7 @@
   let draftEstimate = $state<number | null>(null);
   let draftCounter = $state<daedalus.Counter | null>(null);
   let draftChecklist = $state<daedalus.CheckListItem[] | null>(null);
+  let draftTimeSeries = $state<daedalus.TimeSeries | null>(null);
 
   // Speculative ID for the next card (current max + 1).
   let nextCardId = $derived.by(() => {
@@ -91,6 +105,7 @@
     draftEstimate = null;
     draftCounter = null;
     draftChecklist = null;
+    draftTimeSeries = null;
     saving = false;
     draftListKey.set(null);
     selectedCard.set(null);
@@ -114,7 +129,7 @@
       // Persist extra metadata if any sidebar fields were filled in.
       const trimmedUrl = draftUrl.trim();
       const hasExtraMeta = draftLabels.length > 0 || draftIcon || draftDue || draftRange
-        || draftEstimate != null || draftCounter || draftChecklist || trimmedUrl;
+        || draftEstimate != null || draftCounter || draftChecklist || draftTimeSeries || trimmedUrl;
       if (hasExtraMeta) {
         const fullBody = `# ${draftTitle.trim()}\n\n${draftBody}`;
 
@@ -128,6 +143,7 @@
           estimate: draftEstimate ?? card.metadata.estimate,
           counter: draftCounter || card.metadata.counter,
           checklist: draftChecklist || card.metadata.checklist,
+          timeseries: draftTimeSeries || card.metadata.timeseries,
         } as daedalus.CardMetadata;
 
         card = await SaveCard(card.filePath, meta, fullBody);
@@ -218,20 +234,22 @@
       </div>
       <div class="modal-body">
         <div class="main-col">
-          <!-- Primary URI -->
-          <div class="uri-row">
-            {#if editingUri}
+          {#if editingUri}
+            <div class="uri-row">
               <Icon name="link" size={14} style="color: var(--color-text-muted); flex-shrink: 0" />
               <input class="uri-input" type="text" placeholder="https://..."
                 bind:value={draftUrl}
-                onblur={() => { editingUri = false; }}
+                onblur={() => guardedBlur(() => { editingUri = false; })}
+                oncontextmenu={onFieldContextMenu}
                 onkeydown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
                 use:autoFocus
               />
               <button class="uri-action-btn remove" title="Remove URI" onmousedown={(e) => { e.preventDefault(); draftUrl = ""; editingUri = false; }}>
                 <Icon name="trash" size={12} />
               </button>
-            {:else if draftUrl.trim()}
+            </div>
+          {:else if draftUrl.trim()}
+            <div class="uri-row">
               <Icon name="link" size={14} style="color: var(--color-text-muted); flex-shrink: 0" />
               <span class="uri-display">{draftUrl.trim()}</span>
               <button class="uri-action-btn" title="Edit URI" onclick={() => { editingUri = true; }}>
@@ -240,19 +258,12 @@
               <button class="uri-action-btn remove" title="Remove URI" onclick={() => { draftUrl = ""; }}>
                 <Icon name="trash" size={12} />
               </button>
-            {:else}
-              <button class="uri-add-btn" onclick={() => { editingUri = true; }} title="Primary URI">
-                <Icon name="link" size={12} /> Add Primary URI
-              </button>
-            {/if}
-          </div>
+            </div>
+          {/if}
 
-          <!-- Description -->
           <div class="section">
             {#if editingBody}
-              <textarea class="edit-body-textarea" bind:value={draftBody}
-                placeholder="Card description (markdown)" use:autoFocus
-              ></textarea>
+              <textarea class="edit-body-textarea" bind:value={draftBody} placeholder="Card description (markdown)" use:autoFocus></textarea>
               <div class="edit-footer">
                 <span>{charCount} chars, {wCount} words</span>
                 <button class="save-body-btn" title="Done" onclick={() => { editingBody = false; }}>
@@ -294,6 +305,8 @@
         </div>
         <DraftSidebar
           {nextCardId}
+          hasUrl={!!draftUrl.trim()}
+          onstartedituri={() => { editingUri = true; }}
           bind:draftListKey={localListKey}
           bind:draftPosition={localPosition}
           bind:draftLabels
@@ -303,6 +316,7 @@
           bind:draftEstimate
           bind:draftCounter
           bind:draftChecklist
+          bind:draftTimeSeries
         />
       </div>
       <div class="draft-footer">

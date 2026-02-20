@@ -27,6 +27,8 @@
     onsaveicon,
     onsavechecklist,
     onsavelabels,
+    onsavetimeseries,
+    onstartedituri,
   }: {
     meta: daedalus.CardMetadata;
     onsavecounter?: (counter: daedalus.Counter | null) => void;
@@ -38,6 +40,8 @@
     onsaveicon?: (icon: string) => void;
     onsavechecklist?: (checklist: daedalus.CheckListItem[] | null) => void;
     onsavelabels?: (labels: string[]) => void;
+    onsavetimeseries?: (ts: daedalus.TimeSeries | null) => void;
+    onstartedituri?: () => void;
   } = $props();
 
   // The list key where the currently selected card lives.
@@ -164,6 +168,14 @@
 
   <SidebarIconEditor icon={meta.icon || ""} onchange={(i) => onsaveicon?.(i)} />
 
+  {#if !meta.url}
+    <div class="sidebar-section">
+      <button class="add-counter-btn" title="Add URI" onclick={() => onstartedituri?.()}>
+        + Add URI
+      </button>
+    </div>
+  {/if}
+
   <DateSection due={meta.due} range={meta.range} onsave={onsavedates} />
 
   <SidebarEstimateEditor estimate={meta.estimate ?? null} onchange={(e) => onsaveestimate?.(e)} />
@@ -175,6 +187,31 @@
     title={meta.checklist_title || undefined}
     onchange={(c) => onsavechecklist?.(c)}
   />
+
+  {#if meta.timeseries}
+    <div class="sidebar-section">
+      <div class="section-header">
+        <h4 class="sidebar-title">{meta.timeseries.label || "Time Series"}</h4>
+        <span class="sidebar-inline-detail">
+          <span class="sidebar-inline-sep">-</span>
+          <span>{(meta.timeseries.entries || []).length} entries</span>
+        </span>
+        <div class="section-header-actions">
+          <button class="counter-header-btn remove" title="Remove time series"
+            onclick={() => onsavetimeseries?.(null)}>
+            <Icon name="trash" size={12} />
+          </button>
+        </div>
+      </div>
+    </div>
+  {:else}
+    <div class="sidebar-section">
+      <button class="add-counter-btn" title="Add a time series"
+        onclick={() => onsavetimeseries?.({ label: "", entries: [] } as unknown as daedalus.TimeSeries)}>
+        + Add time series
+      </button>
+    </div>
+  {/if}
 
   <div class="sidebar-section timestamps">
     {#if meta.created}

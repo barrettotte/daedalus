@@ -3,7 +3,7 @@
 
   import { templates, labelColors, addToast } from "../stores/board";
   import { SaveTemplates } from "../../wailsjs/go/main/App";
-  import { backdropClose, labelColor, isFileIcon } from "../lib/utils";
+  import { backdropClose, labelColor } from "../lib/utils";
   import { getIconNames } from "../lib/icons";
   import type { daedalus } from "../../wailsjs/go/models";
   import Icon from "./Icon.svelte";
@@ -17,7 +17,6 @@
   let confirmingDelete = $state<number | null>(null);
   let dirty = $state(false);
   let iconFileNames: string[] = $state([]);
-  let emojiValue = $state("");
 
   // Initialize local copy from store.
   $effect(() => {
@@ -45,10 +44,10 @@
       counter: undefined,
       checklistTitle: "",
       checklist: [],
+      timeseries: undefined,
     } as unknown as daedalus.CardTemplate;
     localTemplates = [...localTemplates, newTmpl];
     editingIndex = localTemplates.length - 1;
-    emojiValue = "";
     dirty = true;
   }
 
@@ -70,8 +69,6 @@
       editingIndex = null;
     } else {
       editingIndex = idx;
-      const tmpl = localTemplates[idx];
-      emojiValue = (tmpl.icon && !isFileIcon(tmpl.icon)) ? tmpl.icon : "";
     }
     confirmingDelete = null;
   }
@@ -100,22 +97,14 @@
     }
   }
 
-  // Sets the icon from emoji input.
-  function commitEmoji(): void {
-    const trimmed = emojiValue.trim();
-    updateField("icon", trimmed);
-  }
-
   // Sets the icon from file icon grid.
   function selectFileIcon(name: string): void {
     updateField("icon", name);
-    emojiValue = "";
   }
 
   // Clears the icon.
   function clearIcon(): void {
     updateField("icon", "");
-    emojiValue = "";
   }
 
   // Handles estimate input.
@@ -221,6 +210,9 @@
     if (tmpl.checklist && tmpl.checklist.length > 0) {
       parts.push(`${tmpl.checklist.length} checklist item${tmpl.checklist.length > 1 ? "s" : ""}`);
     }
+    if (tmpl.timeseries && tmpl.timeseries.label) {
+      parts.push(`series: ${tmpl.timeseries.label}`);
+    }
     return parts.length > 0 ? parts.join(", ") : "empty";
   }
 </script>
@@ -325,11 +317,7 @@
                             Icon
                             {#if editingTemplate.icon}
                               <span class="icon-badge">
-                                {#if isFileIcon(editingTemplate.icon)}
-                                  <CardIcon name={editingTemplate.icon} size={12} />
-                                {:else}
-                                  {editingTemplate.icon}
-                                {/if}
+                                <CardIcon name={editingTemplate.icon} size={12} />
                               </span>
                               <button class="icon-clear-btn" onclick={clearIcon} title="Remove icon">
                                 <Icon name="close" size={10} />
@@ -346,10 +334,6 @@
                             {/each}
                           </div>
                         {/if}
-                        <div class="emoji-row">
-                            <input class="form-input emoji-input" type="text" maxlength="2" placeholder="Emoji" bind:value={emojiValue} onkeydown={e => e.key === 'Enter' && commitEmoji()}/>
-                            <button class="emoji-save-btn" onclick={commitEmoji}>Set</button>
-                          </div>
                       </div>
                       <div class="editor-divider"></div>
 
@@ -391,7 +375,26 @@
                         {/if}
                       </div>
 
-                      {#if (editingTemplate.checklist && editingTemplate.checklist.length > 0) || true}
+                      <div class="editor-divider"></div>
+
+                      <div class="editor-section">
+                        <div class="timeseries-row">
+                          <span class="field-label">Time Series</span>
+                          <input type="text" class="form-input timeseries-label-input" placeholder="Series label (leave empty for none)"
+                            value={editingTemplate.timeseries?.label || ""}
+                            oninput={(e) => {
+                              const val = (e.target as HTMLInputElement).value;
+                              if (val.trim()) {
+                                updateField("timeseries", { label: val, entries: editingTemplate.timeseries?.entries || [] });
+                              } else {
+                                updateField("timeseries", undefined);
+                              }
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {#if editingTemplate}
                         <div class="editor-divider"></div>
 
                         <div class="editor-section">
@@ -685,6 +688,19 @@
     font-size: 0.68rem;
     color: var(--color-text-muted);
     flex-shrink: 0;
+  }
+
+  .timeseries-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .timeseries-label-input {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.75rem;
+    padding: 3px 6px;
   }
 
   .checklist-editor {

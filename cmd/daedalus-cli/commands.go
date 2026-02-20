@@ -1,7 +1,6 @@
 package main
 
 import (
-	"archive/zip"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -218,22 +217,10 @@ func cmdListCreate(boardPath string, args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("usage: list-create <name>")
 	}
-	name := args[0]
 
-	if name == "" {
-		return fmt.Errorf("list name cannot be empty")
-	}
-	if strings.Contains(name, "/") || strings.Contains(name, "\\") {
-		return fmt.Errorf("list name cannot contain path separators")
-	}
-	if strings.Contains(name, "..") {
-		return fmt.Errorf("list name cannot contain '..'")
-	}
-	if strings.HasPrefix(name, ".") {
-		return fmt.Errorf("list name cannot start with '.'")
-	}
-	if name == "_assets" {
-		return fmt.Errorf("list name cannot be '_assets'")
+	name, err := daedalus.ValidateListName(args[0])
+	if err != nil {
+		return err
 	}
 
 	state, err := daedalus.ScanBoard(boardPath)
@@ -301,27 +288,6 @@ func cmdListDelete(boardPath string, args []string) error {
 	return nil
 }
 
-// Export structs for cmdExportJSON
-type exportCard struct {
-	ID       int                   `json:"id"`
-	Title    string                `json:"title"`
-	Metadata daedalus.CardMetadata `json:"metadata"`
-	Body     string                `json:"body"`
-}
-
-type exportList struct {
-	Dir   string       `json:"dir"`
-	Title string       `json:"title"`
-	Cards []exportCard `json:"cards"`
-}
-
-type exportBoard struct {
-	Title      string                `json:"title"`
-	ExportedAt time.Time            `json:"exportedAt"`
-	Config     *daedalus.BoardConfig `json:"config"`
-	Lists      []exportList          `json:"lists"`
-}
-
 func cmdExportJSON(boardPath string, args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("usage: export-json <output-path>")
@@ -333,46 +299,13 @@ func cmdExportJSON(boardPath string, args []string) error {
 		return err
 	}
 
-	board := exportBoard{
-		Title:      state.Config.Title,
-		ExportedAt: time.Now(),
-		Config:     state.Config,
-	}
-
-	for _, entry := range state.Config.Lists {
-		cards := state.Lists[entry.Dir]
-		el := exportList{
-			Dir:   entry.Dir,
-			Title: entry.Title,
-		}
-		if el.Title == "" {
-			el.Title = entry.Dir
-		}
-		for _, c := range cards {
-			body, err := daedalus.ReadCardContent(c.FilePath)
-			if err != nil {
-				return fmt.Errorf("reading card %d: %w", c.Metadata.ID, err)
-			}
-			el.Cards = append(el.Cards, exportCard{
-				ID:       c.Metadata.ID,
-				Title:    c.Metadata.Title,
-				Metadata: c.Metadata,
-				Body:     body,
-			})
-		}
-		board.Lists = append(board.Lists, el)
-	}
-
-	data, err := json.MarshalIndent(board, "", "  ")
+	iconsDir := filepath.Join(boardPath, "_assets", "icons")
+	board, err := daedalus.BuildExportBoard(state, iconsDir)
 	if err != nil {
-		return fmt.Errorf("encoding JSON: %w", err)
+		return err
 	}
 
-	if err := os.WriteFile(outputPath, data, 0644); err != nil {
-		return fmt.Errorf("writing export file: %w", err)
-	}
-
-	return nil
+	return daedalus.WriteExportJSON(board, outputPath)
 }
 
 func cmdExportZip(boardPath string, args []string) error {
@@ -386,69 +319,6 @@ func cmdExportZip(boardPath string, args []string) error {
 		return err
 	}
 
-	outFile, err := os.Create(outputPath)
-	if err != nil {
-		return fmt.Errorf("creating zip file: %w", err)
-	}
-
-	zw := zip.NewWriter(outFile)
-
-	// addToZip reads a file from disk and writes it into the zip at zipPath.
-	addToZip := func(srcPath, zipPath string) error {
-		data, err := os.ReadFile(srcPath)
-		if err != nil {
-			return err
-		}
-		w, err := zw.Create(zipPath)
-		if err != nil {
-			return err
-		}
-		_, err = w.Write(data)
-		return err
-	}
-
-	// Add board.yaml
-	if err := addToZip(filepath.Join(boardPath, "board.yaml"), "board.yaml"); err != nil {
-		zw.Close()
-		outFile.Close()
-		return fmt.Errorf("adding board.yaml: %w", err)
-	}
-
-	// Add all card files
-	for _, entry := range state.Config.Lists {
-		for _, c := range state.Lists[entry.Dir] {
-			zipPath := entry.Dir + "/" + filepath.Base(c.FilePath)
-			if err := addToZip(c.FilePath, zipPath); err != nil {
-				zw.Close()
-				outFile.Close()
-				return fmt.Errorf("adding card %s: %w", zipPath, err)
-			}
-		}
-	}
-
-	// Add icons from _assets/icons/ if present
 	iconsDir := filepath.Join(boardPath, "_assets", "icons")
-	if entries, err := os.ReadDir(iconsDir); err == nil {
-		for _, entry := range entries {
-			if entry.IsDir() || !daedalus.IsIconExt(entry.Name()) {
-				continue
-			}
-			srcPath := filepath.Join(iconsDir, entry.Name())
-			zipPath := "_assets/icons/" + entry.Name()
-			if err := addToZip(srcPath, zipPath); err != nil {
-				zw.Close()
-				outFile.Close()
-				return fmt.Errorf("adding icon %s: %w", entry.Name(), err)
-			}
-		}
-	}
-
-	if err := zw.Close(); err != nil {
-		outFile.Close()
-		return fmt.Errorf("finalizing zip: %w", err)
-	}
-	if err := outFile.Close(); err != nil {
-		return fmt.Errorf("closing zip file: %w", err)
-	}
-	return nil
+	return daedalus.WriteExportZip(boardPath, state, iconsDir, outputPath)
 }

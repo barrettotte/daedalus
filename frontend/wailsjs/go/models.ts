@@ -67,6 +67,52 @@ export namespace daedalus {
 		    return a;
 		}
 	}
+	export class TimeSeriesEntry {
+	    t: string;
+	    v: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TimeSeriesEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.t = source["t"];
+	        this.v = source["v"];
+	    }
+	}
+	export class TimeSeries {
+	    label: string;
+	    entries: TimeSeriesEntry[];
+	
+	    static createFrom(source: any = {}) {
+	        return new TimeSeries(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.label = source["label"];
+	        this.entries = this.convertValues(source["entries"], TimeSeriesEntry);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class CheckListItem {
 	    idx: number;
 	    desc: string;
@@ -111,6 +157,7 @@ export namespace daedalus {
 	    counter?: Counter;
 	    checklistTitle?: string;
 	    checklist?: CheckListItem[];
+	    timeseries?: TimeSeries;
 	
 	    static createFrom(source: any = {}) {
 	        return new CardTemplate(source);
@@ -125,6 +172,7 @@ export namespace daedalus {
 	        this.counter = this.convertValues(source["counter"], Counter);
 	        this.checklistTitle = source["checklistTitle"];
 	        this.checklist = this.convertValues(source["checklist"], CheckListItem);
+	        this.timeseries = this.convertValues(source["timeseries"], TimeSeries);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -271,6 +319,7 @@ export namespace daedalus {
 	    counter?: Counter;
 	    checklist_title: string;
 	    checklist?: CheckListItem[];
+	    timeseries?: TimeSeries;
 	
 	    static createFrom(source: any = {}) {
 	        return new CardMetadata(source);
@@ -292,6 +341,7 @@ export namespace daedalus {
 	        this.counter = this.convertValues(source["counter"], Counter);
 	        this.checklist_title = source["checklist_title"];
 	        this.checklist = this.convertValues(source["checklist"], CheckListItem);
+	        this.timeseries = this.convertValues(source["timeseries"], TimeSeries);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -352,6 +402,8 @@ export namespace daedalus {
 		    return a;
 		}
 	}
+	
+	
 	
 
 }

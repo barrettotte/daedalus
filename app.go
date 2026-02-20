@@ -12,8 +12,6 @@ import (
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-const linuxClockTicksPerSec = 100
-
 // BoardResponse is the structure returned to the frontend from LoadBoard.
 type BoardResponse struct {
 	Lists     map[string][]daedalus.KanbanCard `json:"lists"`
@@ -284,7 +282,7 @@ func (a *App) GetMetrics() AppMetrics {
 		wallDelta := now.Sub(a.prevWallTime).Seconds()
 		if wallDelta > 0 {
 			// Convert tick delta to seconds then to percentage
-			cpuDelta := float64(cpuTicks-a.prevCPUTicks) / linuxClockTicksPerSec
+			cpuDelta := float64(cpuTicks-a.prevCPUTicks) / daedalus.LinuxClockTicksPerSec
 			processCPU = (cpuDelta / wallDelta) * 100
 		}
 	}

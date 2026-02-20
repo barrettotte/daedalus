@@ -14,11 +14,11 @@
     boardData, boardTitle, boardConfig, boardPath, sortedListKeys, isLoaded,
     selectedCard, draftListKey, draftPosition,
     labelsExpanded, minimalView, labelColors, templates, dragState, dropTarget, focusedCard, openInEditMode,
-    removeCardFromBoard, addToast, saveWithToast, isAtLimit, isLocked, listOrder, loadProfile, toggleMinimalView,
+    addToast, saveWithToast, isAtLimit, isLocked, listOrder, loadProfile, toggleMinimalView,
     searchQuery, filteredBoardData,
   } from "./stores/board";
   import type { daedalus } from "../wailsjs/go/models";
-  import { labelColor, getDisplayTitle, getCountDisplay, isFileIcon, HALF_COLLAPSED_CARD_LIMIT } from "./lib/utils";
+  import { labelColor, getDisplayTitle, getCountDisplay, HALF_COLLAPSED_CARD_LIMIT } from "./lib/utils";
   import { handleBoardKeydown } from "./lib/keyboard";
   import {
     dragPos, setBoardContainer, clearDropIndicators,
@@ -548,11 +548,7 @@
         <span class="collapsed-count">{getCountDisplay(listKey, $boardData, $boardConfig)}</span>
         {#if collapsedIcon}
           <span class="collapsed-icon">
-            {#if isFileIcon(collapsedIcon)}
-              <CardIcon name={collapsedIcon} size={14} />
-            {:else}
-              {collapsedIcon}
-            {/if}
+            <CardIcon name={collapsedIcon} size={14} />
           </span>
         {/if}
         <span class="collapsed-title">{getDisplayTitle(listKey, $boardConfig)}</span>

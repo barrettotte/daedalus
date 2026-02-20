@@ -15,6 +15,7 @@
 
   let editingEstimate = $state(false);
   let estimateInput = $state("");
+  let estimateInputEl: HTMLInputElement | undefined = $state(undefined);
 
   function startEditEstimate(): void {
     estimateInput = estimate != null ? String(estimate) : "";
@@ -42,10 +43,11 @@
         <span class="sidebar-inline-detail">
           <span class="sidebar-inline-sep">-</span>
           <input class="form-input estimate-input" type="number" step="0.5" min="0"
+            bind:this={estimateInputEl}
             bind:value={estimateInput} onblur={blurEstimate} onkeydown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} use:autoFocus/>
         </span>
         <div class="section-header-actions">
-          <button class="counter-header-btn save" title="Confirm" onclick={() => (document.querySelector('.estimate-input') as HTMLInputElement)?.blur()}>
+          <button class="counter-header-btn save" title="Confirm" onclick={() => estimateInputEl?.blur()}>
             <Icon name="check" size={12} />
           </button>
           <button class="counter-header-btn remove" title="Remove estimate" onclick={() => onchange(null)}>

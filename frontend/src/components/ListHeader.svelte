@@ -10,15 +10,13 @@
     getDisplayTitle, getCountDisplay, isOverLimit,
     formatListName, autoFocus, clickOutside,
   } from "../lib/utils";
-  import { hideDefaultDragGhost } from "../lib/drag";
   import {
-    handleDragEnter, handleHeaderDragOver, handleDrop,
+    hideDefaultDragGhost, handleDragEnter, handleHeaderDragOver, handleDrop,
   } from "../lib/drag";
   import Icon from "./Icon.svelte";
   import CardIcon from "./CardIcon.svelte";
   import ColorPicker from "./ColorPicker.svelte";
   import { getIconNames } from "../lib/icons";
-  import { isFileIcon } from "../lib/utils";
 
   let {
     listKey,
@@ -80,7 +78,6 @@
   let colorPickerOpen = $state(false);
   let iconPickerOpen = $state(false);
   let iconFileNames: string[] = $state([]);
-  let iconEmojiValue = $state("");
 
   // Saves a color for this list via the backend and updates the store.
   async function saveColor(hex: string): Promise<void> {
@@ -112,28 +109,20 @@
 
   // Opens the icon picker panel and loads available file icons.
   function openIconPicker(): void {
-    iconEmojiValue = (icon && !isFileIcon(icon)) ? icon : "";
     iconPickerOpen = true;
     getIconNames().then(names => { iconFileNames = names; });
   }
 
-  // Auto-cancel delete confirmation after 3 seconds.
+  // Auto-cancel delete confirmations after 3 seconds.
   $effect(() => {
-    if (confirmingDelete) {
-      const timer = setTimeout(() => { confirmingDelete = false; }, 3000);
-      return () => clearTimeout(timer);
+    if (!confirmingDelete && !confirmingDeleteAll) {
+      return;
     }
-  });
-
-  // Auto-cancel delete-all confirmation after 3 seconds.
-  $effect(() => {
-    if (confirmingDeleteAll) {
-      const timer = setTimeout(() => {
-        confirmingDeleteAll = false;
-      }, 3000);
-
-      return () => clearTimeout(timer);
-    }
+    const timer = setTimeout(() => {
+      confirmingDelete = false;
+      confirmingDeleteAll = false;
+    }, 3000);
+    return () => clearTimeout(timer);
   });
 
   // Resets all menu state when clicking outside the menu wrapper.
@@ -309,11 +298,7 @@
       {/if}
       {#if icon}
         <span class="list-icon">
-          {#if isFileIcon(icon)}
-            <CardIcon name={icon} size={14} />
-          {:else}
-            {icon}
-          {/if}
+          <CardIcon name={icon} size={14} />
         </span>
       {/if}
       {getDisplayTitle(listKey, $boardConfig)}
@@ -383,20 +368,6 @@
                   {/each}
                 </div>
               {/if}
-              <div class="emoji-row">
-                <input class="form-input emoji-input" type="text" maxlength="2" placeholder="Emoji"
-                  bind:value={iconEmojiValue}
-                  onkeydown={e => {
-                    if (e.key === 'Enter') {
-                      saveIcon(iconEmojiValue.trim());
-                      iconPickerOpen = false;
-                    }
-                  }}
-                />
-                <button class="emoji-save-btn" onclick={() => { saveIcon(iconEmojiValue.trim()); iconPickerOpen = false; }}>
-                  Set
-                </button>
-              </div>
               {#if icon}
                 <button class="menu-item menu-item-danger" onclick={() => { saveIcon(""); iconPickerOpen = false; }}>
                   <Icon name="trash" size={12} />
@@ -405,12 +376,10 @@
               {/if}
             </div>
           {:else}
-            <button class="menu-item" title="Set an icon or emoji for this list" onclick={openIconPicker}>
+            <button class="menu-item" title="Set an icon for this list" onclick={openIconPicker}>
               <span class="icon-indicator">
-                {#if icon && isFileIcon(icon)}
+                {#if icon}
                   <CardIcon name={icon} size={12} />
-                {:else if icon}
-                  {icon}
                 {:else}
                   <Icon name="image" size={12} />
                 {/if}

@@ -16,6 +16,8 @@
 
   let {
     nextCardId,
+    hasUrl = false,
+    onstartedituri,
     draftListKey = $bindable(""),
     draftPosition = $bindable("top"),
     draftLabels = $bindable<string[]>([]),
@@ -25,8 +27,11 @@
     draftEstimate = $bindable<number | null>(null),
     draftCounter = $bindable<daedalus.Counter | null>(null),
     draftChecklist = $bindable<daedalus.CheckListItem[] | null>(null),
+    draftTimeSeries = $bindable<daedalus.TimeSeries | null>(null),
   }: {
     nextCardId: number;
+    hasUrl?: boolean;
+    onstartedituri?: () => void;
     draftListKey?: string;
     draftPosition?: string;
     draftLabels?: string[];
@@ -36,6 +41,7 @@
     draftEstimate?: number | null;
     draftCounter?: daedalus.Counter | null;
     draftChecklist?: daedalus.CheckListItem[] | null;
+    draftTimeSeries?: daedalus.TimeSeries | null;
   } = $props();
 
   let templateDropdownOpen = $state(false);
@@ -90,6 +96,7 @@
     draftEstimate = null;
     draftCounter = null;
     draftChecklist = null;
+    draftTimeSeries = null;
   }
 
   // Applies a template's metadata fields to the draft, resetting first.
@@ -120,6 +127,9 @@
         desc: item.desc,
         done: false,
       })) as daedalus.CheckListItem[];
+    }
+    if (tmpl.timeseries && tmpl.timeseries.label) {
+      draftTimeSeries = { label: tmpl.timeseries.label, entries: [] } as unknown as daedalus.TimeSeries;
     }
   }
 </script>
@@ -160,6 +170,14 @@
 
   <SidebarIconEditor icon={draftIcon || ""} onchange={(i) => { draftIcon = i; }} />
 
+  {#if !hasUrl}
+    <div class="sidebar-section">
+      <button class="add-counter-btn" title="Add URI" onclick={() => onstartedituri?.()}>
+        + Add URI
+      </button>
+    </div>
+  {/if}
+
   <DateSection due={draftDue ?? undefined} range={draftRange ?? undefined} onsave={handleDatesChange} />
 
   <SidebarEstimateEditor estimate={draftEstimate} onchange={(e) => { draftEstimate = e; }} />
@@ -167,6 +185,29 @@
   <CounterControl counter={draftCounter ?? undefined} onsave={handleCounterChange} />
 
   <SidebarChecklistSummary checklist={draftChecklist} onchange={(c) => { draftChecklist = c; }} />
+
+  {#if draftTimeSeries}
+    <div class="sidebar-section">
+      <div class="section-header">
+        <h4 class="sidebar-title">{draftTimeSeries.label || "Time Series"}</h4>
+        <div class="section-header-actions">
+          <button class="counter-header-btn remove" title="Remove time series"
+            onclick={() => { draftTimeSeries = null; }}
+          >
+            <Icon name="trash" size={12} />
+          </button>
+        </div>
+      </div>
+    </div>
+  {:else}
+    <div class="sidebar-section">
+      <button class="add-counter-btn" title="Add a time series"
+        onclick={() => { draftTimeSeries = { label: "", entries: [] } as unknown as daedalus.TimeSeries; }}
+      >
+        + Add time series
+      </button>
+    </div>
+  {/if}
 
 </div>
 

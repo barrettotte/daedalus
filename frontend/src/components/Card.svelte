@@ -6,7 +6,7 @@
   import {
     selectedCard, labelsExpanded, labelColors, dragState, contextMenu, minimalView, toggleLabelsExpanded,
   } from "../stores/board";
-  import { labelColor, formatDate, formatDateTime, isFileIcon as checkFileIcon } from "../lib/utils";
+  import { labelColor, formatDate, formatDateTime } from "../lib/utils";
   import { hideDefaultDragGhost } from "../lib/drag";
   import type { daedalus } from "../../wailsjs/go/models";
 
@@ -19,7 +19,7 @@
   let hasDescription = $derived(card.previewText && card.previewText.replace(/^#\s+.*\n*/, "").trim().length > 0);
   let checklistComplete = $derived(hasChecklist ? checkedCount === meta.checklist!.length : false);
   let counterComplete = $derived(meta.counter ? meta.counter.current === meta.counter.max : false);
-  let isFile = $derived(checkFileIcon(meta.icon));
+  let tsEntryCount = $derived(meta.timeseries ? (meta.timeseries.entries || []).length : 0);
 
   // Sets this card as the selected card to open the detail modal.
   function openDetail(): void {
@@ -81,7 +81,7 @@
     <div class="title">{meta.title}</div>
     {#if meta.icon}
       <span class="card-icon">
-        {#if isFile}<CardIcon name={meta.icon} size={18} />{:else}{meta.icon}{/if}
+        <CardIcon name={meta.icon} size={18} />
       </span>
     {/if}
 
@@ -120,6 +120,12 @@
         <span class="badge" title="{formatDateTime(meta.range.start)} - {formatDateTime(meta.range.end)}">
           <Icon name="calendar" size={12} />
           {formatDate(meta.range.start)}<span class="range-sep">-</span>{formatDate(meta.range.end)}
+        </span>
+      {/if}
+      {#if meta.timeseries}
+        <span class="badge">
+          <Icon name="activity" size={12} />
+          {tsEntryCount}
         </span>
       {/if}
     </div>

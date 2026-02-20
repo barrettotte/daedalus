@@ -1,9 +1,8 @@
 <script lang="ts">
-  // Sidebar widget for editing a card's icon. Supports freeform emoji input
-  // or selecting a previously uploaded file icon by name.
+  // Sidebar widget for editing a card's icon. Selects from previously uploaded
+  // file icons (SVG/PNG) managed by the backend.
 
   import { getIconNames } from "../lib/icons";
-  import { isFileIcon as checkFileIcon } from "../lib/utils";
   import Icon from "./Icon.svelte";
   import CardIcon from "./CardIcon.svelte";
 
@@ -16,26 +15,14 @@
   } = $props();
 
   let editorOpen = $state(false);
-  let emojiValue = $state("");
   let iconFileNames: string[] = $state([]);
 
-  let isFileIcon = $derived(checkFileIcon(icon));
-
   function openEditor(): void {
-    emojiValue = isFileIcon ? "" : icon;
     editorOpen = true;
     getIconNames().then(names => { iconFileNames = names; });
   }
 
   function closeEditor(): void {
-    editorOpen = false;
-  }
-
-  function commitEmoji(): void {
-    const trimmed = emojiValue.trim();
-    if (trimmed !== icon) {
-      onchange(trimmed);
-    }
     editorOpen = false;
   }
 
@@ -57,11 +44,7 @@
       <span class="sidebar-inline-detail">
         <span class="sidebar-inline-sep">-</span>
         <button class="icon-display-btn" onclick={openEditor} title="Change icon">
-          {#if isFileIcon}
-            <CardIcon name={icon} size={14} />
-          {:else}
-            {icon}
-          {/if}
+          <CardIcon name={icon} size={14} />
         </button>
       </span>
       <div class="section-header-actions">
@@ -87,8 +70,8 @@
         </button>
       </div>
     </div>
-    <div class="icon-editor-body">
-      {#if iconFileNames.length > 0}
+    {#if iconFileNames.length > 0}
+      <div class="icon-editor-body">
         <div class="icon-grid">
           {#each iconFileNames as name}
             <button class="icon-grid-option" class:active={name === icon} title={name} onclick={() => selectIcon(name)}>
@@ -96,12 +79,10 @@
             </button>
           {/each}
         </div>
-      {/if}
-      <div class="emoji-row">
-        <input class="form-input emoji-input" type="text" maxlength="2" placeholder="Emoji" bind:value={emojiValue} onkeydown={e => e.key === 'Enter' && commitEmoji()}/>
-        <button class="emoji-save-btn" onclick={commitEmoji}>Set</button>
       </div>
-    </div>
+    {:else}
+      <p class="no-icons-text">No icons available. Add SVG or PNG files to the board's icons folder.</p>
+    {/if}
   </div>
 {:else}
   <div class="sidebar-section">
@@ -130,5 +111,11 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+  }
+
+  .no-icons-text {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    padding: 4px 0;
   }
 </style>

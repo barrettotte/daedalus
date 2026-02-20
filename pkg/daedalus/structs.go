@@ -40,6 +40,7 @@ type CardMetadata struct {
 	Counter        *Counter        `yaml:"counter,omitempty" json:"counter,omitempty"`
 	ChecklistTitle string          `yaml:"checklist_title,omitempty" json:"checklist_title"`
 	Checklist      []CheckListItem `yaml:"checklist,omitempty" json:"checklist,omitempty"`
+	TimeSeries     *TimeSeries     `yaml:"timeseries,omitempty" json:"timeseries,omitempty"`
 }
 
 // DateRange is the date range a card will be active
@@ -65,6 +66,18 @@ type CheckListItem struct {
 	Done bool   `yaml:"done" json:"done"`
 }
 
+// TimeSeries tracks a named sequence of date/value measurements on a card.
+type TimeSeries struct {
+	Label   string            `yaml:"label" json:"label"`
+	Entries []TimeSeriesEntry `yaml:"entries,omitempty" json:"entries"`
+}
+
+// TimeSeriesEntry is a single dated measurement in a time series.
+type TimeSeriesEntry struct {
+	Time  string  `yaml:"t" json:"t"`
+	Value float64 `yaml:"v" json:"v"`
+}
+
 // CardTemplate is a reusable preset of card metadata fields.
 type CardTemplate struct {
 	Name           string          `yaml:"name" json:"name"`
@@ -74,4 +87,5 @@ type CardTemplate struct {
 	Counter        *Counter        `yaml:"counter,omitempty" json:"counter,omitempty"`
 	ChecklistTitle string          `yaml:"checklist_title,omitempty" json:"checklistTitle,omitempty"`
 	Checklist      []CheckListItem `yaml:"checklist,omitempty" json:"checklist,omitempty"`
+	TimeSeries     *TimeSeries     `yaml:"timeseries,omitempty" json:"timeseries,omitempty"`
 }

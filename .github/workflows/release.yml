@@ -55,6 +55,10 @@ jobs:
         if: matrix.platform != 'windows'
         run: wails build
 
+      - name: Install NSIS
+        if: matrix.platform == 'windows'
+        run: choco install nsis -y
+
       - name: Build desktop app (Windows)
         if: matrix.platform == 'windows'
         run: wails build -nsis

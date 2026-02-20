@@ -190,8 +190,8 @@
   <CounterControl counter={meta.counter} onsave={onsavecounter} />
 
   <SidebarChecklistSummary
-    checklist={meta.checklist ?? null}
-    title={meta.checklist_title || undefined}
+    checklist={meta.checklist?.items ?? null}
+    title={meta.checklist?.label || undefined}
     onchange={(c) => onsavechecklist?.(c)}
   />
 

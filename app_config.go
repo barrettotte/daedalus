@@ -224,7 +224,7 @@ func (a *App) SaveTemplates(templates []daedalus.CardTemplate) error {
 			"icon", t.Icon,
 			"hasEstimate", t.Estimate != nil,
 			"hasCounter", t.Counter != nil,
-			"checklistItems", len(t.Checklist),
+			"hasChecklist", t.Checklist != nil,
 		)
 	}
 

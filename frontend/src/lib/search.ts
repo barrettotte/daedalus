@@ -54,7 +54,7 @@ function cardMatchesToken(card: daedalus.KanbanCard, token: SearchToken): boolea
     const title = (card.metadata.title || "").toLowerCase();
     const preview = (card.previewText || "").toLowerCase();
     const url = (card.metadata.url || "").toLowerCase();
-    const checkItems = (card.metadata.checklist || []).map(i => (i.desc || "").toLowerCase());
+    const checkItems = (card.metadata.checklist?.items || []).map(i => (i.desc || "").toLowerCase());
     return title.includes(token.value)
       || preview.includes(token.value)
       || url.includes(token.value)

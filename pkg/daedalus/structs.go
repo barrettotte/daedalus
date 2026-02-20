@@ -26,21 +26,20 @@ type KanbanCard struct {
 
 // CardMetadata is the YAML frontmatter structure in the .md files
 type CardMetadata struct {
-	ID             int             `yaml:"id" json:"id"`
-	Title          string          `yaml:"title" json:"title"`
-	Created        *time.Time      `yaml:"created,omitempty" json:"created,omitempty"`
-	Updated        *time.Time      `yaml:"updated,omitempty" json:"updated,omitempty"`
-	ListOrder      float64         `yaml:"list_order" json:"list_order"`
-	Due            *time.Time      `yaml:"due,omitempty" json:"due,omitempty"`
-	Range          *DateRange      `yaml:"range,omitempty" json:"range,omitempty"`
-	Labels         []string        `yaml:"labels,omitempty" json:"labels,omitempty"`
-	Icon           string          `yaml:"icon,omitempty" json:"icon"`
-	URL            string          `yaml:"url,omitempty" json:"url"`
-	Estimate       *float64        `yaml:"estimate,omitempty" json:"estimate,omitempty"`
-	Counter        *Counter        `yaml:"counter,omitempty" json:"counter,omitempty"`
-	ChecklistTitle string          `yaml:"checklist_title,omitempty" json:"checklist_title,omitempty"`
-	Checklist      []CheckListItem `yaml:"checklist,omitempty" json:"checklist,omitempty"`
-	TimeSeries     *TimeSeries     `yaml:"timeseries,omitempty" json:"timeseries,omitempty"`
+	ID         int        `yaml:"id" json:"id"`
+	Title      string     `yaml:"title" json:"title"`
+	Created    *time.Time `yaml:"created,omitempty" json:"created,omitempty"`
+	Updated    *time.Time `yaml:"updated,omitempty" json:"updated,omitempty"`
+	ListOrder  float64    `yaml:"list_order" json:"list_order"`
+	Due        *time.Time `yaml:"due,omitempty" json:"due,omitempty"`
+	Range      *DateRange `yaml:"range,omitempty" json:"range,omitempty"`
+	Labels     []string   `yaml:"labels,omitempty" json:"labels,omitempty"`
+	Icon       string     `yaml:"icon,omitempty" json:"icon"`
+	URL        string     `yaml:"url,omitempty" json:"url"`
+	Estimate   *float64   `yaml:"estimate,omitempty" json:"estimate,omitempty"`
+	Counter    *Counter   `yaml:"counter,omitempty" json:"counter,omitempty"`
+	Checklist  *Checklist `yaml:"checklist,omitempty" json:"checklist,omitempty"`
+	TimeSeries *TimeSeries `yaml:"timeseries,omitempty" json:"timeseries,omitempty"`
 }
 
 // DateRange is the date range a card will be active
@@ -59,7 +58,13 @@ type Counter struct {
 	Label   string `yaml:"label,omitempty" json:"label"`
 }
 
-// CheckListItem is an item in a checklist for a card
+// Checklist holds a named list of items with done/not-done state.
+type Checklist struct {
+	Label string          `yaml:"label,omitempty" json:"label"`
+	Items []CheckListItem `yaml:"items,omitempty" json:"items"`
+}
+
+// CheckListItem is an item in a checklist for a card.
 type CheckListItem struct {
 	Idx  int    `yaml:"idx" json:"idx"`
 	Desc string `yaml:"desc" json:"desc"`
@@ -80,12 +85,11 @@ type TimeSeriesEntry struct {
 
 // CardTemplate is a reusable preset of card metadata fields.
 type CardTemplate struct {
-	Name           string          `yaml:"name" json:"name"`
-	Labels         []string        `yaml:"labels,omitempty" json:"labels,omitempty"`
-	Icon           string          `yaml:"icon,omitempty" json:"icon,omitempty"`
-	Estimate       *float64        `yaml:"estimate,omitempty" json:"estimate,omitempty"`
-	Counter        *Counter        `yaml:"counter,omitempty" json:"counter,omitempty"`
-	ChecklistTitle string          `yaml:"checklist_title,omitempty" json:"checklist_title,omitempty"`
-	Checklist      []CheckListItem `yaml:"checklist,omitempty" json:"checklist,omitempty"`
-	TimeSeries     *TimeSeries     `yaml:"timeseries,omitempty" json:"timeseries,omitempty"`
+	Name       string      `yaml:"name" json:"name"`
+	Labels     []string    `yaml:"labels,omitempty" json:"labels,omitempty"`
+	Icon       string      `yaml:"icon,omitempty" json:"icon,omitempty"`
+	Estimate   *float64    `yaml:"estimate,omitempty" json:"estimate,omitempty"`
+	Counter    *Counter    `yaml:"counter,omitempty" json:"counter,omitempty"`
+	Checklist  *Checklist  `yaml:"checklist,omitempty" json:"checklist,omitempty"`
+	TimeSeries *TimeSeries `yaml:"timeseries,omitempty" json:"timeseries,omitempty"`
 }

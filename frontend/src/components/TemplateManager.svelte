@@ -42,8 +42,7 @@
       icon: "",
       estimate: undefined,
       counter: undefined,
-      checklist_title: "",
-      checklist: [],
+      checklist: { label: "", items: [] },
       timeseries: undefined,
     } as unknown as daedalus.CardTemplate;
     localTemplates = [...localTemplates, newTmpl];
@@ -144,9 +143,9 @@
       return;
     }
     const tmpl = localTemplates[editingIndex];
-    const checklist = [...(tmpl.checklist || [])];
-    checklist.push({ idx: checklist.length, desc: "", done: false } as daedalus.CheckListItem);
-    updateField("checklist", checklist);
+    const items = [...(tmpl.checklist?.items || [])];
+    items.push({ idx: items.length, desc: "", done: false } as daedalus.CheckListItem);
+    updateField("checklist", { ...tmpl.checklist, items } as daedalus.Checklist);
   }
 
   // Updates a checklist item description.
@@ -155,9 +154,9 @@
       return;
     }
     const tmpl = localTemplates[editingIndex];
-    const checklist = [...(tmpl.checklist || [])];
-    checklist[itemIdx] = { ...checklist[itemIdx], desc } as daedalus.CheckListItem;
-    updateField("checklist", checklist);
+    const items = [...(tmpl.checklist?.items || [])];
+    items[itemIdx] = { ...items[itemIdx], desc } as daedalus.CheckListItem;
+    updateField("checklist", { ...tmpl.checklist, items } as daedalus.Checklist);
   }
 
   // Removes a checklist item.
@@ -166,8 +165,8 @@
       return;
     }
     const tmpl = localTemplates[editingIndex];
-    const checklist = (tmpl.checklist || []).filter((_, i) => i !== itemIdx);
-    updateField("checklist", checklist);
+    const items = (tmpl.checklist?.items || []).filter((_, i) => i !== itemIdx);
+    updateField("checklist", { ...tmpl.checklist, items } as daedalus.Checklist);
   }
 
   // Strips Svelte 5 reactive proxies and undefined values so the data is safe for Wails RPC.
@@ -207,8 +206,8 @@
       const label = c.label ? `${c.label}: ` : "";
       parts.push(`${label}${c.start || 0}-${c.max}`);
     }
-    if (tmpl.checklist && tmpl.checklist.length > 0) {
-      parts.push(`${tmpl.checklist.length} checklist item${tmpl.checklist.length > 1 ? "s" : ""}`);
+    if (tmpl.checklist && tmpl.checklist.items && tmpl.checklist.items.length > 0) {
+      parts.push(`${tmpl.checklist.items.length} checklist item${tmpl.checklist.items.length > 1 ? "s" : ""}`);
     }
     if (tmpl.timeseries && tmpl.timeseries.label) {
       parts.push(`series: ${tmpl.timeseries.label}`);
@@ -401,12 +400,12 @@
                           <div class="checklist-header-row">
                             <span class="field-label">Checklist</span>
                             <input type="text" class="form-input checklist-title-input" placeholder="Name (optional)"
-                              value={editingTemplate.checklist_title || ""}
-                              oninput={(e) => updateField("checklist_title", (e.target as HTMLInputElement).value)}
+                              value={editingTemplate.checklist?.label || ""}
+                              oninput={(e) => updateField("checklist", { ...editingTemplate.checklist, label: (e.target as HTMLInputElement).value } as daedalus.Checklist)}
                             />
                           </div>
                           <div class="checklist-editor">
-                            {#each editingTemplate.checklist || [] as item, itemIdx}
+                            {#each editingTemplate.checklist?.items || [] as item, itemIdx}
                               <div class="checklist-row">
                                 <span class="checklist-num">{itemIdx + 1}.</span>
                                 <input type="text" class="form-input checklist-input" value={item.desc} placeholder="Checklist item"

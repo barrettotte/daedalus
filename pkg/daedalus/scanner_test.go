@@ -142,8 +142,10 @@ func TestParseFileHeader_Checklist(t *testing.T) {
 title: "Checklist Card"
 id: 11
 checklist:
-  - { desc: "Task A", done: true }
-  - { desc: "Task B", done: false }
+  label: "Tasks"
+  items:
+    - { desc: "Task A", done: true }
+    - { desc: "Task B", done: false }
 ---
 # Checklist Card
 `)
@@ -151,14 +153,20 @@ checklist:
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(meta.Checklist) != 2 {
-		t.Fatalf("checklist length: got %d, want 2", len(meta.Checklist))
+	if meta.Checklist == nil {
+		t.Fatal("expected checklist to be non-nil")
 	}
-	if meta.Checklist[0].Desc != "Task A" || !meta.Checklist[0].Done {
-		t.Errorf("checklist[0]: got %+v", meta.Checklist[0])
+	if len(meta.Checklist.Items) != 2 {
+		t.Fatalf("checklist items length: got %d, want 2", len(meta.Checklist.Items))
 	}
-	if meta.Checklist[1].Desc != "Task B" || meta.Checklist[1].Done {
-		t.Errorf("checklist[1]: got %+v", meta.Checklist[1])
+	if meta.Checklist.Label != "Tasks" {
+		t.Errorf("checklist label: got %q, want %q", meta.Checklist.Label, "Tasks")
+	}
+	if meta.Checklist.Items[0].Desc != "Task A" || !meta.Checklist.Items[0].Done {
+		t.Errorf("checklist items[0]: got %+v", meta.Checklist.Items[0])
+	}
+	if meta.Checklist.Items[1].Desc != "Task B" || meta.Checklist.Items[1].Done {
+		t.Errorf("checklist items[1]: got %+v", meta.Checklist.Items[1])
 	}
 }
 
@@ -389,9 +397,12 @@ func TestWriteCardFile_RoundTrip(t *testing.T) {
 		Created:   &now,
 		ListOrder: 5.5,
 		Labels:    []string{"test", "roundtrip"},
-		Checklist: []CheckListItem{
-			{Idx: 0, Desc: "Step 1", Done: true},
-			{Idx: 1, Desc: "Step 2", Done: false},
+		Checklist: &Checklist{
+			Label: "Steps",
+			Items: []CheckListItem{
+				{Idx: 0, Desc: "Step 1", Done: true},
+				{Idx: 1, Desc: "Step 2", Done: false},
+			},
 		},
 	}
 	body := "# Round Trip\n\nSome description.\n"
@@ -417,8 +428,8 @@ func TestWriteCardFile_RoundTrip(t *testing.T) {
 	if len(readMeta.Labels) != 2 {
 		t.Errorf("labels: got %v, want 2 items", readMeta.Labels)
 	}
-	if len(readMeta.Checklist) != 2 {
-		t.Errorf("checklist: got %d items, want 2", len(readMeta.Checklist))
+	if readMeta.Checklist == nil || len(readMeta.Checklist.Items) != 2 {
+		t.Errorf("checklist: got %+v, want 2 items", readMeta.Checklist)
 	}
 	if preview == "" {
 		t.Error("expected non-empty preview")

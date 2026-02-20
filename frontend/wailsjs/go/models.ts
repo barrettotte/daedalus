@@ -129,6 +129,38 @@ export namespace daedalus {
 	        this.done = source["done"];
 	    }
 	}
+	export class Checklist {
+	    label: string;
+	    items: CheckListItem[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Checklist(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.label = source["label"];
+	        this.items = this.convertValues(source["items"], CheckListItem);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class Counter {
 	    current: number;
 	    max: number;
@@ -155,8 +187,7 @@ export namespace daedalus {
 	    icon?: string;
 	    estimate?: number;
 	    counter?: Counter;
-	    checklist_title?: string;
-	    checklist?: CheckListItem[];
+	    checklist?: Checklist;
 	    timeseries?: TimeSeries;
 	
 	    static createFrom(source: any = {}) {
@@ -170,8 +201,7 @@ export namespace daedalus {
 	        this.icon = source["icon"];
 	        this.estimate = source["estimate"];
 	        this.counter = this.convertValues(source["counter"], Counter);
-	        this.checklist_title = source["checklist_title"];
-	        this.checklist = this.convertValues(source["checklist"], CheckListItem);
+	        this.checklist = this.convertValues(source["checklist"], Checklist);
 	        this.timeseries = this.convertValues(source["timeseries"], TimeSeries);
 	    }
 	
@@ -317,8 +347,7 @@ export namespace daedalus {
 	    url: string;
 	    estimate?: number;
 	    counter?: Counter;
-	    checklist_title?: string;
-	    checklist?: CheckListItem[];
+	    checklist?: Checklist;
 	    timeseries?: TimeSeries;
 	
 	    static createFrom(source: any = {}) {
@@ -339,8 +368,7 @@ export namespace daedalus {
 	        this.url = source["url"];
 	        this.estimate = source["estimate"];
 	        this.counter = this.convertValues(source["counter"], Counter);
-	        this.checklist_title = source["checklist_title"];
-	        this.checklist = this.convertValues(source["checklist"], CheckListItem);
+	        this.checklist = this.convertValues(source["checklist"], Checklist);
 	        this.timeseries = this.convertValues(source["timeseries"], TimeSeries);
 	    }
 	
@@ -362,6 +390,7 @@ export namespace daedalus {
 		    return a;
 		}
 	}
+	
 	
 	
 	

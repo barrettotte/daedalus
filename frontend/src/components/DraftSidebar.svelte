@@ -152,15 +152,15 @@
     if (tmpl.counter) {
       draftCounter = { ...tmpl.counter } as daedalus.Counter;
     }
-    if (tmpl.checklist && tmpl.checklist.length > 0) {
-      draftChecklist = tmpl.checklist.map((item, i) => ({
+    if (tmpl.checklist && tmpl.checklist.items && tmpl.checklist.items.length > 0) {
+      draftChecklist = tmpl.checklist.items.map((item, i) => ({
         idx: i,
         desc: item.desc,
         done: false,
       })) as daedalus.CheckListItem[];
     }
-    if (tmpl.checklist_title) {
-      draftChecklistTitle = tmpl.checklist_title;
+    if (tmpl.checklist?.label) {
+      draftChecklistTitle = tmpl.checklist.label;
     }
     if (tmpl.timeseries && tmpl.timeseries.label) {
       draftTimeSeries = { label: tmpl.timeseries.label, entries: [] } as unknown as daedalus.TimeSeries;

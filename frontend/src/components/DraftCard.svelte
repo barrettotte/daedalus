@@ -97,8 +97,9 @@
           range: draftRange ?? card.metadata.range,
           estimate: draftEstimate ?? card.metadata.estimate,
           counter: draftCounter ?? card.metadata.counter,
-          checklist: draftChecklist ?? card.metadata.checklist,
-          checklist_title: draftChecklistTitle || card.metadata.checklist_title,
+          checklist: draftChecklist
+            ? { label: draftChecklistTitle || "Checklist", items: draftChecklist } as daedalus.Checklist
+            : card.metadata.checklist,
           timeseries: draftTimeSeries ?? card.metadata.timeseries,
         } as daedalus.CardMetadata;
 

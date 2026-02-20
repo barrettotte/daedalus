@@ -14,10 +14,10 @@
 
   let meta = $derived(card.metadata);
   let isDragging = $derived($dragState?.card?.filePath === card.filePath);
-  let hasChecklist = $derived(meta.checklist && meta.checklist.length > 0);
-  let checkedCount = $derived(hasChecklist ? meta.checklist!.filter(i => i.done).length : 0);
+  let hasChecklist = $derived(meta.checklist && meta.checklist.items && meta.checklist.items.length > 0);
+  let checkedCount = $derived(hasChecklist ? meta.checklist!.items.filter(i => i.done).length : 0);
   let hasDescription = $derived(card.previewText && card.previewText.replace(/^#\s+.*\n*/, "").trim().length > 0);
-  let checklistComplete = $derived(hasChecklist ? checkedCount === meta.checklist!.length : false);
+  let checklistComplete = $derived(hasChecklist ? checkedCount === meta.checklist!.items.length : false);
   let counterComplete = $derived(meta.counter ? meta.counter.current === meta.counter.max : false);
   let tsEntryCount = $derived(meta.timeseries ? (meta.timeseries.entries || []).length : 0);
 
@@ -95,7 +95,7 @@
       {#if hasChecklist}
         <span class="badge" class:checklist-done={checklistComplete}>
           <Icon name="checklist" size={12} />
-          {checkedCount}/{meta.checklist!.length}
+          {checkedCount}/{meta.checklist!.items.length}
         </span>
       {/if}
       {#if meta.counter}

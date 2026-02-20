@@ -253,14 +253,18 @@
   }
 
   function saveChecklist(checklist: daedalus.CheckListItem[] | null): Promise<void> {
+    if (!checklist) {
+      return saveCardMeta({ checklist: undefined }, "save checklist");
+    }
     return saveCardMeta({
-      checklist: checklist ?? undefined,
-      checklist_title: checklist ? (meta!.checklist_title || "Checklist") : undefined,
+      checklist: { label: meta!.checklist?.label || "Checklist", items: checklist } as daedalus.Checklist,
     }, "save checklist");
   }
 
   function saveChecklistTitle(title: string): Promise<void> {
-    return saveCardMeta({ checklist_title: title.trim() || "Checklist" }, "save checklist title");
+    return saveCardMeta({
+      checklist: { ...meta!.checklist, label: title.trim() || "Checklist" } as daedalus.Checklist,
+    }, "save checklist title");
   }
 
   function saveTimeSeries(timeseries: daedalus.TimeSeries | null): Promise<void> {
@@ -272,23 +276,38 @@
   }
 
   function toggleCheckItem(idx: number): Promise<void> {
-    return saveCardMeta({ checklist: toggleChecklistItem(meta!.checklist!, idx) }, "toggle checklist item");
+    return saveCardMeta(
+      { checklist: { ...meta!.checklist, items: toggleChecklistItem(meta!.checklist!.items, idx) } as daedalus.Checklist },
+      "toggle checklist item",
+    );
   }
 
   function addCheckItem(desc: string): Promise<void> {
-    return saveCardMeta({ checklist: addChecklistItem(meta!.checklist || [], desc) }, "add checklist item");
+    return saveCardMeta(
+      { checklist: { ...meta!.checklist, items: addChecklistItem(meta!.checklist?.items || [], desc) } as daedalus.Checklist },
+      "add checklist item",
+    );
   }
 
   function editCheckItem(idx: number, desc: string): Promise<void> {
-    return saveCardMeta({ checklist: editChecklistItem(meta!.checklist!, idx, desc) }, "edit checklist item");
+    return saveCardMeta(
+      { checklist: { ...meta!.checklist, items: editChecklistItem(meta!.checklist!.items, idx, desc) } as daedalus.Checklist },
+      "edit checklist item",
+    );
   }
 
   function removeCheckItem(idx: number): Promise<void> {
-    return saveCardMeta({ checklist: removeChecklistItem(meta!.checklist!, idx) }, "remove checklist item");
+    return saveCardMeta(
+      { checklist: { ...meta!.checklist, items: removeChecklistItem(meta!.checklist!.items, idx) } as daedalus.Checklist },
+      "remove checklist item",
+    );
   }
 
   function reorderCheckItem(fromIdx: number, toIdx: number): Promise<void> {
-    return saveCardMeta({ checklist: reorderChecklistItem(meta!.checklist!, fromIdx, toIdx) }, "reorder checklist");
+    return saveCardMeta(
+      { checklist: { ...meta!.checklist, items: reorderChecklistItem(meta!.checklist!.items, fromIdx, toIdx) } as daedalus.Checklist },
+      "reorder checklist",
+    );
   }
 
   // Navigates to prev/next card in the same list while the detail modal is open.
@@ -582,11 +601,11 @@
             </div>
           {/if}
 
-          {#if meta.checklist_title || (meta.checklist && meta.checklist.length > 0)}
+          {#if meta.checklist}
             <div class="section">
               <ChecklistSection
-                checklist={meta.checklist || []}
-                title={meta.checklist_title || ""}
+                checklist={meta.checklist.items || []}
+                title={meta.checklist.label || ""}
                 ontoggle={toggleCheckItem}
                 onadd={addCheckItem}
                 onremove={removeCheckItem}

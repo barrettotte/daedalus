@@ -345,12 +345,14 @@ func WriteCardFile(path string, meta CardMetadata, body string) error {
 
 	merged := mergeUnknownFields(metaRaw, existingRaw)
 
-	// Force-quote checklist desc fields to prevent YAML parsing issues
-	if checklist, ok := merged["checklist"].([]any); ok {
-		for _, item := range checklist {
-			if m, ok := item.(map[string]any); ok {
-				if desc, ok := m["desc"].(string); ok {
-					m["desc"] = &yaml.Node{Kind: yaml.ScalarNode, Value: desc, Style: yaml.DoubleQuotedStyle}
+	// Force-quote checklist item desc fields to prevent YAML parsing issues
+	if cl, ok := merged["checklist"].(map[string]any); ok {
+		if items, ok := cl["items"].([]any); ok {
+			for _, item := range items {
+				if m, ok := item.(map[string]any); ok {
+					if desc, ok := m["desc"].(string); ok {
+						m["desc"] = &yaml.Node{Kind: yaml.ScalarNode, Value: desc, Style: yaml.DoubleQuotedStyle}
+					}
 				}
 			}
 		}

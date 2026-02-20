@@ -4,7 +4,7 @@
 
   import { boardData, templates } from "../stores/board";
   import type { daedalus } from "../../wailsjs/go/models";
-  import { clickOutside } from "../lib/utils";
+  import { clickOutside, autoFocus, blurOnEnter } from "../lib/utils";
   import Icon from "./Icon.svelte";
   import CounterControl from "./CounterControl.svelte";
   import DateSection from "./DateSection.svelte";
@@ -12,14 +12,20 @@
   import SidebarIconEditor from "./SidebarIconEditor.svelte";
   import SidebarEstimateEditor from "./SidebarEstimateEditor.svelte";
   import SidebarChecklistSummary from "./SidebarChecklistSummary.svelte";
+  import SidebarUriSection from "./SidebarUriSection.svelte";
   import SidebarPositionEditor from "./SidebarPositionEditor.svelte";
 
   let {
     nextCardId,
     hasUrl = false,
+    draftUrl = "",
     onstartedituri,
-    draftListKey = $bindable(""),
-    draftPosition = $bindable("top"),
+    onremoveuri,
+    editingUri = false,
+    draftListKey = "",
+    draftPosition = "top",
+    onlistkeychange,
+    onpositionchange,
     draftLabels = $bindable<string[]>([]),
     draftIcon = $bindable(""),
     draftDue = $bindable<string | null>(null),
@@ -27,13 +33,19 @@
     draftEstimate = $bindable<number | null>(null),
     draftCounter = $bindable<daedalus.Counter | null>(null),
     draftChecklist = $bindable<daedalus.CheckListItem[] | null>(null),
+    draftChecklistTitle = $bindable(""),
     draftTimeSeries = $bindable<daedalus.TimeSeries | null>(null),
   }: {
     nextCardId: number;
     hasUrl?: boolean;
+    draftUrl?: string;
     onstartedituri?: () => void;
+    onremoveuri?: () => void;
+    editingUri?: boolean;
     draftListKey?: string;
     draftPosition?: string;
+    onlistkeychange: (key: string) => void;
+    onpositionchange: (pos: string) => void;
     draftLabels?: string[];
     draftIcon?: string;
     draftDue?: string | null;
@@ -41,11 +53,29 @@
     draftEstimate?: number | null;
     draftCounter?: daedalus.Counter | null;
     draftChecklist?: daedalus.CheckListItem[] | null;
+    draftChecklistTitle?: string;
     draftTimeSeries?: daedalus.TimeSeries | null;
   } = $props();
 
   let templateDropdownOpen = $state(false);
   let selectedTemplateName = $state("");
+
+  // Time series label editing state.
+  let editingTsLabel = $state(false);
+  let editTsLabelValue = $state("");
+
+  function startEditTsLabel(): void {
+    editTsLabelValue = draftTimeSeries?.label || "Time Series";
+    editingTsLabel = true;
+  }
+
+  function blurTsLabel(): void {
+    editingTsLabel = false;
+    const val = editTsLabelValue.trim();
+    if (val && draftTimeSeries && val !== (draftTimeSeries.label || "Time Series")) {
+      draftTimeSeries = { ...draftTimeSeries, label: val } as daedalus.TimeSeries;
+    }
+  }
 
   // Cards in the currently selected target list.
   let targetCards = $derived($boardData[draftListKey] || []);
@@ -70,11 +100,11 @@
 
   function handleSelectPosition(idx: number): void {
     if (idx === 0) {
-      draftPosition = "top";
+      onpositionchange("top");
     } else if (idx === positionCount - 1) {
-      draftPosition = "bottom";
+      onpositionchange("bottom");
     } else {
-      draftPosition = String(idx);
+      onpositionchange(String(idx));
     }
   }
 
@@ -96,6 +126,7 @@
     draftEstimate = null;
     draftCounter = null;
     draftChecklist = null;
+    draftChecklistTitle = "";
     draftTimeSeries = null;
   }
 
@@ -128,6 +159,9 @@
         done: false,
       })) as daedalus.CheckListItem[];
     }
+    if (tmpl.checklist_title) {
+      draftChecklistTitle = tmpl.checklist_title;
+    }
     if (tmpl.timeseries && tmpl.timeseries.label) {
       draftTimeSeries = { label: tmpl.timeseries.label, entries: [] } as unknown as daedalus.TimeSeries;
     }
@@ -140,7 +174,7 @@
     <SidebarPositionEditor
       listKey={draftListKey}
       position={positionIndex}
-      onselectlist={(key) => { draftListKey = key; draftPosition = "top"; }}
+      onselectlist={(key) => { onlistkeychange(key); onpositionchange("top"); }}
       onselectposition={handleSelectPosition}
     />
   </div>
@@ -170,13 +204,13 @@
 
   <SidebarIconEditor icon={draftIcon || ""} onchange={(i) => { draftIcon = i; }} />
 
-  {#if !hasUrl}
-    <div class="sidebar-section">
-      <button class="add-counter-btn" title="Add URI" onclick={() => onstartedituri?.()}>
-        + Add URI
-      </button>
-    </div>
-  {/if}
+  <SidebarUriSection
+    url={hasUrl ? draftUrl : ""}
+    editing={editingUri}
+    onopen={() => window.open(draftUrl, "_blank")}
+    onedit={() => onstartedituri?.()}
+    onremove={() => onremoveuri?.()}
+  />
 
   <DateSection due={draftDue ?? undefined} range={draftRange ?? undefined} onsave={handleDatesChange} />
 
@@ -184,15 +218,24 @@
 
   <CounterControl counter={draftCounter ?? undefined} onsave={handleCounterChange} />
 
-  <SidebarChecklistSummary checklist={draftChecklist} onchange={(c) => { draftChecklist = c; }} />
+  <SidebarChecklistSummary checklist={draftChecklist} title={draftChecklistTitle || undefined} onchange={(c) => { draftChecklist = c; }} />
 
   {#if draftTimeSeries}
     <div class="sidebar-section">
       <div class="section-header">
-        <h4 class="sidebar-title">{draftTimeSeries.label || "Time Series"}</h4>
+        {#if editingTsLabel}
+          <input class="ts-label-input" type="text" bind:value={editTsLabelValue}
+            onclick={(e) => e.stopPropagation()} onblur={blurTsLabel} use:blurOnEnter use:autoFocus
+          />
+        {:else}
+          <h4 class="sidebar-title">{draftTimeSeries.label || "Time Series"}</h4>
+        {/if}
         <div class="section-header-actions">
+          <button class="counter-header-btn" title="Rename" onclick={startEditTsLabel}>
+            <Icon name="pencil" size={12} />
+          </button>
           <button class="counter-header-btn remove" title="Remove time series"
-            onclick={() => { draftTimeSeries = null; }}
+            onclick={() => { draftTimeSeries = null; editingTsLabel = false; }}
           >
             <Icon name="trash" size={12} />
           </button>
@@ -230,5 +273,15 @@
     color: var(--color-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.04em;
+  }
+
+  .ts-label-input {
+    all: unset;
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+    border-bottom: 1px solid var(--color-accent);
+    padding: 1px 4px;
+    min-width: 0;
+    flex: 1;
   }
 </style>

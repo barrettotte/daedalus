@@ -16,6 +16,7 @@
   import SidebarIconEditor from "./SidebarIconEditor.svelte";
   import SidebarEstimateEditor from "./SidebarEstimateEditor.svelte";
   import SidebarChecklistSummary from "./SidebarChecklistSummary.svelte";
+  import SidebarUriSection from "./SidebarUriSection.svelte";
   import SidebarPositionEditor from "./SidebarPositionEditor.svelte";
   import Icon from "./Icon.svelte";
 
@@ -29,6 +30,9 @@
     onsavelabels,
     onsavetimeseries,
     onstartedituri,
+    onremoveuri,
+    onopenuri,
+    editingUri = false,
   }: {
     meta: daedalus.CardMetadata;
     onsavecounter?: (counter: daedalus.Counter | null) => void;
@@ -42,6 +46,9 @@
     onsavelabels?: (labels: string[]) => void;
     onsavetimeseries?: (ts: daedalus.TimeSeries | null) => void;
     onstartedituri?: () => void;
+    onremoveuri?: () => void;
+    onopenuri?: () => void;
+    editingUri?: boolean;
   } = $props();
 
   // The list key where the currently selected card lives.
@@ -168,13 +175,13 @@
 
   <SidebarIconEditor icon={meta.icon || ""} onchange={(i) => onsaveicon?.(i)} />
 
-  {#if !meta.url}
-    <div class="sidebar-section">
-      <button class="add-counter-btn" title="Add URI" onclick={() => onstartedituri?.()}>
-        + Add URI
-      </button>
-    </div>
-  {/if}
+  <SidebarUriSection
+    url={meta.url || ""}
+    editing={editingUri}
+    onopen={() => onopenuri?.()}
+    onedit={() => onstartedituri?.()}
+    onremove={() => onremoveuri?.()}
+  />
 
   <DateSection due={meta.due} range={meta.range} onsave={onsavedates} />
 
@@ -194,7 +201,7 @@
         <h4 class="sidebar-title">{meta.timeseries.label || "Time Series"}</h4>
         <span class="sidebar-inline-detail">
           <span class="sidebar-inline-sep">-</span>
-          <span>{(meta.timeseries.entries || []).length} entries</span>
+          <span class="ts-count">{(meta.timeseries.entries || []).length}</span>
         </span>
         <div class="section-header-actions">
           <button class="counter-header-btn remove" title="Remove time series"
@@ -270,6 +277,12 @@
       background: var(--overlay-hover);
       color: var(--color-text-primary);
     }
+  }
+
+  .ts-count {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
   }
 
   .timestamps {

@@ -6,7 +6,7 @@
     isLocked, listOrder, sortedListKeys,
   } from "../stores/board";
   import { SaveListConfig, OpenFileExternal, SaveListOrder } from "../../wailsjs/go/main/App";
-  import { getDisplayTitle, autoFocus } from "../lib/utils";
+  import { getDisplayTitle, autoFocus, getListConfig } from "../lib/utils";
   import Icon from "./Icon.svelte";
   import CardIcon from "./CardIcon.svelte";
   import ColorPicker from "./ColorPicker.svelte";
@@ -54,6 +54,8 @@
     ondelete: () => void;
   } = $props();
 
+  const CONFIRM_TIMEOUT_MS = 3000;
+
   let confirmingDelete = $state(false);
   let confirmingDeleteAll = $state(false);
   let menuFlip = $derived(pinState === 'right' || isLastList);
@@ -66,7 +68,7 @@
 
   // Saves a color for this list via the backend and updates the store.
   async function saveColor(hex: string): Promise<void> {
-    const cfg = $boardConfig[listKey] || { title: "", limit: 0, locked: false, color: "", icon: "" };
+    const cfg = getListConfig(listKey, $boardConfig);
     try {
       await SaveListConfig(listKey, cfg.title || "", cfg.limit || 0, hex, cfg.icon || "");
       boardConfig.update(c => {
@@ -80,7 +82,7 @@
 
   // Saves an icon for this list via the backend and updates the store.
   async function saveIcon(value: string): Promise<void> {
-    const cfg = $boardConfig[listKey] || { title: "", limit: 0, locked: false, color: "", icon: "" };
+    const cfg = getListConfig(listKey, $boardConfig);
     try {
       await SaveListConfig(listKey, cfg.title || "", cfg.limit || 0, cfg.color || "", value);
       boardConfig.update(c => {
@@ -111,7 +113,7 @@
     const timer = setTimeout(() => {
       confirmingDelete = false;
       confirmingDeleteAll = false;
-    }, 3000);
+    }, CONFIRM_TIMEOUT_MS);
     return () => clearTimeout(timer);
   });
 
@@ -165,6 +167,11 @@
 
 {#if menuOpen}
   <div class="header-menu" class:menu-flip={menuFlip}>
+    <button class="menu-item" title="Add a new card to this list" onclick={() => { menuOpen = false; oncreatecard(); }}>
+      <Icon name="plus" size={12} />
+      Add card
+    </button>
+    <div class="menu-divider"></div>
     <button class="menu-item" title="Show first 5 cards, minimize the rest" onclick={() => { menuOpen = false; onhalfcollapse(); }}>
       <Icon name="chevron-down" size={12} />
       Half collapse

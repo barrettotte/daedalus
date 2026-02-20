@@ -3,6 +3,7 @@
 
   import type { daedalus } from "../../wailsjs/go/models";
   import { nowString, addEntry, editEntry, editDate, removeEntry } from "../lib/timeseries";
+  import { autoFocus, blurOnEnter } from "../lib/utils";
   import TimeSeriesTable from "./TimeSeriesTable.svelte";
   import TimeSeriesGraph from "./TimeSeriesGraph.svelte";
   import DatePicker from "./DatePicker.svelte";
@@ -16,12 +17,19 @@
     onsave: (ts: daedalus.TimeSeries | null) => void;
   } = $props();
 
+  // Whether the time series body is visible or collapsed.
+  let expanded = $state(true);
+
   // View toggle: table (default) or graph.
   let showGraph = $state(false);
 
   // Add-row input state.
   let newDate = $state(nowString());
   let newValue = $state("");
+
+  // Label editing state.
+  let editingLabel = $state(false);
+  let editLabelValue = $state("");
 
   // Validates input and adds a new entry (or updates an existing date).
   function submitEntry(): void {
@@ -51,42 +59,81 @@
     const updated = removeEntry(timeseries.entries || [], idx);
     onsave({ ...timeseries, entries: updated } as daedalus.TimeSeries);
   }
+
+  // Opens the label for inline editing.
+  function startEditLabel(): void {
+    editLabelValue = timeseries.label || "Time Series";
+    editingLabel = true;
+  }
+
+  // Saves the label on blur.
+  function blurLabel(): void {
+    editingLabel = false;
+    const val = editLabelValue.trim();
+    if (val && val !== (timeseries.label || "Time Series")) {
+      onsave({ ...timeseries, label: val } as daedalus.TimeSeries);
+    }
+  }
 </script>
 
 <div class="ts-wrapper">
   <div class="ts-header">
-    {#if timeseries.label}
-      <span class="ts-label">{timeseries.label}</span>
-    {/if}
-    <button class="ts-toggle-btn" class:active={showGraph} title={showGraph ? "Show table" : "Show graph"}
+    <button class="ts-toggle" title="Toggle time series" onclick={() => expanded = !expanded}>
+      <span class="chevron" class:collapsed={!expanded}>
+        <Icon name="chevron-down" size={12} />
+      </span>
+      {#if editingLabel}
+        <input class="ts-label-input" type="text" bind:value={editLabelValue}
+          onclick={(e) => e.stopPropagation()} onblur={blurLabel} use:blurOnEnter use:autoFocus
+        />
+      {:else}
+        <span class="ts-label" role="textbox" tabindex="0" title="Click to rename"
+          onclick={(e) => { e.stopPropagation(); startEditLabel(); }}
+          onkeydown={(e) => e.key === 'Enter' && startEditLabel()}
+        >{timeseries.label || "Time Series"}</span>
+      {/if}
+    </button>
+    <button class="ts-action ts-graph-btn" class:active={showGraph} title={showGraph ? "Show table" : "Show graph"}
       onclick={() => { showGraph = !showGraph; }}
     >
       <Icon name="trending-up" size={14} />
     </button>
-  </div>
-
-  <div class="ts-body">
-    {#if showGraph}
-      <TimeSeriesGraph entries={timeseries.entries || []} />
-    {:else}
-      <TimeSeriesTable
-        entries={timeseries.entries || []}
-        onedit={handleEdit}
-        oneditdate={handleEditDate}
-        onremove={handleRemove}
-      />
+    {#if !editingLabel}
+      <button class="ts-action" title="Rename" onclick={startEditLabel}>
+        <Icon name="pencil" size={12} />
+      </button>
     {/if}
-  </div>
-
-  <div class="ts-add-row">
-    <DatePicker value={newDate} onselect={(iso) => { newDate = iso; }} inline />
-    <input type="text" inputmode="numeric" class="form-input ts-value-input" placeholder="Value"
-      bind:value={newValue} onkeydown={e => e.key === 'Enter' && submitEntry()}
-    />
-    <button class="add-item-btn" title="Add entry" onclick={submitEntry}>
-      <Icon name="plus" size={12} />
+    <button class="ts-action remove" title="Delete time series" onclick={() => onsave(null)}>
+      <Icon name="trash" size={12} />
     </button>
   </div>
+
+  {#if expanded}
+    <div class="ts-body">
+      {#if showGraph}
+        <TimeSeriesGraph entries={timeseries.entries || []} />
+      {:else}
+        <TimeSeriesTable
+          entries={timeseries.entries || []}
+          onedit={handleEdit}
+          oneditdate={handleEditDate}
+          onremove={handleRemove}
+        />
+      {/if}
+    </div>
+
+    {#if !showGraph}
+      <div class="ts-add-row">
+        <DatePicker value={newDate} onselect={(iso) => { newDate = iso; }} inline />
+        <input type="text" inputmode="numeric" class="form-input ts-value-input" placeholder="Value"
+          bind:value={newValue} onkeydown={e => e.key === 'Enter' && submitEntry()}
+        />
+        <button class="add-item-btn" title="Add entry" onclick={submitEntry}>
+          <Icon name="plus" size={12} />
+        </button>
+      </div>
+    {/if}
+  {/if}
 </div>
 
 <style lang="scss">
@@ -99,33 +146,85 @@
   .ts-header {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin-bottom: 8px;
+    gap: 4px;
   }
 
-  .ts-label {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--color-text-secondary);
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .ts-toggle-btn {
+  .ts-toggle {
     all: unset;
     display: flex;
     align-items: center;
-    margin-left: auto;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+    border-radius: 4px;
+    box-sizing: border-box;
+  }
+
+  .chevron {
+    display: flex;
+    align-items: center;
+    color: var(--color-text-muted);
+    flex-shrink: 0;
+    transition: transform 0.15s;
+
+    &.collapsed {
+      transform: rotate(-90deg);
+    }
+  }
+
+  .ts-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    margin: 0;
+    cursor: text;
+
+    &:hover {
+      color: var(--color-accent);
+    }
+  }
+
+  .ts-label-input {
+    flex: 1;
+    min-width: 0;
+    background: var(--color-bg-base);
+    border: 1px solid var(--color-accent);
+    color: var(--color-text-primary);
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 0 6px;
+    border-radius: 4px;
+    outline: none;
+    box-sizing: border-box;
+  }
+
+  .ts-action {
+    all: unset;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
     color: var(--color-text-muted);
     cursor: pointer;
-    padding: 2px 4px;
+    padding: 2px;
     border-radius: 3px;
+    opacity: 0;
 
     &:hover {
       color: var(--color-text-primary);
     }
+
+    &.remove:hover {
+      color: var(--color-error);
+    }
+  }
+
+  .ts-header:hover .ts-action {
+    opacity: 1;
+  }
+
+  .ts-graph-btn {
+    margin-left: auto;
 
     &.active {
       color: var(--color-accent);
@@ -133,7 +232,7 @@
   }
 
   .ts-body {
-    margin-bottom: 8px;
+    margin-top: 8px;
   }
 
   .ts-add-row {

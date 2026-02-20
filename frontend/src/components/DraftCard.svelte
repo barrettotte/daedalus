@@ -3,10 +3,10 @@
 
   import {
     selectedCard, draftListKey, draftPosition,
-    addCardToBoard, boardConfig, boardData, addToast, isAtLimit,
+    addCardToBoard, boardConfig, boardData, addToast, isAtLimit, maxCardId,
   } from "../stores/board";
   import { CreateCard, SaveCard } from "../../wailsjs/go/main/App";
-  import { autoFocus, backdropClose, wordCount, createBlurGuard } from "../lib/utils";
+  import { autoFocus, backdropClose, wordCount, createBlurGuard, copyToClipboard } from "../lib/utils";
   import type { daedalus } from "../../wailsjs/go/models";
   import {
     toggleChecklistItem, addChecklistItem, editChecklistItem,
@@ -15,6 +15,7 @@
   import Icon from "./Icon.svelte";
   import DraftSidebar from "./DraftSidebar.svelte";
   import ChecklistSection from "./ChecklistSection.svelte";
+  import TimeSeriesSection from "./TimeSeriesSection.svelte";
 
   let draftTitle = $state("");
   let draftBody = $state("");
@@ -38,48 +39,11 @@
   let draftEstimate = $state<number | null>(null);
   let draftCounter = $state<daedalus.Counter | null>(null);
   let draftChecklist = $state<daedalus.CheckListItem[] | null>(null);
+  let draftChecklistTitle = $state("");
   let draftTimeSeries = $state<daedalus.TimeSeries | null>(null);
 
   // Speculative ID for the next card (current max + 1).
-  let nextCardId = $derived.by(() => {
-    let max = 0;
-    for (const cards of Object.values($boardData)) {
-      for (const card of cards) {
-        if (card.metadata.id > max) {
-          max = card.metadata.id;
-        }
-      }
-    }
-    return max + 1;
-  });
-
-  // Local state that syncs with stores so DraftSidebar can bind to them.
-  let localListKey = $state("");
-  let localPosition = $state("top");
-
-  // Sync store -> local when draft opens.
-  $effect(() => {
-    if ($draftListKey) {
-      localListKey = $draftListKey;
-    }
-  });
-  $effect(() => {
-    if ($draftPosition) {
-      localPosition = $draftPosition;
-    }
-  });
-
-  // Sync local -> store when user changes via DraftSidebar.
-  $effect(() => {
-    if (localListKey && $draftListKey && localListKey !== $draftListKey) {
-      draftListKey.set(localListKey);
-    }
-  });
-  $effect(() => {
-    if (localPosition !== $draftPosition) {
-      draftPosition.set(localPosition);
-    }
-  });
+  let nextCardId = $derived($maxCardId + 1);
 
   // Closes the draft modal and clears all draft state.
   function close(): void {
@@ -95,6 +59,7 @@
     draftEstimate = null;
     draftCounter = null;
     draftChecklist = null;
+    draftChecklistTitle = "";
     draftTimeSeries = null;
     saving = false;
     draftListKey.set(null);
@@ -126,14 +91,15 @@
         const meta = {
           ...card.metadata,
           labels: draftLabels.length > 0 ? draftLabels : card.metadata.labels,
-          icon: draftIcon || card.metadata.icon,
-          url: trimmedUrl || card.metadata.url,
-          due: draftDue || card.metadata.due,
-          range: draftRange || card.metadata.range,
+          icon: draftIcon ?? card.metadata.icon,
+          url: trimmedUrl ?? card.metadata.url,
+          due: draftDue ?? card.metadata.due,
+          range: draftRange ?? card.metadata.range,
           estimate: draftEstimate ?? card.metadata.estimate,
-          counter: draftCounter || card.metadata.counter,
-          checklist: draftChecklist || card.metadata.checklist,
-          timeseries: draftTimeSeries || card.metadata.timeseries,
+          counter: draftCounter ?? card.metadata.counter,
+          checklist: draftChecklist ?? card.metadata.checklist,
+          checklist_title: draftChecklistTitle || card.metadata.checklist_title,
+          timeseries: draftTimeSeries ?? card.metadata.timeseries,
         } as daedalus.CardMetadata;
 
         card = await SaveCard(card.filePath, meta, fullBody);
@@ -146,42 +112,6 @@
       addToast(`Failed to create card: ${e}`);
     }
     saving = false;
-  }
-
-  // Checklist handlers -- mutate draftChecklist directly since there's no backend yet.
-  function toggleCheckItem(idx: number): void {
-    if (!draftChecklist) {
-      return;
-    }
-    draftChecklist = toggleChecklistItem(draftChecklist, idx);
-  }
-
-  function addCheckItem(desc: string): void {
-    if (!draftChecklist) {
-      return;
-    }
-    draftChecklist = addChecklistItem(draftChecklist, desc);
-  }
-
-  function removeCheckItem(idx: number): void {
-    if (!draftChecklist) {
-      return;
-    }
-    draftChecklist = removeChecklistItem(draftChecklist, idx);
-  }
-
-  function editCheckItem(idx: number, desc: string): void {
-    if (!draftChecklist) {
-      return;
-    }
-    draftChecklist = editChecklistItem(draftChecklist, idx, desc);
-  }
-
-  function reorderCheckItem(fromIdx: number, toIdx: number): void {
-    if (!draftChecklist) {
-      return;
-    }
-    draftChecklist = reorderChecklistItem(draftChecklist, fromIdx, toIdx);
   }
 
   // Handles keyboard shortcuts: Ctrl/Cmd+Enter saves draft, Escape closes.
@@ -241,7 +171,12 @@
           {:else if draftUrl.trim()}
             <div class="uri-row">
               <Icon name="link" size={14} style="color: var(--color-text-muted); flex-shrink: 0" />
-              <span class="uri-display">{draftUrl.trim()}</span>
+              <button class="uri-link" title={draftUrl.trim()}
+                onclick={(e) => e.button === 0 && window.open(draftUrl.trim(), "_blank")}
+              >{draftUrl.trim()}</button>
+              <button class="uri-action-btn" title="Copy URI" onclick={() => copyToClipboard(draftUrl.trim(), "URI")}>
+                <Icon name="copy" size={12} />
+              </button>
               <button class="uri-action-btn" title="Edit URI" onclick={() => { editingUri = true; }}>
                 <Icon name="pencil" size={12} />
               </button>
@@ -284,21 +219,34 @@
           {#if draftChecklist}
             <ChecklistSection
               checklist={draftChecklist}
-              ontoggle={toggleCheckItem}
-              onadd={addCheckItem}
-              onremove={removeCheckItem}
-              onedit={editCheckItem}
-              onreorder={reorderCheckItem}
+              title={draftChecklistTitle}
+              ontoggle={(idx) => { draftChecklist = toggleChecklistItem(draftChecklist!, idx); }}
+              onadd={(desc) => { draftChecklist = addChecklistItem(draftChecklist || [], desc); }}
+              onremove={(idx) => { draftChecklist = removeChecklistItem(draftChecklist!, idx); }}
+              onedit={(idx, desc) => { draftChecklist = editChecklistItem(draftChecklist!, idx, desc); }}
+              onreorder={(from, to) => { draftChecklist = reorderChecklistItem(draftChecklist!, from, to); }}
               ondelete={() => { draftChecklist = null; }}
+              ontitlechange={(t) => { draftChecklistTitle = t; }}
+            />
+          {/if}
+          {#if draftTimeSeries}
+            <TimeSeriesSection
+              timeseries={draftTimeSeries}
+              onsave={(ts) => { draftTimeSeries = ts; }}
             />
           {/if}
         </div>
         <DraftSidebar
           {nextCardId}
           hasUrl={!!draftUrl.trim()}
+          draftUrl={draftUrl.trim()}
           onstartedituri={() => { editingUri = true; }}
-          bind:draftListKey={localListKey}
-          bind:draftPosition={localPosition}
+          onremoveuri={() => { draftUrl = ""; editingUri = false; }}
+          {editingUri}
+          draftListKey={$draftListKey || ""}
+          draftPosition={$draftPosition}
+          onlistkeychange={(key) => { draftListKey.set(key); }}
+          onpositionchange={(pos) => { draftPosition.set(pos); }}
           bind:draftLabels
           bind:draftIcon
           bind:draftDue
@@ -306,6 +254,7 @@
           bind:draftEstimate
           bind:draftCounter
           bind:draftChecklist
+          bind:draftChecklistTitle
           bind:draftTimeSeries
         />
       </div>

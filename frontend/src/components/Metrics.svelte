@@ -1,13 +1,11 @@
 <script lang="ts">
   // Toggleable performance overlay that polls backend metrics (heap, RSS, CPU) and measures frontend FPS and DOM nodes.
 
-  import { onMount, onDestroy } from "svelte";
   import { GetMetrics } from "../../wailsjs/go/main/App";
   import { showMetrics, loadProfile, addToast } from "../stores/board";
   import type { main } from "../../wailsjs/go/models";
 
   let metrics: main.AppMetrics | null = $state(null);
-  let interval: ReturnType<typeof setInterval>;
   let fps = $state(0);
   let domNodes = $state(0);
 
@@ -44,15 +42,17 @@
     }
   }
 
-  onMount(() => {
+  $effect(() => {
     fetchMetrics();
-    interval = setInterval(fetchMetrics, 2000);
+    const interval = setInterval(fetchMetrics, 2000);
+    frameCount = 0;
+    lastFpsTime = performance.now();
     rafId = requestAnimationFrame(countFrame);
-  });
 
-  onDestroy(() => {
-    clearInterval(interval);
-    cancelAnimationFrame(rafId);
+    return () => {
+      clearInterval(interval);
+      cancelAnimationFrame(rafId);
+    };
   });
 </script>
 

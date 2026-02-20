@@ -16,7 +16,7 @@
   } = $props();
 </script>
 
-{#if title || (checklist && checklist.length > 0)}
+{#if title || checklist}
   {@const items = checklist || []}
   {@const done = items.filter(i => i.done).length}
   <div class="sidebar-section">

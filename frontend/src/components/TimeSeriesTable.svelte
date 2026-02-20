@@ -41,12 +41,13 @@
     editingDateIdx = -1;
   }
 
-  // Format a delta value with sign prefix, or "--" for null (first entry).
+  // Format a delta value with sign prefix rounded to 2 decimal places, or "--" for null (first entry).
   function formatDelta(d: number | null): string {
     if (d === null) {
       return "--";
     }
-    return d >= 0 ? `+${d}` : `${d}`;
+    const rounded = Math.round(d * 100) / 100;
+    return rounded >= 0 ? `+${rounded}` : `${rounded}`;
   }
 
   // Opens a value cell for inline editing.

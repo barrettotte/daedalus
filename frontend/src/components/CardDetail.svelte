@@ -4,13 +4,15 @@
   import {
     selectedCard, draftListKey, updateCardInBoard,
     removeCardFromBoard, boardData, sortedListKeys, listOrder,
-    focusedCard, openInEditMode, addToast, saveWithToast,
+    focusedCard, openInEditMode, addToast, saveWithToast, findCardById,
   } from "../stores/board";
   import {
     GetCardContent, SaveCard, OpenFileExternal, DeleteCard, OpenURI,
   } from "../../wailsjs/go/main/App";
   import { marked } from "marked";
-  import { autoFocus, blurOnEnter, backdropClose, wordCount, resolveWikiLinks, createBlurGuard } from "../lib/utils";
+  import {
+    autoFocus, blurOnEnter, backdropClose, wordCount, resolveWikiLinks, createBlurGuard, safeMarkdownParse, copyToClipboard,
+  } from "../lib/utils";
 
   // Strip title attributes from links to prevent browser tooltips.
   // Convert [[id]] wiki-links into clickable card references.
@@ -49,7 +51,7 @@
   let rawBody = $state("");
   let loading = $state(false);
   let backdropEl: HTMLDivElement | undefined = $state(undefined);
-  let prevCardId: number | null = $state(null);
+  let prevCardId: number | null = null;
 
   // Edit state
   let editingTitle = $state(false);
@@ -147,14 +149,12 @@
       const cardId = anchor.dataset.cardId;
       if (cardId) {
         const id = Number(cardId);
-        for (const cards of Object.values($boardData)) {
-          const found = cards.find(c => c.metadata.id === id);
-          if (found) {
-            selectedCard.set(found);
-            return;
-          }
+        const found = findCardById($boardData, id);
+        if (found) {
+          selectedCard.set(found);
+        } else {
+          addToast(`Card #${id} not found`);
         }
-        addToast(`Card #${id} not found`);
         return;
       }
 
@@ -179,7 +179,7 @@
       updateCardInBoard(result);
       selectedCard.set(result);
       rawBody = editBody;
-      bodyHtml = resolveWikiLinks(marked.parse(editBody, { async: false }) as string, $boardData);
+      bodyHtml = resolveWikiLinks(safeMarkdownParse(editBody), $boardData);
       addToast("Saved", "success");
     } catch (e) {
       addToast(`Failed to save body: ${e}`);
@@ -427,7 +427,7 @@
       // Strip leading h1 since title is already in the modal header
       const body = (content || "").replace(/^#\s+.*\n*/, "");
       rawBody = body;
-      bodyHtml = resolveWikiLinks(marked.parse(body, { async: false }) as string, $boardData);
+      bodyHtml = resolveWikiLinks(safeMarkdownParse(body), $boardData);
       loading = false;
 
       // If opened via E shortcut, start in edit mode
@@ -530,6 +530,9 @@
             <div class="uri-row">
               <Icon name="link" size={14} style="color: var(--color-text-muted); flex-shrink: 0" />
               <button class="uri-link" title={meta.url} onclick={(e) => e.button === 0 && openUri()}>{meta.url}</button>
+              <button class="uri-action-btn" title="Copy URI" onclick={() => copyToClipboard(meta.url!, "URI")}>
+                <Icon name="copy" size={12} />
+              </button>
               <button class="uri-action-btn" title="Edit URI" onclick={startEditUri}>
                 <Icon name="pencil" size={12} />
               </button>
@@ -600,7 +603,7 @@
           onsavecounter={saveCounter} onsavedates={saveDates}
           onsaveestimate={saveEstimate} onsaveicon={saveIcon}
           onsavechecklist={saveChecklist} onsavelabels={saveLabels}
-          onsavetimeseries={saveTimeSeries} onstartedituri={startEditUri}
+          onsavetimeseries={saveTimeSeries} onstartedituri={startEditUri} onremoveuri={removeUri} onopenuri={openUri} {editingUri}
         />
       </div>
       {/if}

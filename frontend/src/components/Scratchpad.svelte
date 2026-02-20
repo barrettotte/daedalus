@@ -3,9 +3,8 @@
 
   import { onMount } from "svelte";
   import { GetScratchpad, SaveScratchpad, OpenFileExternal } from "../../wailsjs/go/main/App";
-  import { marked } from "marked";
-  import { backdropClose, wordCount, resolveWikiLinks } from "../lib/utils";
-  import { addToast, saveWithToast, boardPath, boardData, selectedCard } from "../stores/board";
+  import { backdropClose, wordCount, resolveWikiLinks, safeMarkdownParse } from "../lib/utils";
+  import { addToast, saveWithToast, boardPath, boardData, selectedCard, findCardById } from "../stores/board";
   import Icon from "./Icon.svelte";
 
   let { onclose }: { onclose: () => void } = $props();
@@ -22,7 +21,7 @@
   onMount(async () => {
     try {
       content = await GetScratchpad();
-      bodyHtml = resolveWikiLinks(marked.parse(content, { async: false }) as string, $boardData);
+      bodyHtml = resolveWikiLinks(safeMarkdownParse(content), $boardData);
     } catch (e) {
       addToast(`Failed to load scratchpad: ${e}`);
     }
@@ -40,7 +39,7 @@
       return;
     }
     content = editText;
-    bodyHtml = resolveWikiLinks(marked.parse(content, { async: false }) as string, $boardData);
+    bodyHtml = resolveWikiLinks(safeMarkdownParse(content), $boardData);
     await saveWithToast(SaveScratchpad(content), "save scratchpad");
   }
 
@@ -59,15 +58,13 @@
         e.stopPropagation();
 
         const id = Number(cardId);
-        for (const cards of Object.values($boardData)) {
-          const found = cards.find(c => c.metadata.id === id);
-          if (found) {
-            onclose();
-            selectedCard.set(found);
-            return;
-          }
+        const found = findCardById($boardData, id);
+        if (found) {
+          onclose();
+          selectedCard.set(found);
+        } else {
+          addToast(`Card #${id} not found`);
         }
-        addToast(`Card #${id} not found`);
         return;
       }
     }

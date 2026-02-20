@@ -18,17 +18,9 @@
     searchOpen = $bindable(false),
     showYearProgress = $bindable(false),
     darkMode = $bindable(true),
-    showLabelEditor = $bindable(false),
-    showIconManager = $bindable(false),
-    showTemplateManager = $bindable(false),
-    showScratchpad = $bindable(false),
-    showBoardStats = $bindable(false),
-    showKeyboardHelp = $bindable(false),
-    showAbout = $bindable(false),
-    showNewList = $bindable(false),
-    showWelcome = $bindable(false),
     zoomLevel = 1.0,
     oncreatecard,
+    onopenmodal,
     onzoomin,
     onzoomout,
     onzoomreset,
@@ -36,21 +28,15 @@
     searchOpen: boolean;
     showYearProgress: boolean;
     darkMode: boolean;
-    showLabelEditor: boolean;
-    showIconManager: boolean;
-    showTemplateManager: boolean;
-    showScratchpad: boolean;
-    showBoardStats: boolean;
-    showKeyboardHelp: boolean;
-    showAbout: boolean;
-    showNewList: boolean;
-    showWelcome: boolean;
     zoomLevel: number;
     oncreatecard: () => void;
+    onopenmodal: (name: string) => void;
     onzoomin: () => void;
     onzoomout: () => void;
     onzoomreset: () => void;
   } = $props();
+
+  const MS_PER_DAY = 86_400_000;
 
   let searchInputEl: HTMLInputElement | undefined = $state(undefined);
   let filterOpen = $state(false);
@@ -95,7 +81,7 @@
     const end = new Date(year + 1, 0, 1).getTime();
 
     const pct = ((now.getTime() - start) / (end - start) * 100).toFixed(5);
-    const dayOfYear = Math.ceil((now.getTime() - start) / 86400000);
+    const dayOfYear = Math.ceil((now.getTime() - start) / MS_PER_DAY);
     const leftMs = end - now.getTime();
     const totalSec = Math.max(0, Math.floor(leftMs / 1000));
 
@@ -258,7 +244,7 @@
     <button class="top-btn" onclick={oncreatecard} title="New card (N)">
       <Icon name="plus" size={14} />
     </button>
-    <button class="top-btn" onclick={() => showNewList = true} title="New list">
+    <button class="top-btn" onclick={() => onopenmodal('newList')} title="New list">
       <Icon name="list-plus" size={14} />
     </button>
     {#if searchOpen}
@@ -306,7 +292,7 @@
         <Icon name="plus" size={10} />
       </button>
     </div>
-    <button class="top-btn" onclick={() => { showWelcome = true; }} title="Switch board (Ctrl+O)">
+    <button class="top-btn" onclick={() => { onopenmodal('welcome'); }} title="Switch board (Ctrl+O)">
       <Icon name="folder" size={14} />
     </button>
     <button class="top-btn" onclick={() => window.location.reload()} title="Reload board">
@@ -321,23 +307,23 @@
       </button>
       {#if menuOpen}
         <div class="overflow-menu" role="menu" tabindex="-1" onkeydown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); closeMenu(); } }}>
-          <button class="overflow-item" onclick={() => { closeMenu(); showLabelEditor = true; }}>
+          <button class="overflow-item" onclick={() => { closeMenu(); onopenmodal('labelEditor'); }}>
             <Icon name="tag" size={14} />
             Label manager
           </button>
-          <button class="overflow-item" onclick={() => { closeMenu(); showIconManager = true; }}>
+          <button class="overflow-item" onclick={() => { closeMenu(); onopenmodal('iconManager'); }}>
             <Icon name="image" size={14} />
             Icon manager
           </button>
-          <button class="overflow-item" onclick={() => { closeMenu(); showTemplateManager = true; }}>
+          <button class="overflow-item" onclick={() => { closeMenu(); onopenmodal('templateManager'); }}>
             <Icon name="template" size={14} />
             Template manager
           </button>
-          <button class="overflow-item" onclick={() => { closeMenu(); showScratchpad = true; }}>
+          <button class="overflow-item" onclick={() => { closeMenu(); onopenmodal('scratchpad'); }}>
             <Icon name="notepad" size={14} />
             Scratchpad
           </button>
-          <button class="overflow-item" onclick={() => { closeMenu(); showBoardStats = true; }}>
+          <button class="overflow-item" onclick={() => { closeMenu(); onopenmodal('boardStats'); }}>
             <Icon name="chart-bar" size={14} />
             Board statistics
           </button>
@@ -380,11 +366,11 @@
             Export as Zip
           </button>
           <div class="overflow-divider"></div>
-          <button class="overflow-item" onclick={() => { closeMenu(); showKeyboardHelp = true; }}>
+          <button class="overflow-item" onclick={() => { closeMenu(); onopenmodal('keyboardHelp'); }}>
             <Icon name="keyboard" size={14} />
             Keyboard shortcuts
           </button>
-          <button class="overflow-item" onclick={() => { closeMenu(); showAbout = true; }}>
+          <button class="overflow-item" onclick={() => { closeMenu(); onopenmodal('about'); }}>
             <Icon name="info" size={14} />
             About
           </button>

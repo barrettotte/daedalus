@@ -11,6 +11,9 @@
   import { getDisplayTitle, clickOutside, copyToClipboard } from "../lib/utils";
   import Icon from "./Icon.svelte";
 
+  const MENU_WIDTH = 160;
+  const MENU_HEIGHT = 120;
+
   let moveSubmenuOpen = $state(false);
   let confirmingDelete = $state(false);
 
@@ -100,10 +103,8 @@
     if (!menu) {
       return "";
     }
-    const menuWidth = 160;
-    const menuHeight = 120;
-    const x = menu.x + menuWidth > window.innerWidth ? menu.x - menuWidth : menu.x;
-    const y = menu.y + menuHeight > window.innerHeight ? menu.y - menuHeight : menu.y;
+    const x = menu.x + MENU_WIDTH > window.innerWidth ? menu.x - MENU_WIDTH : menu.x;
+    const y = menu.y + MENU_HEIGHT > window.innerHeight ? menu.y - MENU_HEIGHT : menu.y;
     return `left: ${x}px; top: ${y}px;`;
   });
 </script>

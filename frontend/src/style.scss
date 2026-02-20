@@ -396,6 +396,8 @@ body {
     color: var(--color-text-tertiary);
     margin-right: auto;
     margin-left: 4px;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .sidebar-inline-sep {

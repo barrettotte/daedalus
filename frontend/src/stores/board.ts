@@ -75,6 +75,7 @@ export const openInEditMode: Writable<boolean> = writable(false);
 export const listOrder: Writable<string[]> = writable([]);
 export const loadProfile: Writable<LoadProfileData | null> = writable(null);
 export const contextMenu: Writable<ContextMenuState | null> = writable(null);
+export const maxCardId: Writable<number> = writable(0);
 
 // Updates a single card in the boardData store by matching filePath.
 export function updateCardInBoard(updatedCard: daedalus.KanbanCard): void {
@@ -125,6 +126,7 @@ export function addCardToBoard(listKey: string, card: daedalus.KanbanCard, posit
     }
     return lists;
   });
+  maxCardId.update(current => Math.max(current, card.metadata.id));
 }
 
 // Moves a card from one list position to another, updating list_order in the store.
@@ -200,13 +202,33 @@ export const templates: Writable<daedalus.CardTemplate[]> = writable([]);
 
 export const searchQuery: Writable<string> = writable("");
 
-// Filters boardData by the current search query, returning matching cards per list.
-export const filteredBoardData: Readable<BoardLists> = derived([boardData, searchQuery], ([$boardData, $searchQuery]) => {
-  if (!$searchQuery.trim()) {
-    return $boardData;
+// Debounced version of searchQuery -- waits 150ms after the last keystroke.
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+const debouncedQuery: Writable<string> = writable("");
+
+searchQuery.subscribe(val => {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
   }
-  return filterBoard($boardData, $searchQuery);
+  if (!val.trim()) {
+    debouncedQuery.set("");
+    return;
+  }
+  debounceTimer = setTimeout(() => {
+    debouncedQuery.set(val);
+  }, 150);
 });
+
+// Filters boardData by the debounced search query, returning matching cards per list.
+export const filteredBoardData: Readable<BoardLists> = derived(
+  [boardData, debouncedQuery],
+  ([$boardData, $debouncedQuery]) => {
+    if (!$debouncedQuery.trim()) {
+      return $boardData;
+    }
+    return filterBoard($boardData, $debouncedQuery);
+  },
+);
 
 export const toasts: Writable<Toast[]> = writable([]);
 let toastId = 0;
@@ -243,6 +265,18 @@ export function syncCardAfterMove(targetListKey: string, cardId: number, result:
     }
     return lists;
   });
+}
+
+// Finds a card by its numeric ID across all board lists.
+// Returns the card if found, or null otherwise.
+export function findCardById(lists: BoardLists, id: number): daedalus.KanbanCard | null {
+  for (const cards of Object.values(lists)) {
+    const found = cards.find(c => c.metadata.id === id);
+    if (found) {
+      return found;
+    }
+  }
+  return null;
 }
 
 // Toggles labels between expanded text and collapsed color pills on all cards, persisting to board.yaml.

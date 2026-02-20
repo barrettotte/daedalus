@@ -398,7 +398,13 @@
                         <div class="editor-divider"></div>
 
                         <div class="editor-section">
-                          <span class="field-label">Checklist</span>
+                          <div class="checklist-header-row">
+                            <span class="field-label">Checklist</span>
+                            <input type="text" class="form-input checklist-title-input" placeholder="Name (optional)"
+                              value={editingTemplate.checklist_title || ""}
+                              oninput={(e) => updateField("checklist_title", (e.target as HTMLInputElement).value)}
+                            />
+                          </div>
                           <div class="checklist-editor">
                             {#each editingTemplate.checklist || [] as item, itemIdx}
                               <div class="checklist-row">
@@ -700,6 +706,20 @@
     flex: 1;
     min-width: 0;
     font-size: 0.75rem;
+    padding: 3px 6px;
+  }
+
+  .checklist-header-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .checklist-title-input {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.78rem;
     padding: 3px 6px;
   }
 

@@ -158,11 +158,11 @@ export namespace daedalus {
 	    checklist_title?: string;
 	    checklist?: CheckListItem[];
 	    timeseries?: TimeSeries;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new CardTemplate(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];

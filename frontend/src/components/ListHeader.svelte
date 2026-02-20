@@ -8,7 +8,7 @@
   import { SaveListConfig } from "../../wailsjs/go/main/App";
   import {
     getDisplayTitle, getCountDisplay, isOverLimit,
-    formatListName, autoFocus, clickOutside,
+    formatListName, autoFocus, clickOutside, getListConfig,
   } from "../lib/utils";
   import {
     hideDefaultDragGhost, handleDragEnter, handleHeaderDragOver, handleDrop,
@@ -83,7 +83,7 @@
   // Saves the edited title via backend and updates the config store.
   async function saveTitle(): Promise<void> {
     editingTitle = false;
-    const cfg = $boardConfig[listKey] || { title: "", limit: 0, locked: false, color: "", icon: "" };
+    const cfg = getListConfig(listKey, $boardConfig);
     const newTitle = editTitleValue.trim();
     const formatted = formatListName(listKey);
 
@@ -116,7 +116,7 @@
   // Saves the edited limit via backend and updates the config store.
   async function saveLimit(): Promise<void> {
     editingLimit = false;
-    const cfg = $boardConfig[listKey] || { title: "", limit: 0, locked: false, color: "", icon: "" };
+    const cfg = getListConfig(listKey, $boardConfig);
     const newLimit = Math.max(0, Math.floor(editLimitValue));
 
     try {

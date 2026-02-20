@@ -18,6 +18,23 @@
 
   let formatPreview = $derived(name.trim() ? formatListName(name.trim()) : "Auto-generated from name");
 
+  let nameError = $derived.by(() => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      return "";
+    }
+    if (/[/\\]/.test(trimmed) || trimmed.includes("..")) {
+      return "Name cannot contain slashes or '..'";
+    }
+    if (trimmed.startsWith(".")) {
+      return "Name cannot start with '.'";
+    }
+    if (trimmed === "_assets") {
+      return "Name '_assets' is reserved";
+    }
+    return "";
+  });
+
   async function submit(): Promise<void> {
     const trimmed = name.trim();
     if (!trimmed) {
@@ -82,6 +99,9 @@
           use:autoFocus
         />
         <span class="form-hint">Directory name. Use lowercase with dashes.</span>
+        {#if nameError}
+          <div class="form-error">{nameError}</div>
+        {/if}
       </div>
 
       <div class="form-row">
@@ -118,7 +138,7 @@
 
       <div class="form-actions">
         <button class="cancel-btn" onclick={onclose}>Cancel</button>
-        <button class="create-btn" onclick={submit} disabled={submitting || !name.trim()}>
+        <button class="create-btn" onclick={submit} disabled={!!nameError || submitting || !name.trim()}>
           {submitting ? "Creating..." : "Create"}
         </button>
       </div>
@@ -225,6 +245,12 @@
       opacity: 0.5;
       cursor: not-allowed;
     }
+  }
+
+  .form-error {
+    color: var(--danger);
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
   }
 
 </style>

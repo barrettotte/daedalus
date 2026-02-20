@@ -20,12 +20,12 @@
     checklist: daedalus.CheckListItem[];
     title?: string;
     ontoggle: (idx: number) => void;
-    onadd?: (desc: string) => void;
-    onremove?: (idx: number) => void;
-    onedit?: (idx: number, desc: string) => void;
+    onadd: (desc: string) => void;
+    onremove: (idx: number) => void;
+    onedit: (idx: number, desc: string) => void;
     ontitlechange?: (title: string) => void;
-    onreorder?: (fromIdx: number, toIdx: number) => void;
-    ondelete?: () => void;
+    onreorder: (fromIdx: number, toIdx: number) => void;
+    ondelete: () => void;
   } = $props();
 
   // Number of completed checklist items.
@@ -86,7 +86,7 @@
     const dest = toIdx >= checklist.length ? checklist.length - 1 : toIdx;
 
     if (dragFromIdx >= 0 && dragFromIdx !== dest) {
-      onreorder?.(dragFromIdx, dest);
+      onreorder(dragFromIdx, dest);
     }
     dragFromIdx = -1;
     dragOverIdx = -1;
@@ -133,7 +133,7 @@
     if (!val || val === checklist[idx]?.desc) {
       return;
     }
-    onedit?.(idx, val);
+    onedit(idx, val);
   }
 
   // Index of the item showing a "copied" checkmark (-1 means none).
@@ -154,7 +154,7 @@
     if (!desc) {
       return;
     }
-    onadd?.(desc);
+    onadd(desc);
     newItemDesc = "";
   }
 </script>
@@ -178,7 +178,7 @@
         <Icon name="pencil" size={12} />
       </button>
     {/if}
-    <button class="cl-action remove" title="Delete checklist" onclick={() => ondelete?.()}>
+    <button class="cl-action remove" title="Delete checklist" onclick={() => ondelete()}>
       <Icon name="trash" size={12} />
     </button>
   </div>
@@ -243,7 +243,7 @@
               >
                 <Icon name={copiedIdx === idx ? "check" : "copy"} size={10} />
               </button>
-              <button class="cl-action remove" title="Remove item" onclick={() => onremove?.(idx)}>
+              <button class="cl-action remove" title="Remove item" onclick={() => onremove(idx)}>
                 <Icon name="trash" size={10} />
               </button>
             </li>

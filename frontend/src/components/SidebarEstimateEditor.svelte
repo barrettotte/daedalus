@@ -42,7 +42,7 @@
       {#if editingEstimate}
         <span class="sidebar-inline-detail">
           <span class="sidebar-inline-sep">-</span>
-          <input class="form-input estimate-input" type="number" step="0.5" min="0"
+          <input class="form-input estimate-input" type="number" step="0.5" min="0" placeholder="hours"
             bind:this={estimateInputEl}
             bind:value={estimateInput} onblur={blurEstimate} onkeydown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} use:autoFocus/>
         </span>

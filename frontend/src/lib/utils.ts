@@ -1,6 +1,7 @@
 // Shared utilities: date formatting, label colors, display helpers, and Svelte actions.
 
 import type { ActionReturn } from "svelte/action";
+import { marked } from "marked";
 import type { BoardLists, BoardConfigMap } from "../stores/board";
 import { addToast } from "../stores/board";
 
@@ -83,6 +84,20 @@ export function getCountDisplay(listKey: string, lists: BoardLists, config: Boar
     return `${count}/${cfg.limit}`;
   }
   return `${count}`;
+}
+
+// Returns the config for a list, with defaults for missing fields.
+export function getListConfig(
+  listKey: string, config: BoardConfigMap,
+): { title: string; limit: number; locked: boolean; color: string; icon: string } {
+  const cfg = config[listKey];
+  return {
+    title: cfg?.title || "",
+    limit: cfg?.limit || 0,
+    locked: cfg?.locked || false,
+    color: cfg?.color || "",
+    icon: cfg?.icon || "",
+  };
 }
 
 // Returns true when the card count exceeds the configured limit.
@@ -238,16 +253,33 @@ export function wordCount(text: string): number {
 // Replaces wiki-link placeholders with "#id - title" using current board data.
 // Expects HTML containing <a class="wiki-link" data-card-id="N">#N</a> from the marked extension.
 export function resolveWikiLinks(html: string, boardLists: Record<string, { metadata: { id: number; title: string } }[]>): string {
-  return html.replace(/(<a[^>]*class="wiki-link"[^>]*data-card-id=")(\d+)("[^>]*>)#\d+(<\/a>)/g, (_match, pre, id, mid, post) => {
-    const cardId = Number(id);
+  // Build a quick id -> title map for O(1) lookups.
+  const titleMap = new Map<number, string>();
+  for (const cards of Object.values(boardLists)) {
+    for (const card of cards) {
+      titleMap.set(card.metadata.id, card.metadata.title);
+    }
+  }
 
-    for (const cards of Object.values(boardLists)) {
-      const card = cards.find(c => c.metadata.id === cardId);
-      if (card) {
-        const escaped = card.metadata.title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return html.replace(
+    /(<a[^>]*class="wiki-link"[^>]*data-card-id=")(\d+)("[^>]*>)#\d+(<\/a>)/g,
+    (_match, pre, id, mid, post) => {
+      const cardId = Number(id);
+      const title = titleMap.get(cardId);
+      if (title) {
+        const escaped = title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         return `${pre}${id}${mid}#${cardId} - ${escaped}${post}`;
       }
-    }
-    return `${pre}${id}${mid}#${cardId}${post}`;
-  });
+      return `${pre}${id}${mid}#${cardId}${post}`;
+    },
+  );
+}
+
+// Safely parses markdown to HTML, returning an error message on failure.
+export function safeMarkdownParse(markdown: string): string {
+  try {
+    return marked.parse(markdown, { async: false }) as string;
+  } catch {
+    return '<p class="parse-error">Failed to render markdown</p>';
+  }
 }

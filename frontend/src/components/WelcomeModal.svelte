@@ -5,6 +5,7 @@
   import {
     GetAppConfig, SetDefaultBoard, RemoveRecentBoard, OpenDirectoryDialog, LoadBoard,
   } from "../../wailsjs/go/main/App";
+  import { main } from "../../wailsjs/go/models";
   import { backdropClose } from "../lib/utils";
   import Icon from "./Icon.svelte";
   import appIcon from "../assets/images/daedalus.svg";
@@ -16,7 +17,7 @@
   }: {
     isOverlay?: boolean;
     onclose?: () => void;
-    onboard: (response: any) => void;
+    onboard: (response: main.BoardResponse) => void;
   } = $props();
 
   let recentBoards: Array<{ path: string; title: string; lastOpened: string }> = $state([]);

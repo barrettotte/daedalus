@@ -15,7 +15,7 @@
     selectedCard, draftListKey, draftPosition,
     labelsExpanded, minimalView, labelColors, templates, dragState, dropTarget, focusedCard, openInEditMode,
     addToast, saveWithToast, isAtLimit, isLocked, listOrder, loadProfile, toggleMinimalView,
-    searchQuery, filteredBoardData,
+    searchQuery, filteredBoardData, maxCardId,
   } from "./stores/board";
   import type { daedalus } from "../wailsjs/go/models";
   import { main } from "../wailsjs/go/models";
@@ -56,16 +56,19 @@
   let lockedLists = $state(new SvelteSet<string>());
   let pinnedLeftLists = $state(new SvelteSet<string>());
   let pinnedRightLists = $state(new SvelteSet<string>());
-  let showKeyboardHelp = $state(false);
-  let showAbout = $state(false);
-  let showLabelEditor = $state(false);
-  let showIconManager = $state(false);
-  let showTemplateManager = $state(false);
-  let showBoardStats = $state(false);
-  let showScratchpad = $state(false);
+  type ActiveModal = null | 'keyboardHelp' | 'about' | 'labelEditor' | 'iconManager'
+    | 'templateManager' | 'boardStats' | 'scratchpad' | 'newList' | 'welcome';
+  let activeModal: ActiveModal = $state(null);
+  let showKeyboardHelp = $derived(activeModal === 'keyboardHelp');
+  let showAbout = $derived(activeModal === 'about');
+  let showLabelEditor = $derived(activeModal === 'labelEditor');
+  let showIconManager = $derived(activeModal === 'iconManager');
+  let showTemplateManager = $derived(activeModal === 'templateManager');
+  let showBoardStats = $derived(activeModal === 'boardStats');
+  let showScratchpad = $derived(activeModal === 'scratchpad');
+  let showNewList = $derived(activeModal === 'newList');
+  let showWelcome = $derived(activeModal === 'welcome');
   let showYearProgress = $state(false);
-  let showNewList = $state(false);
-  let showWelcome = $state(false);
   let darkMode = $state(true);
   let zoomLevel = $state(1.0);
 
@@ -302,6 +305,16 @@
     boardData.set(response.lists);
     boardPath.set(response.boardPath || "");
 
+    let maxId = 0;
+    for (const cards of Object.values(response.lists)) {
+      for (const card of cards) {
+        if (card.metadata.id > maxId) {
+          maxId = card.metadata.id;
+        }
+      }
+    }
+    maxCardId.set(maxId);
+
     if (response.boardPath) {
       WindowSetTitle(`Daedalus - ${response.boardPath}`);
     }
@@ -346,16 +359,16 @@
       if (cfg.defaultBoard) {
         await initBoard(cfg.defaultBoard);
       } else {
-        showWelcome = true;
+        activeModal = 'welcome';
       }
     } catch (e) {
-      showWelcome = true;
+      activeModal = 'welcome';
     }
   }
 
   // Handles a board being selected from the welcome modal.
   function handleWelcomeBoard(response: main.BoardResponse): void {
-    showWelcome = false;
+    activeModal = null;
     unpackBoardResponse(response);
   }
 
@@ -390,19 +403,23 @@
     }
   }
 
-  // Zoom functions -- clamp between 0.5 and 1.5, step by 0.1.
+  const ZOOM_MIN = 0.5;
+  const ZOOM_MAX = 1.5;
+  const ZOOM_STEP = 0.1;
+  const ZOOM_DEFAULT = 1.0;
+
   function zoomIn(): void {
-    zoomLevel = Math.min(1.5, Math.round((zoomLevel + 0.1) * 10) / 10);
+    zoomLevel = Math.min(ZOOM_MAX, Math.round((zoomLevel + ZOOM_STEP) * 10) / 10);
     saveWithToast(SaveZoom(zoomLevel), "save zoom level");
   }
 
   function zoomOut(): void {
-    zoomLevel = Math.max(0.5, Math.round((zoomLevel - 0.1) * 10) / 10);
+    zoomLevel = Math.max(ZOOM_MIN, Math.round((zoomLevel - ZOOM_STEP) * 10) / 10);
     saveWithToast(SaveZoom(zoomLevel), "save zoom level");
   }
 
   function zoomReset(): void {
-    zoomLevel = 1.0;
+    zoomLevel = ZOOM_DEFAULT;
     saveWithToast(SaveZoom(zoomLevel), "save zoom level");
   }
 
@@ -420,9 +437,9 @@
       collapsedLists,
       halfCollapsedLists,
     }, {
-      setShowAbout: v => { showAbout = v; },
-      setShowLabelEditor: v => { showLabelEditor = v; },
-      setShowKeyboardHelp: v => { showKeyboardHelp = v; },
+      setShowAbout: v => { activeModal = v ? 'about' : null; },
+      setShowLabelEditor: v => { activeModal = v ? 'labelEditor' : null; },
+      setShowKeyboardHelp: v => { activeModal = v ? 'keyboardHelp' : null; },
       setFocusedCard: v => focusedCard.set(v),
       openCard: card => selectedCard.set(card),
       openCardEdit: card => { openInEditMode.set(true); selectedCard.set(card); },
@@ -434,7 +451,7 @@
       zoomOut,
       zoomReset,
       scrollListIntoView,
-      openWelcome: () => { showWelcome = true; },
+      openWelcome: () => { activeModal = 'welcome'; },
     });
   }
 
@@ -503,6 +520,33 @@
     }
   }
 
+  // Builds the common ListHeader prop object for a given list key.
+  function listHeaderProps(listKey: string) {
+    return {
+      listKey,
+      locked: lockedLists.has(listKey),
+      color: $boardConfig[listKey]?.color || '',
+      icon: $boardConfig[listKey]?.icon || '',
+      pinState: getPinState(listKey),
+      hasLeftPin: pinnedLeftLists.size > 0,
+      hasRightPin: pinnedRightLists.size > 0,
+      isLastList: listKey === visualKeys[visualKeys.length - 1],
+      oncreatecard: () => createCard(listKey),
+      onfullcollapse: () => toggleFullCollapse(listKey),
+      onhalfcollapse: () => toggleHalfCollapse(listKey),
+      onlock: () => toggleLock(listKey),
+      onpinleft: () => pinList(listKey, "left"),
+      onpinright: () => pinList(listKey, "right"),
+      onunpin: () => unpinList(listKey),
+      onreload: initBoard,
+      onlistdragstart: () => startListDrag(listKey, !!getPinState(listKey)),
+      onlistdragend: endListDrag,
+      onmoveallcards: (target: string) => moveAllCards(listKey, target),
+      ondeleteallcards: () => deleteAllCards(listKey),
+      ondelete: () => deleteList(listKey),
+    };
+  }
+
   onMount(() => {
     document.addEventListener("dragover", handleGlobalDragOver, true);
     startApp();
@@ -535,10 +579,10 @@
 }} />
 
 <main>
-  <TopBar bind:searchOpen bind:showYearProgress bind:darkMode bind:showNewList bind:showWelcome
-    bind:showLabelEditor bind:showIconManager bind:showTemplateManager bind:showScratchpad bind:showBoardStats bind:showKeyboardHelp bind:showAbout
+  <TopBar bind:searchOpen bind:showYearProgress bind:darkMode
     {zoomLevel} onzoomin={zoomIn} onzoomout={zoomOut} onzoomreset={zoomReset}
     oncreatecard={createCardDefault}
+    onopenmodal={(name) => { activeModal = name as ActiveModal; }}
   />
 
   {#snippet renderList(listKey: string)}
@@ -572,27 +616,7 @@
         class:pinned-right={getPinState(listKey) === 'right'}
         class:list-dragging={$listDragging === listKey}
       >
-        <ListHeader {listKey} locked={lockedLists.has(listKey)}
-          color={$boardConfig[listKey]?.color || ''}
-          icon={$boardConfig[listKey]?.icon || ''}
-          pinState={getPinState(listKey)}
-          hasLeftPin={pinnedLeftLists.size > 0}
-          hasRightPin={pinnedRightLists.size > 0}
-          isLastList={listKey === visualKeys[visualKeys.length - 1]}
-          oncreatecard={() => createCard(listKey)}
-          onfullcollapse={() => toggleFullCollapse(listKey)}
-          onhalfcollapse={() => toggleHalfCollapse(listKey)}
-          onlock={() => toggleLock(listKey)}
-          onpinleft={() => pinList(listKey, "left")}
-          onpinright={() => pinList(listKey, "right")}
-          onunpin={() => unpinList(listKey)}
-          onreload={initBoard}
-          onlistdragstart={() => startListDrag(listKey, !!getPinState(listKey))}
-          onlistdragend={endListDrag}
-          onmoveallcards={(target) => moveAllCards(listKey, target)}
-          ondeleteallcards={() => deleteAllCards(listKey)}
-          ondelete={() => deleteList(listKey)}
-        />
+        <ListHeader {...listHeaderProps(listKey)} />
         <div class="list-body half-collapsed-body" role="list">
           <VirtualList items={visibleItems} component={Card} estimatedHeight={$minimalView ? 28 : 90} listKey={listKey}
             focusIndex={$focusedCard?.listKey === listKey ? $focusedCard.cardIndex : -1}
@@ -617,27 +641,7 @@
         class:list-locked={$dragState && locked}
         class:list-dragging={$listDragging === listKey}
       >
-        <ListHeader {listKey} {locked}
-          color={$boardConfig[listKey]?.color || ''}
-          icon={$boardConfig[listKey]?.icon || ''}
-          pinState={getPinState(listKey)}
-          hasLeftPin={pinnedLeftLists.size > 0}
-          hasRightPin={pinnedRightLists.size > 0}
-          isLastList={listKey === visualKeys[visualKeys.length - 1]}
-          oncreatecard={() => createCard(listKey)}
-          onfullcollapse={() => toggleFullCollapse(listKey)}
-          onhalfcollapse={() => toggleHalfCollapse(listKey)}
-          onlock={() => toggleLock(listKey)}
-          onpinleft={() => pinList(listKey, "left")}
-          onpinright={() => pinList(listKey, "right")}
-          onunpin={() => unpinList(listKey)}
-          onreload={initBoard}
-          onlistdragstart={() => startListDrag(listKey, !!getPinState(listKey))}
-          onlistdragend={endListDrag}
-          onmoveallcards={(target) => moveAllCards(listKey, target)}
-          ondeleteallcards={() => deleteAllCards(listKey)}
-          ondelete={() => deleteList(listKey)}
-        />
+        <ListHeader {...listHeaderProps(listKey)} />
         <div class="list-body" role="list"
           ondragenter={handleDragEnter}
           ondragover={(e) => handleDragOver(e, listKey)}
@@ -704,31 +708,31 @@
   <CardContextMenu />
 
   {#if showKeyboardHelp}
-    <KeyboardHelp onclose={() => showKeyboardHelp = false} />
+    <KeyboardHelp onclose={() => activeModal = null} />
   {/if}
   {#if showAbout}
-    <About onclose={() => showAbout = false} />
+    <About onclose={() => activeModal = null} />
   {/if}
   {#if showLabelEditor}
-    <LabelColorEditor onclose={() => showLabelEditor = false} onreload={initBoard} />
+    <LabelColorEditor onclose={() => activeModal = null} onreload={initBoard} />
   {/if}
   {#if showIconManager}
-    <IconManager onclose={() => showIconManager = false} onreload={initBoard} />
+    <IconManager onclose={() => activeModal = null} onreload={initBoard} />
   {/if}
   {#if showTemplateManager}
-    <TemplateManager onclose={() => showTemplateManager = false} />
+    <TemplateManager onclose={() => activeModal = null} />
   {/if}
   {#if showBoardStats}
-    <BoardStats onclose={() => showBoardStats = false} />
+    <BoardStats onclose={() => activeModal = null} />
   {/if}
   {#if showScratchpad}
-    <Scratchpad onclose={() => showScratchpad = false} />
+    <Scratchpad onclose={() => activeModal = null} />
   {/if}
   {#if showNewList}
-    <NewListModal onclose={() => showNewList = false} onreload={initBoard} />
+    <NewListModal onclose={() => activeModal = null} onreload={initBoard} />
   {/if}
   {#if showWelcome}
-    <WelcomeModal isOverlay={$isLoaded} onclose={() => { showWelcome = false; }} onboard={handleWelcomeBoard} />
+    <WelcomeModal isOverlay={$isLoaded} onclose={() => activeModal = null} onboard={handleWelcomeBoard} />
   {/if}
 
 </main>

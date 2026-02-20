@@ -5,7 +5,7 @@
   import { addToast, boardPath, boardData, boardConfig, saveWithToast } from "../stores/board";
   import { getIconNames, saveCustomIcon, deleteIcon } from "../lib/icons";
   import { OpenFileExternal, SaveListConfig } from "../../wailsjs/go/main/App";
-  import { backdropClose } from "../lib/utils";
+  import { backdropClose, joinPath } from "../lib/utils";
   import Icon from "./Icon.svelte";
   import CardIcon from "./CardIcon.svelte";
 
@@ -109,7 +109,7 @@
   }
 
   function openInExplorer(): void {
-    saveWithToast(OpenFileExternal($boardPath + "/_assets/icons"), "open icons folder");
+    saveWithToast(OpenFileExternal(joinPath($boardPath, "_assets", "icons")), "open icons folder");
   }
 
   function readFileAsDataURL(file: File): Promise<string> {

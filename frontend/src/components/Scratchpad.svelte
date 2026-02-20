@@ -3,7 +3,7 @@
 
   import { onMount } from "svelte";
   import { GetScratchpad, SaveScratchpad, OpenFileExternal } from "../../wailsjs/go/main/App";
-  import { backdropClose, wordCount, resolveWikiLinks, safeMarkdownParse } from "../lib/utils";
+  import { backdropClose, wordCount, resolveWikiLinks, safeMarkdownParse, joinPath } from "../lib/utils";
   import { addToast, saveWithToast, boardPath, boardData, selectedCard, findCardById } from "../stores/board";
   import Icon from "./Icon.svelte";
 
@@ -72,7 +72,7 @@
   }
 
   function openExternal(): void {
-    saveWithToast(OpenFileExternal($boardPath + "/scratchpad.md"), "open file");
+    saveWithToast(OpenFileExternal(joinPath($boardPath, "scratchpad.md")), "open file");
   }
 
   function handleKeydown(e: KeyboardEvent): void {

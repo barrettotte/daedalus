@@ -94,7 +94,7 @@
 
   // Extracts the directory name from a full path for display.
   function dirName(path: string): string {
-    const parts = path.replace(/\/+$/, "").split("/");
+    const parts = path.replace(/[/\\]+$/, "").split(/[/\\]/);
     return parts[parts.length - 1] || path;
   }
 

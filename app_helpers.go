@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -47,7 +48,15 @@ func (a *App) validatePath(filePath string) (string, error) {
 		slog.Error("board root path resolution failed", "root", a.board.RootPath, "error", err)
 		return "", fmt.Errorf("invalid root path")
 	}
-	if !strings.HasPrefix(absPath, absRoot+string(filepath.Separator)) {
+	prefix := absRoot + string(filepath.Separator)
+	// Windows and macOS use case-insensitive filesystems.
+	hasPrefix := false
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+		hasPrefix = strings.HasPrefix(strings.ToLower(absPath), strings.ToLower(prefix))
+	} else {
+		hasPrefix = strings.HasPrefix(absPath, prefix)
+	}
+	if !hasPrefix {
 		slog.Warn("path traversal rejected", "path", absPath, "root", absRoot)
 		return "", fmt.Errorf("path outside board directory")
 	}

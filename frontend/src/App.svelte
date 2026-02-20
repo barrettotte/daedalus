@@ -180,7 +180,7 @@
 
   // Deletes a list after confirmation, clearing any related selection state.
   async function deleteList(listKey: string): Promise<void> {
-    if ($selectedCard?.filePath.includes('/' + listKey + '/')) {
+    if ($selectedCard?.filePath.includes(listKey) && new RegExp('[/\\\\]' + listKey + '[/\\\\]').test($selectedCard.filePath)) {
       selectedCard.set(null);
     }
     if ($focusedCard?.listKey === listKey) {
@@ -763,14 +763,14 @@
     flex: 1;
     display: flex;
     overflow-x: auto;
-    padding: 10px 0;
+    padding: 24px 0;
     gap: 10px;
 
     &::before,
     &::after {
       content: '';
       flex-shrink: 0;
-      width: 10px;
+      width: 14px;
     }
   }
 

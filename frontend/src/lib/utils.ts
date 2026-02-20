@@ -283,3 +283,10 @@ export function safeMarkdownParse(markdown: string): string {
     return '<p class="parse-error">Failed to render markdown</p>';
   }
 }
+
+// Joins path segments using the separator detected from the first segment.
+// Handles both Unix (/) and Windows (\) paths.
+export function joinPath(...parts: string[]): string {
+  const sep = parts[0]?.includes("\\") ? "\\" : "/";
+  return parts.join(sep);
+}

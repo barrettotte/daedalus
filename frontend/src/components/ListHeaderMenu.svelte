@@ -6,7 +6,7 @@
     isLocked, listOrder, sortedListKeys,
   } from "../stores/board";
   import { SaveListConfig, OpenFileExternal, SaveListOrder } from "../../wailsjs/go/main/App";
-  import { getDisplayTitle, autoFocus, getListConfig } from "../lib/utils";
+  import { getDisplayTitle, autoFocus, getListConfig, joinPath } from "../lib/utils";
   import Icon from "./Icon.svelte";
   import CardIcon from "./CardIcon.svelte";
   import ColorPicker from "./ColorPicker.svelte";
@@ -119,7 +119,7 @@
 
   // Opens the list's directory in the system file explorer.
   function openInExplorer(): void {
-    saveWithToast(OpenFileExternal($boardPath + "/" + listKey), "open folder");
+    saveWithToast(OpenFileExternal(joinPath($boardPath, listKey)), "open folder");
   }
 
   // Shows the move-to-position input, pre-filled with the current 1-indexed position.

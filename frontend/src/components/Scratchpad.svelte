@@ -150,11 +150,6 @@
     min-height: 400px;
   }
 
-  .loading-text {
-    color: var(--color-text-muted);
-    font-size: 0.85rem;
-  }
-
   .empty-desc {
     font-size: 0.85rem;
     font-style: italic;

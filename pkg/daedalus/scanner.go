@@ -179,7 +179,8 @@ func parseFileHeader(path string) (CardMetadata, string, error) {
 	var bodyPreviewBuf bytes.Buffer
 	bodyLines := 0
 
-	scanCardFile(bufio.NewScanner(file),
+	s := bufio.NewScanner(file)
+	scanCardFile(s,
 		func(line string) bool {
 			frontmatterBuf.WriteString(line + "\n")
 			return true
@@ -195,6 +196,10 @@ func parseFileHeader(path string) (CardMetadata, string, error) {
 			return true
 		},
 	)
+
+	if err := s.Err(); err != nil {
+		return CardMetadata{}, "", fmt.Errorf("reading card file: %w", err)
+	}
 
 	var meta CardMetadata
 	if frontmatterBuf.Len() > 0 {
@@ -219,10 +224,15 @@ func readRawFrontmatter(path string) (map[string]any, error) {
 	defer file.Close()
 
 	var buf bytes.Buffer
-	scanCardFile(bufio.NewScanner(file), func(line string) bool {
+	s := bufio.NewScanner(file)
+	scanCardFile(s, func(line string) bool {
 		buf.WriteString(line + "\n")
 		return true
 	}, nil)
+
+	if err := s.Err(); err != nil {
+		return nil, fmt.Errorf("reading frontmatter: %w", err)
+	}
 
 	if buf.Len() == 0 {
 		return nil, nil
@@ -348,7 +358,7 @@ func WriteCardFile(path string, meta CardMetadata, body string) error {
 
 	finalYaml, err := marshalOrderedYAML(merged)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshaling ordered YAML: %w", err)
 	}
 
 	var buf bytes.Buffer

@@ -3,8 +3,7 @@
 
   import { formatISOWithOffset } from "../lib/utils";
   import {
-    parseISO, daysInMonth, firstDayOfMonth, buildCalendarGrid,
-    dayToString, formatTzLabel, tzOffsets,
+    parseISO, buildCalendarGrid, dayToString, formatTzLabel, tzOffsets,
   } from "../lib/calendar";
 
   let { value = "", onselect, inline = false }: {

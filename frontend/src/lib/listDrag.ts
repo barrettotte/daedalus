@@ -55,7 +55,6 @@ export function computeListDragOver(e: DragEvent, container: HTMLElement, scroll
     return;
   }
 
-  const keys = scrollableKeys;
   const columns = container.querySelectorAll(".list-column:not(.pinned-left):not(.pinned-right)");
   if (columns.length === 0) {
     return;
@@ -64,7 +63,7 @@ export function computeListDragOver(e: DragEvent, container: HTMLElement, scroll
   // Find the insertion edge closest to the cursor.
   // Bias thresholds at edges so first/last positions are easier to hit:
   // first column splits at 2/3, last at 1/3, interior at 1/2.
-  let targetKey = keys[0];
+  let targetKey = scrollableKeys[0];
   let side: "left" | "right" = "left";
   const last = columns.length - 1;
 
@@ -74,13 +73,13 @@ export function computeListDragOver(e: DragEvent, container: HTMLElement, scroll
     const splitX = rect.left + rect.width * bias;
 
     if (e.clientX < splitX) {
-      targetKey = keys[i];
+      targetKey = scrollableKeys[i];
       side = "left";
       break;
     }
 
     // Past this column's split point -- tentatively place after it
-    targetKey = keys[i];
+    targetKey = scrollableKeys[i];
     side = "right";
   }
 
@@ -88,7 +87,7 @@ export function computeListDragOver(e: DragEvent, container: HTMLElement, scroll
   listDropSide.set(side);
 
   // Position the visual drop line at the chosen edge
-  const idx = keys.indexOf(targetKey);
+  const idx = scrollableKeys.indexOf(targetKey);
   const col = columns[idx] as HTMLElement;
   const rect = col.getBoundingClientRect();
 

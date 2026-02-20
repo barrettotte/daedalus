@@ -647,12 +647,6 @@
     margin-bottom: 20px;
   }
 
-  /* Markdown body */
-  .loading-text {
-    color: var(--color-text-muted);
-    font-size: 0.85rem;
-  }
-
   /* Delete confirmation */
   .delete-icon:hover {
     color: var(--color-error);

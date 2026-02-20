@@ -54,15 +54,8 @@
   }
 
   // Opens the native directory picker and loads the selected board.
-  async function handleOpenBoard(): Promise<void> {
-    const path = await OpenDirectoryDialog();
-    if (path) {
-      await openBoard(path);
-    }
-  }
-
-  // Opens a directory picker for creating a new board (same as open -- empty dirs get initialized).
-  async function handleCreateBoard(): Promise<void> {
+  // Used for both "Open" and "Create" -- empty dirs get initialized automatically.
+  async function handlePickBoard(): Promise<void> {
     const path = await OpenDirectoryDialog();
     if (path) {
       await openBoard(path);
@@ -159,11 +152,11 @@
       </div>
     {/if}
     <div class="welcome-actions">
-      <button class="welcome-btn" onclick={handleOpenBoard} disabled={loading}>
+      <button class="welcome-btn" onclick={handlePickBoard} disabled={loading}>
         <Icon name="folder" size={16} />
         Open Board
       </button>
-      <button class="welcome-btn" onclick={handleCreateBoard} disabled={loading}>
+      <button class="welcome-btn" onclick={handlePickBoard} disabled={loading}>
         <Icon name="plus" size={16} />
         Create Board
       </button>

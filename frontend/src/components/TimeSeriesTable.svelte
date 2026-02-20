@@ -111,7 +111,7 @@
               {formatDelta(deltas[i])}
             </td>
             <td class="td-actions">
-              <button class="cl-action remove" title="Remove entry" onclick={() => onremove?.(i)}>
+              <button class="row-action remove" title="Remove entry" onclick={() => onremove?.(i)}>
                 <Icon name="trash" size={10} />
               </button>
             </td>
@@ -204,23 +204,7 @@
     box-sizing: border-box;
   }
 
-  .cl-action {
-    all: unset;
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    padding: 2px;
-    border-radius: 3px;
-    opacity: 0;
-
-    &.remove:hover {
-      color: var(--color-error);
-    }
-  }
-
-  tr:hover .cl-action {
+  tr:hover :global(.row-action) {
     opacity: 1;
   }
 </style>

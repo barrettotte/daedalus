@@ -248,7 +248,7 @@
   }
 
   .form-error {
-    color: var(--danger);
+    color: var(--color-error);
     font-size: 0.8rem;
     margin-top: 0.25rem;
   }

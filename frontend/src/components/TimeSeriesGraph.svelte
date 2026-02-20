@@ -13,15 +13,21 @@
   const plotW = W - PAD.left - PAD.right;
   const plotH = H - PAD.top - PAD.bottom;
 
+  // Shared min/max computation for points and yTicks.
+  let valueRange = $derived.by(() => {
+    if (entries.length === 0) {
+      return { minV: 0, maxV: 0 };
+    }
+    const vals = entries.map(e => e.v);
+    return { minV: Math.min(...vals), maxV: Math.max(...vals) };
+  });
+
   // Compute plot points from entries.
   let points = $derived.by(() => {
     if (entries.length === 0) {
       return [];
     }
-
-    const vals = entries.map(e => e.v);
-    const minV = Math.min(...vals);
-    const maxV = Math.max(...vals);
+    const { minV, maxV } = valueRange;
     const rangeV = maxV - minV || 1;
 
     return entries.map((e, i) => {
@@ -36,10 +42,8 @@
     if (entries.length === 0) {
       return [];
     }
-    const vals = entries.map(e => e.v);
-    const minV = Math.min(...vals);
-    const maxV = Math.max(...vals);
-  
+    const { minV, maxV } = valueRange;
+
     if (minV === maxV) {
       return [{ label: String(minV), y: PAD.top + plotH / 2 }];
     }

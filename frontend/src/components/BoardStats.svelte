@@ -2,7 +2,7 @@
   // Modal showing board statistics bar charts.
 
   import { boardData, boardConfig, labelColors, listOrder } from "../stores/board";
-  import { backdropClose } from "../lib/utils";
+  import { backdropClose, getDisplayTitle } from "../lib/utils";
   import Icon from "./Icon.svelte";
 
   let { onclose }: { onclose: () => void } = $props();
@@ -19,7 +19,7 @@
       if (count > maxCount) {
         maxCount = count;
       }
-      const title = $boardConfig[key]?.title || key;
+      const title = getDisplayTitle(key, $boardConfig);
       stats.push({ name: title, count, pct: 0, tipPct: "" });
     }
 

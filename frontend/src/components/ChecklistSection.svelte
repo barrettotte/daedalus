@@ -162,7 +162,7 @@
 <div class="cl-wrapper">
   <div class="cl-header-row">
     <button class="cl-header" title="Toggle checklist" onclick={() => expanded = !expanded}>
-      <span class="chevron" class:collapsed={!expanded}>
+      <span class="section-chevron" class:collapsed={!expanded}>
         <Icon name="chevron-down" size={12} />
       </span>
       {#if editingTitle}
@@ -174,11 +174,11 @@
       {/if}
     </button>
     {#if !editingTitle}
-      <button class="cl-action" title="Rename checklist" onclick={() => { editTitleValue = title || "Checklist"; editingTitle = true; }}>
+      <button class="row-action" title="Rename checklist" onclick={() => { editTitleValue = title || "Checklist"; editingTitle = true; }}>
         <Icon name="pencil" size={12} />
       </button>
     {/if}
-    <button class="cl-action remove" title="Delete checklist" onclick={() => ondelete()}>
+    <button class="row-action remove" title="Delete checklist" onclick={() => ondelete()}>
       <Icon name="trash" size={12} />
     </button>
   </div>
@@ -234,16 +234,16 @@
                   {/if}
                 </span>
               {/if}
-              <button class="cl-action" title="Edit item" onclick={() => startEditItem(idx, item.desc)}>
+              <button class="row-action" title="Edit item" onclick={() => startEditItem(idx, item.desc)}>
                 <Icon name="pencil" size={10} />
               </button>
-              <button class="cl-action" class:copied={copiedIdx === idx}
+              <button class="row-action" class:copied={copiedIdx === idx}
                 title={copiedIdx === idx ? "Copied!" : "Copy to clipboard"}
                 onclick={() => copyItem(idx, item.desc)}
               >
                 <Icon name={copiedIdx === idx ? "check" : "copy"} size={10} />
               </button>
-              <button class="cl-action remove" title="Remove item" onclick={() => onremove(idx)}>
+              <button class="row-action remove" title="Remove item" onclick={() => onremove(idx)}>
                 <Icon name="trash" size={10} />
               </button>
             </li>
@@ -291,46 +291,9 @@
     box-sizing: border-box;
   }
 
-  .cl-action {
-    all: unset;
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    padding: 2px;
-    border-radius: 3px;
-    opacity: 0;
-
-    &:hover {
-      color: var(--color-text-primary);
-    }
-
-    &.remove:hover {
-      color: var(--color-error);
-    }
-
-    &.copied {
-      opacity: 1;
-      color: var(--color-success);
-    }
-  }
-
-  .cl-header-row:hover .cl-action,
-  .checklist li:hover .cl-action {
+  .cl-header-row:hover :global(.row-action),
+  .checklist li:hover :global(.row-action) {
     opacity: 1;
-  }
-
-  .chevron {
-    display: flex;
-    align-items: center;
-    color: var(--color-text-muted);
-    flex-shrink: 0;
-    transition: transform 0.15s;
-
-    &.collapsed {
-      transform: rotate(-90deg);
-    }
   }
 
   .cl-title {
@@ -532,18 +495,4 @@
     }
   }
 
-  .add-item-btn {
-    all: unset;
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    padding: 2px;
-    border-radius: 3px;
-
-    &:hover {
-      color: var(--color-accent);
-    }
-  }
 </style>

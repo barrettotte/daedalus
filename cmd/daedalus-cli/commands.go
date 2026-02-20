@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"daedalus/pkg/daedalus"
 )
@@ -234,10 +233,9 @@ func cmdListDelete(boardPath string, args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("usage: list-delete <name>")
 	}
-	name := args[0]
-
-	if strings.Contains(name, "/") || strings.Contains(name, "\\") || strings.Contains(name, "..") {
-		return fmt.Errorf("invalid list name")
+	name, err := daedalus.ValidateListName(args[0])
+	if err != nil {
+		return err
 	}
 
 	state, err := daedalus.ScanBoard(boardPath)

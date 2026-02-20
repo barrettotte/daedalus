@@ -44,26 +44,19 @@ export function handleBoardKeydown(e: KeyboardEvent, state: KeyboardState, actio
   const isTyping = tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement).isContentEditable;
 
   // Escape closes overlays first; all other keys ignored while they're open.
-  if (state.showAbout) {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      actions.setShowAbout(false);
+  const overlayGuards: [boolean, (v: boolean) => void][] = [
+    [state.showAbout, actions.setShowAbout],
+    [state.showLabelEditor, actions.setShowLabelEditor],
+    [state.showKeyboardHelp, actions.setShowKeyboardHelp],
+  ];
+  for (const [isOpen, setter] of overlayGuards) {
+    if (isOpen) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setter(false);
+      }
+      return;
     }
-    return;
-  }
-  if (state.showLabelEditor) {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      actions.setShowLabelEditor(false);
-    }
-    return;
-  }
-  if (state.showKeyboardHelp) {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      actions.setShowKeyboardHelp(false);
-    }
-    return;
   }
 
   // Skip all shortcuts when typing in inputs

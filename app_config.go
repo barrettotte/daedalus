@@ -215,7 +215,7 @@ func (a *App) SaveBoardTitle(title string) error {
 
 // SaveTemplates replaces the full templates array in board.yaml and persists.
 func (a *App) SaveTemplates(templates []daedalus.CardTemplate) error {
-	slog.Info("SaveTemplates called", "count", len(templates))
+	slog.Debug("SaveTemplates called", "count", len(templates))
 	for i, t := range templates {
 		slog.Debug("template received",
 			"index", i,
@@ -237,6 +237,6 @@ func (a *App) SaveTemplates(templates []daedalus.CardTemplate) error {
 		slog.Error("failed to save templates", "error", err)
 		return err
 	}
-	slog.Info("templates saved successfully", "count", len(templates))
+	slog.Debug("templates saved", "count", len(templates))
 	return nil
 }

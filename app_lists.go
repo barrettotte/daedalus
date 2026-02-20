@@ -4,7 +4,6 @@ import (
 	"daedalus/pkg/daedalus"
 	"fmt"
 	"log/slog"
-	"strings"
 )
 
 // CreateList creates a new empty list directory and adds it to the board config.
@@ -39,10 +38,15 @@ func (a *App) DeleteList(listDirName string) error {
 		return err
 	}
 
-	// Reject names with path separators or traversal
-	if strings.ContainsAny(listDirName, "/\\") || strings.Contains(listDirName, "..") {
-		slog.Warn("rejected invalid list name", "name", listDirName)
-		return fmt.Errorf("invalid list name")
+	// Validate list name.
+	listDirName, err := daedalus.ValidateListName(listDirName)
+	if err != nil {
+		return err
+	}
+
+	// Block if list is locked.
+	if daedalus.IsListLocked(a.board.Config, listDirName) {
+		return fmt.Errorf("list is locked")
 	}
 
 	// Verify list exists in memory
@@ -148,7 +152,7 @@ func (a *App) SaveLockedLists(locked []string) error {
 		slog.Error("failed to save locked lists", "error", err)
 		return err
 	}
-	slog.Info("locked lists saved", "count", len(locked))
+	slog.Debug("locked lists saved", "count", len(locked))
 	return nil
 }
 

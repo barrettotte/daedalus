@@ -79,7 +79,7 @@
 <div class="ts-wrapper">
   <div class="ts-header">
     <button class="ts-toggle" title="Toggle time series" onclick={() => expanded = !expanded}>
-      <span class="chevron" class:collapsed={!expanded}>
+      <span class="section-chevron" class:collapsed={!expanded}>
         <Icon name="chevron-down" size={12} />
       </span>
       {#if editingLabel}
@@ -93,17 +93,17 @@
         >{timeseries.label || "Time Series"}</span>
       {/if}
     </button>
-    <button class="ts-action ts-graph-btn" class:active={showGraph} title={showGraph ? "Show table" : "Show graph"}
+    <button class="row-action ts-graph-btn" class:active={showGraph} title={showGraph ? "Show table" : "Show graph"}
       onclick={() => { showGraph = !showGraph; }}
     >
       <Icon name="trending-up" size={14} />
     </button>
     {#if !editingLabel}
-      <button class="ts-action" title="Rename" onclick={startEditLabel}>
+      <button class="row-action" title="Rename" onclick={startEditLabel}>
         <Icon name="pencil" size={12} />
       </button>
     {/if}
-    <button class="ts-action remove" title="Delete time series" onclick={() => onsave(null)}>
+    <button class="row-action remove" title="Delete time series" onclick={() => onsave(null)}>
       <Icon name="trash" size={12} />
     </button>
   </div>
@@ -161,18 +161,6 @@
     box-sizing: border-box;
   }
 
-  .chevron {
-    display: flex;
-    align-items: center;
-    color: var(--color-text-muted);
-    flex-shrink: 0;
-    transition: transform 0.15s;
-
-    &.collapsed {
-      transform: rotate(-90deg);
-    }
-  }
-
   .ts-label {
     font-size: 0.9rem;
     font-weight: 600;
@@ -199,27 +187,7 @@
     box-sizing: border-box;
   }
 
-  .ts-action {
-    all: unset;
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    padding: 2px;
-    border-radius: 3px;
-    opacity: 0;
-
-    &:hover {
-      color: var(--color-text-primary);
-    }
-
-    &.remove:hover {
-      color: var(--color-error);
-    }
-  }
-
-  .ts-header:hover .ts-action {
+  .ts-header:hover :global(.row-action) {
     opacity: 1;
   }
 
@@ -249,18 +217,4 @@
     font-size: 0.8rem;
   }
 
-  .add-item-btn {
-    all: unset;
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    padding: 2px;
-    border-radius: 3px;
-
-    &:hover {
-      color: var(--color-accent);
-    }
-  }
 </style>

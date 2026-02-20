@@ -76,7 +76,7 @@
     <div class="metrics-row"><span class="label" title="Number of lists">Lists</span><span>{metrics.numLists}</span></div>
     <div class="metrics-row"><span class="label" title="Number of cards">Cards</span><span>{metrics.numCards}</span></div>
     <div class="metrics-row"><span class="label" title="Highest card ID">Max ID</span><span>{metrics.maxID}</span></div>
-    <div class="metrics-row"><span class="label" title="Total size of all markdown cards">MD size</span><span>{metrics.fileSizeMB.toFixed(1)} MB</span></div>
+    <div class="metrics-row"><span class="label" title="Total size of all markdown cards">MD size</span><span>{metrics.fileSizeMB >= 1 ? `${metrics.fileSizeMB.toFixed(1)} MB` : `${(metrics.fileSizeMB * 1024).toFixed(1)} KB`}</span></div>
     {#if $loadProfile}
       <div class="metrics-divider"></div>
       <div class="metrics-row">

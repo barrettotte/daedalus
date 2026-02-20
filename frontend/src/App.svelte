@@ -304,6 +304,9 @@
   function unpackBoardResponse(response: main.BoardResponse, roundTripMs: number = 0): void {
     boardData.set(response.lists);
     boardPath.set(response.boardPath || "");
+    if (response.boardPath) {
+      localStorage.setItem("daedalus:lastBoard", response.boardPath);
+    }
 
     let maxId = 0;
     for (const cards of Object.values(response.lists)) {
@@ -352,9 +355,14 @@
     }
   }
 
-  // Checks app config and either auto-loads the default board or shows the welcome modal.
+  // Checks for a previously-open board, then app config default, then shows the welcome modal.
   async function startApp(): Promise<void> {
     try {
+      const lastBoard = localStorage.getItem("daedalus:lastBoard");
+      if (lastBoard) {
+        await initBoard(lastBoard);
+        return;
+      }
       const cfg = await GetAppConfig();
       if (cfg.defaultBoard) {
         await initBoard(cfg.defaultBoard);

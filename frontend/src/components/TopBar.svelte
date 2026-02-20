@@ -259,7 +259,7 @@
           <span class="search-icon"><Icon name="search" size={14} /></span>
           <input type="text" class="search-input" placeholder="Search cards... (#label, url:, icon:)"
             bind:this={searchInputEl} bind:value={$searchQuery}
-            onkeydown={handleSearchKeydown} onblur={() => { if (!filterOpen) { closeSearch(); } }}
+            onkeydown={handleSearchKeydown} onblur={() => { if (!filterOpen && !$searchQuery.trim()) { closeSearch(); } }}
           />
           <button class="search-filter-btn" class:active={filterOpen} title="Filter by field" onmousedown={(e) => { e.preventDefault(); filterOpen = !filterOpen; }}>
             <Icon name="filter" size={12} />

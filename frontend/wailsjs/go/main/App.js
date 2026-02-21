@@ -54,6 +54,10 @@ export function GetScratchpad() {
   return window['go']['main']['App']['GetScratchpad']();
 }
 
+export function GetVersion() {
+  return window['go']['main']['App']['GetVersion']();
+}
+
 export function ListIcons() {
   return window['go']['main']['App']['ListIcons']();
 }

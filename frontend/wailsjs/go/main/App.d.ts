@@ -29,6 +29,8 @@ export function GetMetrics():Promise<main.AppMetrics>;
 
 export function GetScratchpad():Promise<string>;
 
+export function GetVersion():Promise<string>;
+
 export function ListIcons():Promise<Array<string>>;
 
 export function LoadBoard(arg1:string):Promise<main.BoardResponse>;

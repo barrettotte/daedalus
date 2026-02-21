@@ -11,6 +11,9 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/linux"
 )
 
+// version is set at build time via ldflags: -ldflags "-X main.version=v0.1.2"
+var version = "dev"
+
 //go:embed all:frontend/dist
 var assets embed.FS
 

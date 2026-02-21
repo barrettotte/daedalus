@@ -59,6 +59,11 @@ func NewApp() *App {
 	return &App{}
 }
 
+// GetVersion returns the app version set at build time.
+func (a *App) GetVersion() string {
+	return version
+}
+
 // startup is called when the app starts
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx

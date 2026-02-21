@@ -2,17 +2,21 @@
   // About modal showing app information - version, stack, and project links.
 
   import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
+  import { GetVersion } from "../../wailsjs/go/main/App";
   import Icon from "./Icon.svelte";
   import { backdropClose } from "../lib/utils";
 
   let { onclose }: { onclose: () => void } = $props();
 
-  const info = [
+  let appVersion = $state("...");
+  GetVersion().then((v) => { appVersion = v; });
+
+  const info = $derived([
     { label: "Repository", value: "github.com/barrettotte/daedalus", href: "https://github.com/barrettotte/daedalus" },
-    { label: "Version", value: "0.1.0" },
+    { label: "Version", value: appVersion },
     { label: "Backend", value: "Go 1.23, Wails v2" },
     { label: "Frontend", value: "Svelte 5, TypeScript, SCSS" },
-  ];
+  ]);
 </script>
 
 <div class="modal-backdrop centered z-high" role="presentation" use:backdropClose={onclose}>

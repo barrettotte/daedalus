@@ -53,7 +53,7 @@ jobs:
 
       - name: Build desktop app (Linux/macOS)
         if: matrix.platform != 'windows'
-        run: wails build
+        run: wails build -ldflags "-X main.version=${{ github.ref_name }}"
 
       - name: Install NSIS
         if: matrix.platform == 'windows'
@@ -61,15 +61,15 @@ jobs:
 
       - name: Build desktop app (Windows)
         if: matrix.platform == 'windows'
-        run: wails build -nsis
+        run: wails build -nsis -ldflags "-X main.version=${{ github.ref_name }}"
 
       - name: Build CLI (Linux/macOS)
         if: matrix.platform != 'windows'
-        run: go build -o build/bin/daedalus-cli ./cmd/daedalus-cli
+        run: go build -ldflags "-X main.version=${{ github.ref_name }}" -o build/bin/daedalus-cli ./cmd/daedalus-cli
 
       - name: Build CLI (Windows)
         if: matrix.platform == 'windows'
-        run: go build -o build/bin/daedalus-cli.exe ./cmd/daedalus-cli
+        run: go build -ldflags "-X main.version=${{ github.ref_name }}" -o build/bin/daedalus-cli.exe ./cmd/daedalus-cli
 
       - name: Package (Linux)
         if: matrix.platform == 'linux'
@@ -129,6 +129,15 @@ jobs:
         with:
           name: daedalus-linux-amd64
           path: artifact
+
+      - name: Patch metainfo version from tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          VERSION="${TAG#v}"
+          DATE="$(date -u +%Y-%m-%d)"
+          sed -i "s/version=\"0.0.0\" date=\"1970-01-01\"/version=\"${VERSION}\" date=\"${DATE}\"/" \
+            build/linux/com.github.barrettotte.daedalus.metainfo.xml
 
       - name: Prepare Flatpak build directory
         run: |

@@ -13,6 +13,9 @@
     </p>
   </description>
   <launchable type="desktop-id">com.github.barrettotte.daedalus.desktop</launchable>
+  <developer id="com.github.barrettotte">
+    <name>Barrett Otte</name>
+  </developer>
   <url type="homepage">https://github.com/barrettotte/daedalus</url>
   <url type="bugtracker">https://github.com/barrettotte/daedalus/issues</url>
   <releases>
@@ -22,6 +25,34 @@
       </description>
     </release>
   </releases>
+  <keywords>
+    <keyword>kanban</keyword>
+    <keyword>board</keyword>
+    <keyword>project</keyword>
+    <keyword>markdown</keyword>
+  </keywords>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Kanban board with lists and cards</caption>
+      <image>https://raw.githubusercontent.com/barrettotte/daedalus/master/docs/screenshots/board.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Card detail view</caption>
+      <image>https://raw.githubusercontent.com/barrettotte/daedalus/master/docs/screenshots/card.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Board menu</caption>
+      <image>https://raw.githubusercontent.com/barrettotte/daedalus/master/docs/screenshots/board-menu.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Search and filtering</caption>
+      <image>https://raw.githubusercontent.com/barrettotte/daedalus/master/docs/screenshots/search.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Board statistics</caption>
+      <image>https://raw.githubusercontent.com/barrettotte/daedalus/master/docs/screenshots/stats.png</image>
+    </screenshot>
+  </screenshots>
   <content_rating type="oars-1.1" />
   <categories>
     <category>Office</category>

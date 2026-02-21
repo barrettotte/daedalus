@@ -8,14 +8,14 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Linux system deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev build-essential pkg-config
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev build-essential pkg-config
 
       - uses: actions/setup-go@v5
         with:
@@ -45,10 +45,10 @@ jobs:
           fi
 
       - name: Go vet
-        run: go vet ./...
+        run: go vet -tags webkit2_41 ./...
 
       - name: Go test
-        run: go test ./...
+        run: go test -tags webkit2_41 ./...
 
       - name: Svelte check
         run: npx svelte-check

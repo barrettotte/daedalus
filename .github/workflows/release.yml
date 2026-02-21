@@ -103,8 +103,53 @@ jobs:
           name: ${{ matrix.artifact }}
           path: dist/*
 
-  release:
+  flatpak:
     needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Flatpak and flatpak-builder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+      - name: Cache Flatpak runtime
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/flatpak
+          key: flatpak-gnome-47
+
+      - name: Install GNOME runtime
+        run: flatpak install --user -y flathub org.gnome.Platform//47 org.gnome.Sdk//47
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: daedalus-linux-amd64
+          path: artifact
+
+      - name: Prepare Flatpak build directory
+        run: |
+          mkdir -p flatpak-build
+          tar -xzf artifact/daedalus-linux-amd64.tar.gz -C flatpak-build
+          cp build/linux/com.github.barrettotte.daedalus.metainfo.xml flatpak-build/
+          cp build/linux/com.github.barrettotte.daedalus.yml flatpak-build/
+
+      - name: Build Flatpak
+        run: |
+          cd flatpak-build
+          flatpak-builder --user --force-clean --repo=repo build-dir com.github.barrettotte.daedalus.yml
+          flatpak build-bundle repo ../daedalus-linux-amd64.flatpak com.github.barrettotte.daedalus
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daedalus-flatpak
+          path: daedalus-linux-amd64.flatpak
+
+  release:
+    needs: [build, flatpak]
     runs-on: ubuntu-latest
 
     steps:
@@ -119,3 +164,4 @@ jobs:
           files: |
             artifacts/*.tar.gz
             artifacts/*.zip
+            artifacts/*.flatpak

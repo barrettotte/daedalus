@@ -1,0 +1,25 @@
+app-id: com.github.barrettotte.daedalus
+runtime: org.gnome.Platform
+runtime-version: "47"
+sdk: org.gnome.Sdk
+command: daedalus
+
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --filesystem=home
+  - --device=dri
+
+modules:
+  - name: daedalus
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 daedalus ${FLATPAK_DEST}/bin/daedalus
+      - install -Dm755 daedalus-cli ${FLATPAK_DEST}/bin/daedalus-cli
+      - install -Dm644 daedalus.desktop ${FLATPAK_DEST}/share/applications/com.github.barrettotte.daedalus.desktop
+      - install -Dm644 daedalus.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/com.github.barrettotte.daedalus.svg
+      - install -Dm644 com.github.barrettotte.daedalus.metainfo.xml ${FLATPAK_DEST}/share/metainfo/com.github.barrettotte.daedalus.metainfo.xml
+    sources:
+      - type: dir
+        path: .

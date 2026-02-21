@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.github.barrettotte.daedalus</id>
+  <name>Daedalus</name>
+  <summary>Kanban board desktop app</summary>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>
+      Daedalus is a lightweight kanban board that stores cards as plain markdown
+      files with YAML frontmatter. Built with Go and Svelte for fast, local-first
+      project management.
+    </p>
+  </description>
+  <launchable type="desktop-id">com.github.barrettotte.daedalus.desktop</launchable>
+  <url type="homepage">https://github.com/barrettotte/daedalus</url>
+  <url type="bugtracker">https://github.com/barrettotte/daedalus/issues</url>
+  <releases>
+    <release version="0.1.0" date="2026-02-20">
+      <description>
+        <p>Initial release.</p>
+      </description>
+    </release>
+  </releases>
+  <content_rating type="oars-1.1" />
+  <categories>
+    <category>Office</category>
+    <category>ProjectManagement</category>
+  </categories>
+</component>

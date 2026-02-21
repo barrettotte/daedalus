@@ -2,7 +2,8 @@
 Name=Daedalus
 Comment=Kanban board desktop app
 Exec=daedalus
-Icon=ICON_PATH
+Icon=com.github.barrettotte.daedalus
 Type=Application
 Categories=Office;ProjectManagement;
 StartupWMClass=daedalus
+StartupNotify=true

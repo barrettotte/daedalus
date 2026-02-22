@@ -77,12 +77,17 @@ def build_frontmatter(card, labels_map, list_pos, checklists_data) -> str:
 
     checklists = [cl for cl in checklists_data if cl['idCard'] == card['id']]
     if checklists:
+        label = checklists[0].get('name', 'Checklist')
         lines.append("checklist:")
+        lines.append(f"  label: {escape_yaml_string(label)}")
+        lines.append("  items:")
+        idx = 0
         for cl in checklists:
-            for idx, item in enumerate(sorted(cl['checkItems'], key=lambda x: x['pos'])):
+            for item in sorted(cl['checkItems'], key=lambda x: x['pos']):
                 desc = escape_yaml_string(item['name'])
                 is_done = "true" if item['state'] == 'complete' else "false"
-                lines.append(f"  - {{ idx: {idx}, desc: {desc}, done: {is_done} }}")
+                lines.append(f"    - {{ idx: {idx}, desc: {desc}, done: {is_done} }}")
+                idx += 1
 
     lines.append("trello_data:")
     lines.append(f"  id: {card['id']}")

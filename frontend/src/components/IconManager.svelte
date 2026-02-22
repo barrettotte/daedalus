@@ -127,10 +127,10 @@
     <div class="modal-header">
       <h2 class="modal-title">Icon Manager</h2>
       <div class="header-actions">
-        <button class="upload-btn" onclick={openInExplorer} title="Open icons folder in file manager">
+        <button class="header-btn" onclick={openInExplorer} title="Open icons folder in file manager">
           <Icon name="folder" size={12} />
         </button>
-        <button class="upload-btn" onclick={triggerUpload}>Upload</button>
+        <button class="header-btn" onclick={triggerUpload}>Upload</button>
         <button class="modal-close" onclick={onclose} title="Close">
           <Icon name="close" size={16} />
         </button>
@@ -166,13 +166,15 @@
                   <span class="icon-count">{iconCounts[name] || 0}</span>
                 </td>
                 <td class="col-actions">
-                  {#if confirmingDelete === name}
-                    <button class="delete-btn confirming" onclick={() => handleDelete(name)}>confirm?</button>
-                  {:else}
-                    <button class="delete-btn" onclick={() => { confirmingDelete = name; }} title="Delete icon">
-                      <Icon name="trash" size={12} />
-                    </button>
-                  {/if}
+                  <div class="actions-inner">
+                    {#if confirmingDelete === name}
+                      <button class="delete-btn confirming" onclick={() => handleDelete(name)}>confirm?</button>
+                    {:else}
+                      <button class="delete-btn" onclick={() => { confirmingDelete = name; }} title="Delete icon">
+                        <Icon name="trash" size={12} />
+                      </button>
+                    {/if}
+                  </div>
                 </td>
               </tr>
             {/each}
@@ -218,48 +220,6 @@
   .icon-count {
     font-size: 0.78rem;
     color: var(--color-text-muted);
-  }
-
-  .delete-btn {
-    all: unset;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    border-radius: 3px;
-
-    &:hover {
-      color: var(--color-error);
-      background: var(--overlay-hover-medium);
-    }
-
-    &.confirming {
-      width: auto;
-      font-size: 0.68rem;
-      font-weight: 600;
-      color: var(--color-error);
-      padding: 2px 6px;
-    }
-  }
-
-
-  .upload-btn {
-    all: unset;
-    font-size: 0.75rem;
-    color: var(--color-text-primary);
-    background: var(--color-bg-base);
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-    padding: 3px 10px;
-    cursor: pointer;
-
-    &:hover {
-      background: var(--overlay-hover);
-      border-color: var(--color-text-tertiary);
-    }
   }
 
   .hidden-input {

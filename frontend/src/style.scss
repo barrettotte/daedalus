@@ -677,6 +677,57 @@ input[type="number"] {
     }
 }
 
+.header-btn {
+    all: unset;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    color: var(--color-text-primary);
+    background: var(--color-bg-base);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 3px 10px;
+    cursor: pointer;
+
+    &:hover {
+        background: var(--overlay-hover);
+        border-color: var(--color-text-tertiary);
+    }
+}
+
+.delete-btn {
+    all: unset;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    border-radius: 3px;
+
+    &:hover {
+        color: var(--color-error);
+        background: var(--overlay-hover-medium);
+    }
+
+    &.confirming {
+        width: auto;
+        font-size: 0.68rem;
+        font-weight: 600;
+        color: var(--color-error);
+        padding: 2px 6px;
+    }
+}
+
+.actions-inner {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+}
+
 .pos-presets {
     margin-left: auto;
     display: flex;

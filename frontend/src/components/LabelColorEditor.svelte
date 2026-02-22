@@ -13,10 +13,15 @@
   let confirmingDelete = $state<string | null>(null);
   let editingLabel = $state<string | null>(null);
   let editingName = $state("");
+  let addingNew = $state(false);
+  let newLabelName = $state("");
 
-  // Counts how many cards use each label, then returns sorted label+count pairs.
+  // Counts how many cards use each label, merges with board-defined labels, then returns sorted.
   let allLabels = $derived.by(() => {
     const counts = new Map<string, number>();
+    for (const name of Object.keys($labelColors)) {
+      counts.set(name, 0);
+    }
     for (const cards of Object.values($boardData)) {
       for (const card of cards) {
         if (card.metadata.labels) {
@@ -134,6 +139,37 @@
     }
   }
 
+  // Creates a new label with a default hash-based color.
+  function commitNewLabel(): void {
+    const name = newLabelName.trim();
+    addingNew = false;
+    newLabelName = "";
+    if (!name) {
+      return;
+    }
+    if ($labelColors[name] || allLabels.some(l => l.name === name)) {
+      addToast(`Label "${name}" already exists`);
+      return;
+    }
+    labelColors.update(colors => {
+      const updated = { ...colors, [name]: labelColor(name, colors) };
+      saveWithToast(SaveLabelColors(updated), "save label colors");
+      return updated;
+    });
+  }
+
+  // Handles keydown in the new label input.
+  function handleNewLabelKeydown(e: KeyboardEvent): void {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commitNewLabel();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      addingNew = false;
+      newLabelName = "";
+    }
+  }
+
 </script>
 
 <div class="modal-backdrop centered z-high" role="presentation" use:backdropClose={onclose}>
@@ -141,7 +177,8 @@
     <div class="modal-header">
       <h2 class="modal-title">Label Manager</h2>
       <div class="header-actions">
-        <button class="collapse-toggle" onclick={toggleLabelsExpanded} title={$labelsExpanded ? "Collapse labels to dots" : "Expand labels to text"}>
+        <button class="header-btn" onclick={() => { addingNew = true; }} title="Create a new label">+ New</button>
+        <button class="header-btn" onclick={toggleLabelsExpanded} title={$labelsExpanded ? "Collapse labels to dots" : "Expand labels to text"}>
           {$labelsExpanded ? "Collapse" : "Expand"}
         </button>
         <button class="modal-close" onclick={onclose} title="Close">
@@ -150,8 +187,8 @@
       </div>
     </div>
     <div class="editor-body">
-      {#if allLabels.length === 0}
-        <p class="empty-msg">No labels found on any cards.</p>
+      {#if allLabels.length === 0 && !Object.keys($labelColors).length && !addingNew}
+        <p class="empty-msg">No labels found. Click "+ New" to create one.</p>
       {:else}
         <table class="manager-table">
           <thead>
@@ -163,6 +200,15 @@
             </tr>
           </thead>
           <tbody>
+            {#if addingNew}
+              <tr class="label-row">
+                <td class="col-label" colspan="4">
+                  <input type="text" class="form-input rename-input" placeholder="Label name" bind:value={newLabelName}
+                    onblur={commitNewLabel} onkeydown={handleNewLabelKeydown} use:autoFocusInput
+                  />
+                </td>
+              </tr>
+            {/if}
             {#each allLabels as { name, count }}
               {@const isCustom = !!$labelColors[name]}
               <tr class="label-row" class:active={activeLabel === name}>
@@ -234,14 +280,6 @@
     text-align: right !important;
   }
 
-  .actions-inner {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 2px;
-  }
-
-
   .label-row.active td {
     border-bottom-color: transparent;
   }
@@ -291,23 +329,6 @@
     height: 18px;
   }
 
-  .delete-btn {
-    width: 20px;
-    height: 20px;
-
-    &:hover {
-      color: var(--color-error);
-    }
-
-    &.confirming {
-      width: auto;
-      font-size: 0.68rem;
-      font-weight: 600;
-      color: var(--color-error);
-      padding: 2px 6px;
-    }
-  }
-
   .picker-row td {
     padding: 0 0 6px 0;
     border-bottom: 1px solid var(--color-border);
@@ -317,17 +338,4 @@
     padding: 6px 0;
   }
 
-  .collapse-toggle {
-    all: unset;
-    font-size: 0.75rem;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    padding: 2px 8px;
-    border-radius: 4px;
-
-    &:hover {
-      color: var(--color-text-primary);
-      background: var(--overlay-hover);
-    }
-  }
 </style>

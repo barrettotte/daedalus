@@ -221,6 +221,12 @@
     <div class="modal-header">
       <h2 class="modal-title">Template Manager</h2>
       <div class="header-actions">
+        <button class="header-btn" onclick={addTemplate}>
+          <Icon name="plus" size={10} /> New
+        </button>
+        {#if dirty}
+          <button class="header-btn" onclick={save}>Save</button>
+        {/if}
         <button class="modal-close" onclick={onclose} title="Close">
           <Icon name="close" size={16} />
         </button>
@@ -431,14 +437,6 @@
         </table>
       {/if}
 
-      <div class="template-actions">
-        <button class="add-template-btn" onclick={addTemplate}>
-          <Icon name="plus" size={12} /> New Template
-        </button>
-        {#if dirty}
-          <button class="save-template-btn" onclick={save}>Save</button>
-        {/if}
-      </div>
     </div>
   </div>
 </div>
@@ -454,13 +452,6 @@
 
   .col-actions {
     text-align: right !important;
-  }
-
-  .actions-inner {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 2px;
   }
 
   .template-row.active td {
@@ -507,23 +498,6 @@
 
     &:hover {
       color: var(--color-accent);
-    }
-  }
-
-  .delete-btn {
-    width: 20px;
-    height: 20px;
-
-    &:hover {
-      color: var(--color-error);
-    }
-
-    &.confirming {
-      width: auto;
-      font-size: 0.68rem;
-      font-weight: 600;
-      color: var(--color-error);
-      padding: 2px 6px;
     }
   }
 
@@ -776,48 +750,4 @@
     }
   }
 
-  .template-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding-top: 12px;
-  }
-
-  .add-template-btn {
-    all: unset;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 0.75rem;
-    color: var(--color-text-primary);
-    background: var(--color-bg-base);
-    border: 1px solid var(--color-border);
-    cursor: pointer;
-    padding: 5px 12px;
-    border-radius: 4px;
-
-    &:hover {
-      background: var(--overlay-hover);
-      border-color: var(--color-text-tertiary);
-    }
-  }
-
-  .save-template-btn {
-    all: unset;
-    display: inline-flex;
-    align-items: center;
-    font-size: 0.75rem;
-    color: var(--color-text-primary);
-    background: var(--color-bg-base);
-    border: 1px solid var(--color-border);
-    cursor: pointer;
-    padding: 5px 12px;
-    border-radius: 4px;
-    margin-left: auto;
-
-    &:hover {
-      background: var(--overlay-hover);
-      border-color: var(--color-text-tertiary);
-    }
-  }
 </style>
